@@ -4,8 +4,10 @@ import { resolve,extname } from 'node:path';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 const base=process.cwd();
+const securityHeaders=JSON.parse(await readFile('vercel.json','utf8')).headers[0].headers;
 const server=createServer(async(req,res)=>{
  try{
+  for(const header of securityHeaders)res.setHeader(header.key,header.value);
   const pathname=new URL(req.url,'http://localhost').pathname;
   const path=resolve(base,'.'+(pathname==='/'?'/index.html':pathname));
   if(!path.startsWith(base+'/')){res.writeHead(403);res.end();return}
@@ -61,7 +63,7 @@ try{
  await page.evaluate(()=>document.querySelector('[data-nav="leads"]').click());
  await page.locator('[data-action="new"]').click();
  await page.locator('#f_name').fill('Actual typed lead');
- await page.locator('#f_type').selectOption('Corporate');await page.locator('#f_branch').selectOption('Pune');await page.locator('#f_status').selectOption('New');
+ await page.locator('#f_type').selectOption('Corporate');await page.locator('#f_branch').selectOption('Pune');await page.locator('#f_status').selectOption('New');await page.locator('#f_scopeBranch').fill('PUNE');await page.locator('#f_scopeLine').selectOption('STTS');
  await page.locator('#saveForm').click();
  await page.getByText('Record saved',{exact:true}).waitFor();
  assert.equal(records.leads[0].name,'Actual typed lead');

@@ -2,9 +2,10 @@ import test,{after,before} from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import pg from 'pg';
+import { fields } from '../server/contracts.mjs';
 import { createHandler,configuration } from '../server/api.mjs';
 const enabled=!!process.env.TEST_DATABASE_URL;
-let pool,handler;
+let pool,handler,config;
 const sent=[];
 const origin='https://crm.example.org';
 let address=1;
@@ -13,7 +14,7 @@ before(async()=>{
  if(!enabled)return;
  pool=new pg.Pool({connectionString:process.env.TEST_DATABASE_URL,max:8});
  await pool.query(await readFile(new URL('../db/001_initial.sql',import.meta.url),'utf8'));
- const config=configuration({DATABASE_URL:process.env.TEST_DATABASE_URL,APP_ORIGIN:origin,RESEND_API_KEY:'test-key',EMAIL_FROM:'SCRM <test@example.org>',TOKEN_SECRET:'a'.repeat(64)});
+ config=configuration({DATABASE_URL:process.env.TEST_DATABASE_URL,APP_ORIGIN:origin,RESEND_API_KEY:'test-key',EMAIL_FROM:'SCRM <test@example.org>',TOKEN_SECRET:'a'.repeat(64)});
  // Capture only the provider boundary in tests. Production has no mock email/OTP path.
  handler=createHandler({pool,config,deliver:async message=>sent.push(message)});
 });
@@ -30,7 +31,7 @@ async function account(email,role='member',approved=true){
  const message=sent.findLast(m=>m.to===email);
  const code=message.text.match(/\b\d{6}\b/)[0];
  assert.equal((await call('auth/verify','POST',{email,code})).status,200);
- if(approved)await pool.query("UPDATE users SET status='approved',role=$2 WHERE email=$1",[email,role]);
+ if(approved){await pool.query("UPDATE users SET status='approved',role=$2 WHERE email=$1",[email,role]);await pool.query("INSERT INTO user_scopes(user_id,branch,line) SELECT id,'PUNE','STTS' FROM users WHERE email=$1",[email]);}
  const response=await call('auth/login','POST',{email,password});
  return {cookie:response.headers['Set-Cookie']?.split(';')[0],csrf:response.body.csrf,email,response};
 }
@@ -66,7 +67,7 @@ test('protected CRUD validates, checks roles, prevents stale writes, audits, and
  assert.match(member.response.headers['Set-Cookie'],/HttpOnly; Secure; SameSite=Lax/);
  assert.equal((await call('records/employees','GET',undefined,member)).status,403);
  assert.equal((await call('audit','GET',undefined,member)).status,403);
- const data={name:'Example customer',identity:'Organisation',category:'Corporate',line:'STTS',status:'Active'};
+ const data={name:'Example customer',identity:'Organisation',category:'Corporate',line:'STTS',status:'Active',scopeBranch:'PUNE',scopeLine:'STTS'};
  assert.equal((await call('records/customers','POST',data,viewer)).status,403);
  assert.equal((await call('records/customers','POST',data,{...member,csrf:''})).status,403);
  assert.equal((await call('records/customers','POST',data,member,{origin:'https://evil.example'})).status,403);
@@ -114,4 +115,54 @@ test('rate limit counters survive separate handler invocations and expired sessi
  assert.equal((await call('records/leads','GET',undefined,user)).status,401);
  for(let n=0;n<5;n++)assert.equal((await call('auth/forgot','POST',{email:'absent@example.org'})).status,200);
  assert.equal((await call('auth/forgot','POST',{email:'absent@example.org'})).status,429);
+});
+
+test('email transport failure fails visibly without returning secrets; resend can recover',{skip:!enabled},async()=>{
+ const normal=handler;
+ handler=createHandler({pool,config,deliver:async()=>{throw Error('Provider refused')}});
+ try{
+  const response=await call('auth/register','POST',{email:'delivery@example.org',password,name:'Delivery'});
+  assert.equal(response.status,503);
+  assert.equal(JSON.stringify(response.body).includes('verification code'),false);
+ }finally{handler=normal}
+ assert.equal((await call('auth/resend','POST',{email:'delivery@example.org'})).status,200);
+ const code=sent.findLast(m=>m.to==='delivery@example.org').text.match(/\b\d{6}\b/)[0];
+ await pool.query("UPDATE challenges SET expires_at=now()-interval '1 second' WHERE user_id=(SELECT id FROM users WHERE email='delivery@example.org')");
+ assert.equal((await call('auth/verify','POST',{email:'delivery@example.org',code})).status,400);
+});
+
+test('all nine record modules persist and are readable through a fresh handler; audit is append-only',{skip:!enabled},async()=>{
+ const admin=await account('allmodules@example.org','admin');
+ for(const [module,schema] of Object.entries(fields)){
+  const data=Object.fromEntries(schema.map(([key,,type,,choices])=>[key,type==='select'?choices[0]:type==='number'?10:type==='email'?'person@example.org':type==='date'?'2026-10-15':key==='scopeBranch'?'PUNE':'Persistence Test']));
+  const response=await call('records/'+module,'POST',data,admin);assert.equal(response.status,200,module);
+  const normal=handler;
+  handler=createHandler({pool,config,deliver:async message=>sent.push(message)});
+  try{const read=await call('records/'+module,'GET',undefined,admin);assert.ok(read.body.records.some(r=>r.id===response.body.record.id),module)}finally{handler=normal}
+ }
+ await assert.rejects(pool.query("UPDATE audit SET action='tampered' WHERE id=(SELECT min(id) FROM audit)"),/append-only/);
+});
+
+test('branch and business-line pairs constrain reads, writes and transfers; scope changes revoke sessions',{skip:!enabled},async()=>{
+ const admin=await account('scopeadmin@example.org','admin'),member=await account('scopemember@example.org'),other=await account('scopeother@example.org','manager');
+ const otherId=(await pool.query('SELECT id FROM users WHERE email=$1',[other.email])).rows[0].id;
+ assert.equal((await call('access/'+otherId,'PUT',{role:'manager',status:'approved',scopes:[{branch:'DUBAI',line:'CAR'}]},admin)).status,200);
+ assert.equal((await call('records/customers','GET',undefined,other)).status,401);
+ const login=await call('auth/login','POST',{email:other.email,password});
+ const otherSession={cookie:login.headers['Set-Cookie'].split(';')[0],csrf:login.body.csrf};
+ const data={name:'Scoped company',identity:'Organisation',category:'Corporate',line:'STTS',status:'Active',scopeBranch:'PUNE',scopeLine:'STTS'};
+ const record=(await call('records/customers','POST',data,member)).body.record;
+ const read=await call('records/customers','GET',undefined,otherSession);assert.equal(read.status,200);
+ assert.equal(read.body.records.some(r=>r.id===record.id),false);
+ assert.equal((await call('records/customers','POST',data,otherSession)).status,403);
+ assert.equal((await call('records/customers/'+record.id,'PUT',{data,version:1},otherSession)).status,404);
+ assert.equal((await call('records/customers/'+record.id,'DELETE',{version:1},otherSession)).status,404);
+ const memberId=(await pool.query('SELECT id FROM users WHERE email=$1',[member.email])).rows[0].id;
+ await call('access/'+memberId,'PUT',{role:'member',status:'approved',scopes:[{branch:'PUNE',line:'STTS'},{branch:'DUBAI',line:'CAR'}]},admin);
+ const fresh=await call('auth/login','POST',{email:member.email,password});
+ const memberSession={cookie:fresh.headers['Set-Cookie'].split(';')[0],csrf:fresh.body.csrf};
+ assert.equal((await call('records/customers','POST',{...data,scopeLine:'CAR'},memberSession)).status,403);
+ assert.equal((await call('records/customers/'+record.id,'PUT',{version:1,data:{...data,scopeBranch:'DUBAI',scopeLine:'CAR'}},memberSession)).status,403);
+ const access=await call('access','GET',undefined,admin);
+ assert.deepEqual(access.body.users.find(u=>u.id===memberId).scopes.sort((a,b)=>a.branch.localeCompare(b.branch)),[{branch:'DUBAI',line:'CAR'},{branch:'PUNE',line:'STTS'}]);
 });

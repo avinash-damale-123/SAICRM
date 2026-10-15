@@ -26,7 +26,7 @@ test('roles restrict administrative modules and destructive operations',()=>{
 });
 test('all existing modules have a valid field contract and reject mass assignment',()=>{
  for(const [module,schema] of Object.entries(fields)){
-  const input=Object.fromEntries(schema.map(([key,,type,,choices])=>[key,type==='select'?choices[0]:type==='number'?10:type==='email'?'person@example.org':type==='date'?'2026-10-15':'Example']));
+  const input=Object.fromEntries(schema.map(([key,,type,,choices])=>[key,type==='select'?choices[0]:type==='number'?10:type==='email'?'person@example.org':type==='date'?'2026-10-15':key==='scopeBranch'?'PUNE':'Example']));
   assert.ok(validateRecord(module,input));
   for(const extra of ['id','version','created_by','emailVerified','isAdmin','__proto__']){
    const malicious=JSON.parse(JSON.stringify(input));Object.defineProperty(malicious,extra,{value:'attacker',enumerable:true});

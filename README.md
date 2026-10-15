@@ -24,6 +24,6 @@ Set environment variables using [.env.example](.env.example) as a reference. Scr
 
 ## Scope
 
-One shared internal workspace. Branch/department/business-line isolation, financial workflows, external booking systems, notifications and planned directory capabilities need further work. Employee master fields never grant account access. Do not enable real customer use until configuration, delivered email, database security/backup and access policy have been verified.
+One internal workspace with explicit branch/business-line access pairs and administrator visibility across all scopes. Department-specific access, multiple tenants, financial workflows, external booking systems, notifications and planned directory capabilities need further work. Employee master fields never grant account access. Do not enable real customer use until configuration, delivered email, database security/backup and access policy have been verified.
 
 Original implementation inspired by common enterprise CRM patterns; no Salesforce source code or assets.

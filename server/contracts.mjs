@@ -67,6 +67,24 @@ export const fields = {
       "value",
       "Estimated Value (USD)",
       "number"
+    ],
+    [
+      "scopeBranch",
+      "Access branch code",
+      "text",
+      1
+    ],
+    [
+      "scopeLine",
+      "Access business line",
+      "select",
+      1,
+      [
+        "STTS",
+        "CAR",
+        "T3",
+        "GSA"
+      ]
     ]
   ],
   "customers": [
@@ -129,6 +147,24 @@ export const fields = {
         "Active",
         "Inactive"
       ]
+    ],
+    [
+      "scopeBranch",
+      "Access branch code",
+      "text",
+      1
+    ],
+    [
+      "scopeLine",
+      "Access business line",
+      "select",
+      1,
+      [
+        "STTS",
+        "CAR",
+        "T3",
+        "GSA"
+      ]
     ]
   ],
   "contacts": [
@@ -166,6 +202,24 @@ export const fields = {
       [
         "Active",
         "Inactive"
+      ]
+    ],
+    [
+      "scopeBranch",
+      "Access branch code",
+      "text",
+      1
+    ],
+    [
+      "scopeLine",
+      "Access business line",
+      "select",
+      1,
+      [
+        "STTS",
+        "CAR",
+        "T3",
+        "GSA"
       ]
     ]
   ],
@@ -210,6 +264,24 @@ export const fields = {
       "close",
       "Expected Close",
       "date"
+    ],
+    [
+      "scopeBranch",
+      "Access branch code",
+      "text",
+      1
+    ],
+    [
+      "scopeLine",
+      "Access business line",
+      "select",
+      1,
+      [
+        "STTS",
+        "CAR",
+        "T3",
+        "GSA"
+      ]
     ]
   ],
   "activities": [
@@ -258,6 +330,24 @@ export const fields = {
       "owner",
       "Owner",
       "text"
+    ],
+    [
+      "scopeBranch",
+      "Access branch code",
+      "text",
+      1
+    ],
+    [
+      "scopeLine",
+      "Access business line",
+      "select",
+      1,
+      [
+        "STTS",
+        "CAR",
+        "T3",
+        "GSA"
+      ]
     ]
   ],
   "quotes": [
@@ -309,6 +399,24 @@ export const fields = {
       "valid",
       "Valid Until",
       "date"
+    ],
+    [
+      "scopeBranch",
+      "Access branch code",
+      "text",
+      1
+    ],
+    [
+      "scopeLine",
+      "Access business line",
+      "select",
+      1,
+      [
+        "STTS",
+        "CAR",
+        "T3",
+        "GSA"
+      ]
     ]
   ],
   "bookings": [
@@ -359,6 +467,24 @@ export const fields = {
       "date",
       "Booking Date",
       "date"
+    ],
+    [
+      "scopeBranch",
+      "Access branch code",
+      "text",
+      1
+    ],
+    [
+      "scopeLine",
+      "Access business line",
+      "select",
+      1,
+      [
+        "STTS",
+        "CAR",
+        "T3",
+        "GSA"
+      ]
     ]
   ],
   "employees": [
@@ -467,6 +593,7 @@ export function validateRecord(module, input) {
     if (typeof value !== 'string') throw new Error('Invalid ' + label);
     const clean = value.trim();
     if ((required && !clean) || clean.length > (key === 'email' ? 254 : 500) || /[\u0000-\u001f\u007f]/u.test(clean)) throw new Error('Invalid ' + label);
+    if(key==='scopeBranch' && !/^[A-Z0-9][A-Z0-9_-]{0,39}$/.test(clean)) throw new Error('Branch access code must use uppercase letters, digits, underscores or hyphens');
     if (type === 'select' && !choices.includes(clean)) throw new Error('Invalid ' + label);
     if (type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(clean)) throw new Error('Invalid email');
     if (type === 'date' && (!/^\d{4}-\d{2}-\d{2}$/u.test(clean) || !Number.isFinite(Date.parse(clean)) || new Date(clean).toISOString().slice(0, 10) !== clean)) throw new Error('Invalid date');

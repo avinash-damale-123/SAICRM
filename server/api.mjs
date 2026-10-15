@@ -11,7 +11,7 @@ const emailOf = value => {
  return value.trim().toLowerCase();
 };
 const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
-const publicUser = user => ({ id: user.id, email: user.email, name: user.name, role: user.role, status: user.status, emailVerified: user.email_verified });
+const publicUser = user => ({ id: user.id, email: user.email, name: user.name, role: user.role, status: user.status, emailVerified: user.email_verified, scopes: user.scopes || [] });
 const audit = (client, actor, action, module, id) => client.query('INSERT INTO audit(actor,action,module,record_id) VALUES($1,$2,$3,$4)', [actor, action, module, id]);
 const generic = { message: 'If this address is eligible, an email has been sent. Check your inbox and spam folder.' };
 export function configuration(env = process.env) {
@@ -42,7 +42,9 @@ async function limit(client, config, key, max, seconds) {
  if (result.rows[0].count > max) fail(429, 'Too many requests. Try again later.');
 }
 async function issue(client, config, user, kind) {
- const value = kind === 'verify' ? otp() : token();
+ let value = kind === 'verify' ? otp() : token();
+ const previous=(await client.query('SELECT digest FROM challenges WHERE user_id=$1 AND kind=$2',[user.id,kind])).rows[0]?.digest;
+ while(previous && equal(previous,digest(config.secret,user.id+':'+kind+':'+value))) value=kind==='verify'?otp():token();
  await client.query("INSERT INTO challenges(user_id,kind,digest,expires_at) VALUES($1,$2,$3,now()+interval '15 minutes') ON CONFLICT(user_id,kind) DO UPDATE SET digest=EXCLUDED.digest,expires_at=EXCLUDED.expires_at,attempts=0",
   [user.id, kind, digest(config.secret, user.id + ':' + kind + ':' + value)]);
  return value;
@@ -51,8 +53,15 @@ async function session(client, req, lock = false) {
  const cookie = String(req.headers.cookie || '').split(';').map(s => s.trim()).find(s => s.startsWith('__Host-scrm='));
  const value = cookie?.slice('__Host-scrm='.length);
  if (!value || !/^[a-f0-9]{64}$/.test(value)) return null;
- const result = await client.query('SELECT u.*,s.csrf,s.token_hash FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>now()' + (lock ? ' FOR SHARE OF u' : ''), [hash(value)]);
+ const result = await client.query('SELECT u.*,s.csrf,s.token_hash FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>now()' + (lock ? ' FOR SHARE OF u,s' : ''), [hash(value)]);
  return result.rows[0] || null;
+}
+async function scopes(client,userId) {return (await client.query('SELECT branch,line FROM user_scopes WHERE user_id=$1 ORDER BY branch,line',[userId])).rows;}
+async function permitsScope(client,user,module,data) {
+ if(user.role==='admin')return true;
+ if(['employees','branches'].includes(module))return false;
+ const result=await client.query('SELECT 1 FROM user_scopes WHERE user_id=$1 AND branch=$2 AND line=$3',[user.id,data.scopeBranch,data.scopeLine]);
+ return !!result.rowCount;
 }
 const cookie = value => '__Host-scrm=' + value + '; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=' + (value ? 43200 : 0);
 export function createHandler({ pool, config, deliver = message => sendEmail(config, message) }) {
@@ -75,9 +84,11 @@ export function createHandler({ pool, config, deliver = message => sendEmail(con
    const ip = req.headers['x-real-ip'] || req.socket?.remoteAddress || 'unknown';
    await limit(pool, config, 'all:' + ip, 600, 600);
    if (path[0] === 'auth') {
+    if(path.length!==2) fail(404,'Not found');
     const action = path[1];
     if (action === 'me' && method === 'GET') {
      const user = await session(pool, req);
+     if(user)user.scopes=await scopes(pool,user.id);
      return reply(200, { user: user ? publicUser(user) : null, csrf: user?.csrf });
     }
     if (method !== 'POST') fail(405, 'Method not allowed');
@@ -129,6 +140,7 @@ export function createHandler({ pool, config, deliver = message => sendEmail(con
       await client.query("INSERT INTO sessions(token_hash,user_id,csrf,expires_at) VALUES($1,$2,$3,now()+interval '12 hours')", [hash(value),user.id,csrf]);
       await audit(client, user.id, 'Login', 'auth', user.id);
      });
+     user.scopes=await scopes(pool,user.id);
      res.setHeader('Set-Cookie', cookie(value)); return reply(200, { user: publicUser(user), csrf });
     }
     if (action === 'resend' || action === 'forgot') {
@@ -190,7 +202,7 @@ export function createHandler({ pool, config, deliver = message => sendEmail(con
      if (method === 'GET') {
       const cursor = url.searchParams.get('cursor') || '00000000-0000-0000-0000-000000000000';
       if (cursor !== '00000000-0000-0000-0000-000000000000' && !uuid(cursor)) fail(400, 'Invalid cursor');
-      const rows = (await client.query('SELECT id,email,name,role,status,email_verified FROM users WHERE id>$1 ORDER BY id LIMIT 101', [cursor])).rows;
+      const rows = (await client.query(`SELECT u.id,u.email,u.name,u.role,u.status,u.email_verified,COALESCE((SELECT json_agg(json_build_object('branch',s.branch,'line',s.line)) FROM user_scopes s WHERE s.user_id=u.id),'[]'::json) AS scopes FROM users u WHERE u.id>$1 ORDER BY u.id LIMIT 101`, [cursor])).rows;
       return { users: rows.slice(0,100).map(publicUser), next: rows.length>100 ? rows[99].id : null };
      }
      if (method !== 'PUT' || !uuid(path[1])) fail(400, 'Invalid access request');
@@ -202,9 +214,18 @@ export function createHandler({ pool, config, deliver = message => sendEmail(con
      const target = (await client.query('SELECT * FROM users WHERE id=$1 FOR UPDATE NOWAIT', [path[1]])).rows[0];
      if (!target) fail(404, 'Account not found');
      if (body.status === 'approved' && !target.email_verified) fail(400, 'Email verification is required');
+     let assigned=await scopes(client,target.id);
+     if(body.scopes!==undefined){
+      if(!Array.isArray(body.scopes)||body.scopes.length>100)fail(400,'At most 100 branch/business-line pairs are allowed');
+      assigned=body.scopes;
+      for(const item of assigned)if(!item||typeof item.branch!=='string'||!/^[A-Z0-9][A-Z0-9_-]{0,39}$/.test(item.branch)||!['STTS','CAR','T3','GSA'].includes(item.line))fail(400,'Invalid branch/business-line assignment');
+     }
+     if(body.status==='approved' && body.role!=='admin' && !assigned.length)fail(400,'Assign at least one branch/business-line pair before approval');
+     await client.query('DELETE FROM user_scopes WHERE user_id=$1',[target.id]);
+     for(const item of assigned)await client.query('INSERT INTO user_scopes(user_id,branch,line) VALUES($1,$2,$3) ON CONFLICT DO NOTHING',[target.id,item.branch,item.line]);
      await client.query('UPDATE users SET role=$2,status=$3 WHERE id=$1', [target.id,body.role,body.status]);
      await client.query('DELETE FROM sessions WHERE user_id=$1', [target.id]);
-     await audit(client,user.id,'Access changed: ' + body.role + '/' + body.status,'access',target.id);
+     await audit(client,user.id,'Access changed: ' + body.role + '/' + body.status + ' scopes=' + assigned.map(item=>item.branch+':'+item.line).join(','),'access',target.id);
      return { message: 'Access updated; existing sessions revoked' };
     }
     if (path[0] === 'audit') {
@@ -218,26 +239,29 @@ export function createHandler({ pool, config, deliver = message => sendEmail(con
     if (method === 'GET') {
      const cursor = url.searchParams.get('cursor') || '00000000-0000-0000-0000-000000000000';
      if (cursor !== '00000000-0000-0000-0000-000000000000' && !uuid(cursor)) fail(400, 'Invalid cursor');
-     const rows = (await client.query('SELECT id,data,version,created_at,updated_at FROM records WHERE module=$1 AND id>$2 ORDER BY id LIMIT 101', [module,cursor])).rows;
+     const rows = (await client.query('SELECT id,data,version,created_at,updated_at FROM records WHERE module=$1 AND id>$2 AND ($3::boolean OR EXISTS(SELECT 1 FROM user_scopes s WHERE s.user_id=$4 AND s.branch=records.scope_branch AND s.line=records.scope_line)) ORDER BY id LIMIT 101', [module,cursor,user.role==='admin',user.id])).rows;
      return { records: rows.slice(0,100).map(r=>({...r.data,id:r.id,version:r.version,created:r.created_at.toISOString().slice(0,10)})), next: rows.length>100 ? rows[99].id : null };
     }
     if (method === 'POST') {
      let data; try { data=validateRecord(module,body); } catch(error) { fail(400,error.message); }
+     if(!await permitsScope(client,user,module,data))fail(403,'This branch/business-line pair is not assigned to your account');
      const id = randomUUID();
-     await client.query('INSERT INTO records(id,module,data,created_by,updated_by) VALUES($1,$2,$3,$4,$4)',[id,module,data,user.id]);
+     await client.query('INSERT INTO records(id,module,data,created_by,updated_by,scope_branch,scope_line) VALUES($1,$2,$3,$4,$4,$5,$6)',[id,module,data,user.id,data.scopeBranch||'',data.scopeLine||'']);
      await audit(client,user.id,'Created',module,id);
      return { record:{...data,id,version:1} };
     }
     if (!uuid(path[2]) || !Number.isInteger(body.version)) fail(400, 'Record ID and version are required');
     const existing = (await client.query('SELECT * FROM records WHERE id=$1 AND module=$2 FOR UPDATE',[path[2],module])).rows[0];
-    if (!existing) fail(404,'Record not found');
+    if (!existing || !await permitsScope(client,user,module,{scopeBranch:existing.scope_branch,scopeLine:existing.scope_line})) fail(404,'Record not found');
     if (existing.version !== body.version) fail(409,'This record changed. Refresh and try again.');
     if (method === 'DELETE') {
      await client.query('DELETE FROM records WHERE id=$1',[existing.id]);
      await audit(client,user.id,'Deleted',module,existing.id); return {message:'Record deleted'};
     }
     let data; try { data=validateRecord(module,body.data); } catch(error) { fail(400,error.message); }
-    await client.query('UPDATE records SET data=$2,version=version+1,updated_by=$3,updated_at=now() WHERE id=$1',[existing.id,data,user.id]);
+    if(!await permitsScope(client,user,module,data))fail(403,'This branch/business-line pair is not assigned to your account');
+    if(user.role!=='admin'&&(data.scopeBranch!==existing.scope_branch||data.scopeLine!==existing.scope_line))fail(403,'Only administrators can move records between access scopes');
+    await client.query('UPDATE records SET data=$2,version=version+1,updated_by=$3,updated_at=now(),scope_branch=$4,scope_line=$5 WHERE id=$1',[existing.id,data,user.id,data.scopeBranch||'',data.scopeLine||'']);
     await audit(client,user.id,'Updated',module,existing.id);
     return {record:{...data,id:existing.id,version:existing.version+1}};
    });
