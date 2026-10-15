@@ -1,0 +1,58 @@
+# SCRM backend rollout
+
+This PR replaces browser demo records with a PostgreSQL API, server-side sessions and Resend email. It is not a verified production deployment.
+
+## Infrastructure verification
+
+The repository inspected was a static prototype. No existing database/auth/email code or configuration was present in it. The connected Vercel account returned 404 for saicrm; its team listing exposed only admin-satguruais-projects, which the user excluded. That workspace was not changed. Connect the account owning saicrm.vercel.app and verify that its Git link is avinash-damale-123/SAICRM before environment changes or deployment.
+
+The user selected PostgreSQL plus Resend. No services, accounts or new Vercel projects have been created. Email delivery, database credentials, domain verification and production deployment remain unverified.
+
+## Configure the existing project
+
+1. Supply a PostgreSQL database connection with verified TLS using the provider's supported DATABASE_URL. Use a distinct database for previews. Never disable certificate verification.
+2. Verify a sender domain in Resend and configure RESEND_API_KEY and EMAIL_FROM.
+3. Configure APP_ORIGIN as the exact HTTPS origin (production: https://saicrm.vercel.app), with no trailing slash. Preview requires its own explicit origin and isolated database. Do not share production secrets/data with arbitrary previews.
+4. Generate TOKEN_SECRET with at least 32 random bytes, hex encoded (for example: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"). Store it server-side with the other values in the verified existing Vercel project. No secrets belong in chat, Git, screenshots or public PRs.
+5. Run npm install, then npm run db:migrate from a trusted operator environment against the intended database. Migrations never run automatically on a request.
+6. Register the initial administrator and verify the actual emailed OTP. Supply the intended email via BOOTSTRAP_ADMIN_EMAIL, then run npm run admin:bootstrap. Bootstrap refuses unverified users and refuses to run after an approved administrator exists. Do not infer the administrator email from Git metadata.
+7. Use a dedicated application database role with only SELECT/INSERT/UPDATE/DELETE on users, sessions, challenges, rate_limits and records; SELECT/INSERT on audit; and sequence usage for audit. The migration/operator role owns the schema. The append-only audit trigger also rejects updates/deletes, but database owners can bypass it; it is not tamper-proof against infrastructure administrators.
+8. Run the database and UI checks, then test actual email delivery, resets and approval in the configured preview. Review before merging. Do not promote until the project identity and configuration are verified.
+
+The project uses a Vercel Node API function, a static frontend, and vercel.json API rewrites. Missing database/email/origin/token configuration returns 503 and exposes no CRM records. Database backups/restore drills and operational alerts must be configured by the operator.
+
+## Authentication and access
+
+Passwords use scrypt with independent random salts. Opaque 12-hour sessions are stored as digests in PostgreSQL and sent in Secure HttpOnly SameSite=Lax host-only cookies. CSRF tokens and exact-origin checks protect mutations. Logout removes the current session; password reset, suspension and role/status changes revoke sessions. Password recovery never grants approval.
+
+Registration requires a real six-digit email OTP and administrator approval independently. OTPs and reset tokens expire after 15 minutes, are stored as keyed digests, invalidate previous challenges on resend, and are consumed atomically. Five incorrect challenge attempts block that challenge. Reset links contain a random 256-bit token in the URL fragment; the frontend immediately removes it from the address bar. Neither API responses nor production logs expose OTPs/reset links. Provider errors return a generic service error; users can request resend.
+
+The system has one shared internal CRM workspace:
+- Admin: ordinary CRM CRUD, employee and branch masters, account approval/role/status management and audit reads.
+- Manager: ordinary CRM CRUD, including deletion.
+- Member: ordinary CRM read/create/update.
+- Viewer: ordinary CRM read only.
+
+The last administrator cannot remove their own privileges; account changes require a different administrator. All approval requires verified email. Employee master role/status fields are informational and never grant login access.
+
+**Branch, department, tenant and business-line record isolation are not implemented.** Confirm shared visibility is acceptable before rollout. Otherwise, add explicit scoped membership rules and test them before access is enabled.
+
+## Data, audit and limitations
+
+All nine existing editable modules use shared database records. Inputs have strict field allowlists, required fields, enum/number/date/email/length checks; queries are parameterized. Server-generated UUIDs, metadata and version checks prevent client identity injection and stale overwrites. No demo data is seeded or automatically imported from localStorage. Existing browser demo storage is left untouched but is never read by the new app.
+
+UI navigation and responsive styles are preserved. The old fictional chart is replaced with an explicit reporting limitation. Analytics derive totals from saved records. Existing quotations/bookings are record management, not accounting, approval or booking-engine integrations. Module Directory distinguishes existing records from planned capabilities; notifications remain an explicit unconnected feature.
+
+The frontend requests all records in 100-row API pages and caches them only in memory for its existing filters/exports. Large datasets need server-side search and UI pagination before scale. Account lists are also paginated. Audit displays the latest 200 events. Record mutations and successful security/account events are audited; security auditing is not a full SIEM and denied requests are not all logged. Audit contains event metadata, not passwords, tokens or complete customer record snapshots.
+
+Rate limits are atomic PostgreSQL counters across instances: general IP 600/10 minutes; auth IP 40/15 minutes; account/action 5/15 minutes (login and verify 10). Vercel's edge-owned x-real-ip is used; any alternative hosting must provide an equally trusted client address. Availability failures fail closed. Rate limiting does not replace WAF/DDoS controls or abuse monitoring.
+
+Run node scripts/cleanup.mjs regularly through a trusted operator scheduler to remove expired sessions, challenges and rate-limit rows; it does not delete CRM records or audit history. Establish business retention, privacy, export, monitoring, recovery and incident policies before production use.
+
+## Tests
+
+npm test runs contract/crypto tests; TEST_DATABASE_URL enables real PostgreSQL integration tests against an isolated, empty test database. Never point it at production. Tests inject an email transport at the provider boundary to inspect actual randomly generated challenges; the deployed API always uses Resend and has no mock OTP/reset fallback.
+
+GitHub Actions provides PostgreSQL 17 and runs backend tests. Browser checks exercise auth forms and preserved modules at mobile/tablet/laptop widths using controlled API responses; they do not prove live email delivery or hosted production behavior.
+
+Release remains blocked on the correct Vercel connection, real database/email configuration, initial administrator identification, actual delivered-email checks, and acceptance of the shared-workspace access policy.
