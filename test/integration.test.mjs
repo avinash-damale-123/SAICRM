@@ -203,5 +203,19 @@ test('Google OAuth state is browser-bound, single-use and approval-gated',{skip:
  const user=(await pool.query('SELECT * FROM users WHERE email=$1',['google-new@example.org'])).rows[0];
  assert.equal(user.status,'pending');assert.equal(user.email_verified,true);
  assert.equal((await pool.query('SELECT 1 FROM sessions WHERE user_id=$1',[user.id])).rowCount,0);
+ const begin=()=>call('auth/google/start','POST',{remember:true});
+ const complete=start=>call('auth/google/callback?state='+new URL(start.body.url).searchParams.get('state')+'&code=test','GET',undefined,{cookie:start.headers['Set-Cookie'].split(';')[0]});
+ const expired=await begin();await pool.query("UPDATE oauth_states SET expires_at=now()-interval '1 second' WHERE state_hash=$1",[ (await import('../server/crypto.mjs')).hash(new URL(expired.body.url).searchParams.get('state')) ]);
+ assert.match((await complete(expired)).headers.Location,/google_error/);assert.equal(exchanges,1);
+ await pool.query("UPDATE users SET status='approved' WHERE id=$1",[user.id]);await pool.query("INSERT INTO user_scopes(user_id,branch,line) VALUES($1,'PUNE','STTS')",[user.id]);
+ const approved=await complete(await begin());assert.match(approved.headers.Location,/google_success/);
+ const sessionCookie=approved.headers['Set-Cookie'].find(value=>value.startsWith('__Host-scrm='));
+ assert.match(sessionCookie,/Max-Age=2592000/);
+ const signed={cookie:sessionCookie.split(';')[0]};
+ const current=await call('auth/me','GET',undefined,signed);assert.equal(current.body.user.email,user.email);assert.equal(current.body.user.scopes[0].branch,'PUNE');
+ await pool.query("UPDATE users SET status='suspended' WHERE id=$1",[user.id]);await pool.query('DELETE FROM sessions WHERE user_id=$1',[user.id]);
+ assert.equal((await call('records/leads','GET',undefined,signed)).status,401);
+ assert.match((await complete(await begin())).headers.Location,/google_pending/);
+
  }finally{handler=normal}
 });
