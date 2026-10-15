@@ -26,9 +26,10 @@
   do {const result=await api(path+(cursor?'?cursor='+encodeURIComponent(cursor):''));rows.push(...result[key]);cursor=result.next||'';}while(cursor);
   return rows;
  }
+ const readModule=module=>pages('records/'+module,'records');
  async function loadRecords(){
   const db={audit:[]};
-  await Promise.all(['leads','customers','contacts','opportunities','activities','quotes','bookings','employees','branches'].map(async module=>{db[module]=can(module)?await pages('records/'+module,'records'):[]}));
+  await Promise.all(['leads','customers','contacts','opportunities','activities','quotes','bookings','employees','branches'].map(async module=>{db[module]=can(module)?await readModule(module):[]}));
   return db;
  }
  function script(src){return new Promise((resolve,reject)=>{const element=document.createElement('script');element.src=src;element.onload=resolve;element.onerror=()=>reject(Error('Unable to load CRM interface'));document.body.append(element)})}
@@ -80,7 +81,9 @@
   }catch(error){body.textContent=error.message}
  }
  function fail(error){app.hidden=true;root.hidden=false;draw(error.message)}
- window.SCRM={api,loadRecords,can,manageAccess,fail,user:null};
+ window.SCRM={api,loadRecords,readModule,can,manageAccess,fail,user:null};
+ async function checkSession(){if(app.hidden||!user)return;try{const current=await api('auth/me');if(!current.user||!current.user.emailVerified||current.user.status!=='approved'){user=null;csrf='';window.SCRM.user=null;document.querySelector('#overlay').classList.add('hidden');draw('Your session or access has ended. Sign in again.');return}if(current.user.role!==user.role||JSON.stringify(current.user.scopes||[])!==JSON.stringify(user.scopes||[]))location.reload()}catch(error){fail(error)}}
+ window.addEventListener('focus',checkSession);document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkSession()});setInterval(checkSession,60000);
  document.querySelector('#logoutBtn').onclick=async()=>{
   try{await api('auth/logout','POST',{csrf});location.replace('/')}catch(error){alert(error.message)}
  };

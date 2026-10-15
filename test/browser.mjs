@@ -68,6 +68,9 @@ try{
  await page.locator('#saveForm').click();
  await page.getByText('Record saved',{exact:true}).waitFor();
  assert.ok(records.leads.some(record=>record.name==='Actual typed lead'));
+ records.leads.push({...records.leads[0],id:'fresh-export',name:'Fresh server-authorized export row'});
+ const downloadPromise=page.waitForEvent('download');await page.locator('[data-action="export"]').click();const download=await downloadPromise;
+ assert.ok((await readFile(await download.path(),'utf8')).includes('Fresh server-authorized export row'));
  await page.screenshot({path:'work/browser/mobile.png',fullPage:true});
  await page.setViewportSize({width:1440,height:900});await page.screenshot({path:'work/browser/laptop.png',fullPage:true});
  await page.goto('http://127.0.0.1:4173/#reset='+'a'.repeat(64)+'&email=test%40example.org');
