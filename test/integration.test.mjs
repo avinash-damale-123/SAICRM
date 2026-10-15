@@ -14,8 +14,8 @@ before(async()=>{
  if(!enabled)return;
  pool=new pg.Pool({connectionString:process.env.TEST_DATABASE_URL,max:8});
  await pool.query(await readFile(new URL('../db/001_initial.sql',import.meta.url),'utf8'));
- config=configuration({DATABASE_URL:process.env.TEST_DATABASE_URL,APP_ORIGIN:origin,RESEND_API_KEY:'test-key',EMAIL_FROM:'SCRM <test@example.org>',TOKEN_SECRET:'a'.repeat(64)});
- // Capture only the provider boundary in tests. Production has no mock email/OTP path.
+ config=configuration({DATABASE_URL:process.env.TEST_DATABASE_URL,APP_ORIGIN:origin,SMTP_HOST:'smtp.gmail.com',SMTP_PORT:'587',SMTP_USER:'noreply@example.org',SMTP_PASSWORD:'test-only-app-password',EMAIL_FROM:'SCRM <test@example.org>',TOKEN_SECRET:'a'.repeat(64)});
+ // Capture only the provider boundary in tests. Production uses authenticated SMTP and has no mock email/OTP path.
  handler=createHandler({pool,config,deliver:async message=>sent.push(message)});
 });
 after(async()=>{if(pool)await pool.end()});
@@ -165,4 +165,10 @@ test('branch and business-line pairs constrain reads, writes and transfers; scop
  assert.equal((await call('records/customers/'+record.id,'PUT',{version:1,data:{...data,scopeBranch:'DUBAI',scopeLine:'CAR'}},memberSession)).status,403);
  const access=await call('access','GET',undefined,admin);
  assert.deepEqual(access.body.users.find(u=>u.id===memberId).scopes.sort((a,b)=>a.branch.localeCompare(b.branch)),[{branch:'DUBAI',line:'CAR'},{branch:'PUNE',line:'STTS'}]);
+});
+
+test('registration rejects SMTP recipient and header injection', {skip:!enabled},async()=>{
+ for(const email of ['first,second@example.org','Name <person@example.org>','person@example.org\r\nBcc:other@example.org']){
+  assert.equal((await call('auth/register','POST',{email,password,name:'Invalid recipient'})).status,400);
+ }
 });

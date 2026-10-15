@@ -2,12 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { transaction } from './db.mjs';
 import { authorize, modules, validateRecord } from './contracts.mjs';
 import { token, otp, hash, digest, equal, validPassword, passwordHash, passwordMatches } from './crypto.mjs';
-import { sendEmail } from './email.mjs';
+import { sendEmail, smtpConfiguration } from './email.mjs';
 
 class HttpError extends Error { constructor(status, message) { super(message); this.status = status; } }
 const fail = (status, message) => { throw new HttpError(status, message); };
 const emailOf = value => {
- if (typeof value !== 'string' || value.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(value.trim())) fail(400, 'Enter a valid email address');
+ if (typeof value !== 'string' || value.length > 254 || /[<>,;\r\n]/.test(value) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(value.trim())) fail(400, 'Enter a valid email address');
  return value.trim().toLowerCase();
 };
 const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
@@ -16,8 +16,8 @@ const audit = (client, actor, action, module, id) => client.query('INSERT INTO a
 const generic = { message: 'If this address is eligible, an email has been sent. Check your inbox and spam folder.' };
 export function configuration(env = process.env) {
  const origin = env.APP_ORIGIN;
- if (!origin || new URL(origin).origin !== origin || !origin.startsWith('https://') || !env.DATABASE_URL || !env.RESEND_API_KEY || !env.EMAIL_FROM || !env.TOKEN_SECRET || env.TOKEN_SECRET.length < 64) throw new Error('Service configuration incomplete');
- return { origin, secret: env.TOKEN_SECRET, emailKey: env.RESEND_API_KEY, emailFrom: env.EMAIL_FROM };
+ if (!origin || new URL(origin).origin !== origin || !origin.startsWith('https://') || !env.DATABASE_URL || !env.TOKEN_SECRET || env.TOKEN_SECRET.length < 64) throw new Error('Service configuration incomplete');
+ return { origin, secret: env.TOKEN_SECRET, ...smtpConfiguration(env) };
 }
 async function bodyOf(req) {
  if (!String(req.headers['content-type'] || '').startsWith('application/json')) fail(415, 'JSON required');

@@ -1,17 +1,19 @@
 # SCRM backend rollout
 
-This PR replaces browser demo records with a PostgreSQL API, server-side sessions and Resend email. It is not a verified production deployment.
+This PR replaces browser demo records with a PostgreSQL API, server-side sessions and Google SMTP email. It is not a verified production deployment.
 
 ## Infrastructure verification
 
-The repository inspected was a static prototype. No existing database/auth/email code or configuration was present in it. The connected Vercel account returned 404 for saicrm; its team listing exposed only admin-satguruais-projects, which the user excluded. That workspace was not changed. Connect the account owning saicrm.vercel.app and verify that its Git link is avinash-damale-123/SAICRM before environment changes or deployment.
+Verified target: GitHub repository avinash-damale-123/SAICRM and the existing Vercel project saicrm, ID prj_sU4vnwodAUOGsyNQlVzfDwItk9Sl, owned by Avinash Damale's projects (team_ARpEeg4qFknC01gSsEcGlS23). Project metadata includes saicrm.vercel.app. Reads using the exact project ID without an explicit team selector succeeded; name/team-selector lookups returned 404. The excluded admin-satguruais-projects workspace was not changed.
 
-The user selected PostgreSQL plus Resend. No services, accounts or new Vercel projects have been created. Email delivery, database credentials, domain verification and production deployment remain unverified.
+Production variable names were verified without decrypting values: DATABASE_URL, SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, EMAIL_FROM, APP_ORIGIN and TOKEN_SECRET. Presence does not prove credentials, database schema, TLS options, or delivery are valid. Database connection variables also target Preview; isolation of preview data must be checked before enabling backend previews.
+
+The user selected their Google Workspace mailbox noreply@satguruai.com for codes, password resets and generic system emails, using a Google app password. Other communications can use a separate sender later. No Resend account or key is required. No new repository or Vercel project was created.
 
 ## Configure the existing project
 
 1. Supply a PostgreSQL database connection with verified TLS using the provider's supported DATABASE_URL including sslmode=verify-full (required by the application). Use a distinct database for previews. Never disable certificate verification.
-2. Verify a sender domain in Resend and configure RESEND_API_KEY and EMAIL_FROM.
+2. Configure SMTP_HOST=smtp.gmail.com, SMTP_PORT=587, SMTP_USER=noreply@satguruai.com, SMTP_PASSWORD as the Google app password, and EMAIL_FROM=SCRM <noreply@satguruai.com>. The mailbox must be permitted to use app passwords under its Google Workspace policy. Ordinary Google account passwords are not supported. STARTTLS is required on 587; port 465 uses implicit TLS. Certificates are verified and SMTP debug logs are disabled. SMTP authentication/Google quotas and actual delivery remain to be verified.
 3. Configure APP_ORIGIN as the exact HTTPS origin (production: https://saicrm.vercel.app), with no trailing slash. Preview requires its own explicit origin and isolated database. Do not share production secrets/data with arbitrary previews.
 4. Generate TOKEN_SECRET with at least 32 random bytes, hex encoded (for example: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"). Store it server-side with the other values in the verified existing Vercel project. No secrets belong in chat, Git, screenshots or public PRs.
 5. Run npm install, then npm run db:migrate from a trusted operator environment against the intended database. Migrations never run automatically on a request.
@@ -55,8 +57,8 @@ Run node scripts/cleanup.mjs regularly through a trusted operator scheduler to r
 
 ## Tests
 
-npm test runs contract/crypto tests; TEST_DATABASE_URL enables real PostgreSQL integration tests against an isolated, empty test database. Never point it at production. Tests inject an email transport at the provider boundary to inspect actual randomly generated challenges; the deployed API always uses Resend and has no mock OTP/reset fallback.
+npm test runs contract/crypto tests; TEST_DATABASE_URL enables real PostgreSQL integration tests against an isolated, empty test database. Never point it at production. Tests inject an email transport at the provider boundary to inspect actual randomly generated challenges; the deployed API always uses authenticated SMTP and has no mock OTP/reset fallback.
 
 GitHub Actions provides PostgreSQL 17 and runs backend tests. Browser checks exercise auth forms and preserved modules at mobile/tablet/laptop widths using controlled API responses; they do not prove live email delivery or hosted production behavior.
 
-Release remains blocked on the correct Vercel connection, real database/email configuration, initial administrator identification, actual delivered-email checks, and initial branch/business-line access assignments.
+Release remains blocked on database/TLS/schema checks, least-privilege application credentials, isolated preview configuration, actual SMTP authentication and delivered-email/reset checks, bootstrap of admin@satguruai.com, and initial branch/business-line access assignments.

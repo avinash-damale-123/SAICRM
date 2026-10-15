@@ -3,6 +3,7 @@
 A responsive CRM with a PostgreSQL API and email-verified, administrator-approved accounts. This branch is an implementation pending infrastructure configuration and live verification; it is not certified production-ready.
 
 - Login, registration, email OTP verification/resend, expiring single-use password resets, sessions and logout.
+- Google Workspace SMTP from noreply@satguruai.com, using a Google app password and verified TLS. Resend is not required.
 - Server-enforced admin/manager/member/viewer permissions, protected CRUD, input validation, rate limits and audit events.
 - Existing leads, customers, contacts, opportunities, activities, quotations, bookings, employees and branches.
 - No fictional records or browser-local CRM persistence. Existing browser demo records are not automatically imported.
