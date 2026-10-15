@@ -3,6 +3,7 @@ import { readFile,mkdir } from 'node:fs/promises';
 import { resolve,extname } from 'node:path';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
+import { fields } from '../server/contracts.mjs';
 const base=process.cwd();
 const securityHeaders=JSON.parse(await readFile('vercel.json','utf8')).headers[0].headers;
 const server=createServer(async(req,res)=>{
@@ -23,7 +24,7 @@ try{
  const page=await browser.newPage();
  const errors=[];page.on('pageerror',error=>errors.push(error.message));
  let loggedIn=false;
- const records=Object.fromEntries(['leads','customers','contacts','opportunities','activities','quotes','bookings','employees','branches'].map(name=>[name,[]]));
+ const records=Object.fromEntries(['leads','customers','contacts','opportunities','activities','quotes','bookings','employees','branches'].map(name=>[name,[{...Object.fromEntries(fields[name].map(([key,,type,,choices])=>[key,type==='select'?choices[0]:type==='number'?1500:type==='email'?'ui-fixture@example.org':type==='date'?'2026-10-15':key==='scopeBranch'?'PUNE':'Long UI fixture record for responsive layout checks'])),id:'fixture-'+name,version:1}]]));
  await page.route('**/api/**',async route=>{
   const request=route.request(),path=new URL(request.url()).pathname.replace('/api/','');
   let body={};
@@ -66,7 +67,7 @@ try{
  await page.locator('#f_type').selectOption('Corporate');await page.locator('#f_branch').selectOption('Pune');await page.locator('#f_status').selectOption('New');await page.locator('#f_scopeBranch').fill('PUNE');await page.locator('#f_scopeLine').selectOption('STTS');
  await page.locator('#saveForm').click();
  await page.getByText('Record saved',{exact:true}).waitFor();
- assert.equal(records.leads[0].name,'Actual typed lead');
+ assert.ok(records.leads.some(record=>record.name==='Actual typed lead'));
  await page.screenshot({path:'work/browser/mobile.png',fullPage:true});
  await page.setViewportSize({width:1440,height:900});await page.screenshot({path:'work/browser/laptop.png',fullPage:true});
  await page.goto('http://127.0.0.1:4173/#reset='+'a'.repeat(64)+'&email=test%40example.org');

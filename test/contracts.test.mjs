@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { authorize, validateRecord, fields } from '../server/contracts.mjs';
+import { connectionOptions } from '../server/db.mjs';
 import { passwordHash, passwordMatches, otp, token, digest } from '../server/crypto.mjs';
 
 test('unverified and unapproved users never receive module permissions',()=>{
@@ -49,4 +50,10 @@ test('password hashing uses independent salts and verifies passwords',async()=>{
  assert.equal(await passwordMatches('another test password',first),false);
  assert.match(otp(),/^\d{6}$/);assert.match(token(),/^[a-f0-9]{64}$/);
  assert.notEqual(digest('a','123456'),digest('b','123456'));
+});
+
+test('application database connections require verified TLS',()=>{
+ assert.throws(()=>connectionOptions('postgres://u:p@db.example.org/crm?sslmode=disable'));
+ assert.throws(()=>connectionOptions('postgres://u:p@db.example.org/crm'));
+ assert.equal(connectionOptions('postgres://u:p@db.example.org/crm?sslmode=verify-full').max,3);
 });

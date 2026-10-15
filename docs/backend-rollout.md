@@ -10,7 +10,7 @@ The user selected PostgreSQL plus Resend. No services, accounts or new Vercel pr
 
 ## Configure the existing project
 
-1. Supply a PostgreSQL database connection with verified TLS using the provider's supported DATABASE_URL. Use a distinct database for previews. Never disable certificate verification.
+1. Supply a PostgreSQL database connection with verified TLS using the provider's supported DATABASE_URL including sslmode=verify-full (required by the application). Use a distinct database for previews. Never disable certificate verification.
 2. Verify a sender domain in Resend and configure RESEND_API_KEY and EMAIL_FROM.
 3. Configure APP_ORIGIN as the exact HTTPS origin (production: https://saicrm.vercel.app), with no trailing slash. Preview requires its own explicit origin and isolated database. Do not share production secrets/data with arbitrary previews.
 4. Generate TOKEN_SECRET with at least 32 random bytes, hex encoded (for example: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"). Store it server-side with the other values in the verified existing Vercel project. No secrets belong in chat, Git, screenshots or public PRs.
