@@ -3,6 +3,7 @@ import { transaction } from './db.mjs';
 import { authorize, modules, validateRecord } from './contracts.mjs';
 import { token, otp, hash, digest, equal, validPassword, passwordHash, passwordMatches } from './crypto.mjs';
 import { sendEmail, smtpConfiguration } from './email.mjs';
+import { googleConfiguration, authorizationURL, exchangeGoogle } from './google.mjs';
 
 class HttpError extends Error { constructor(status, message) { super(message); this.status = status; } }
 const fail = (status, message) => { throw new HttpError(status, message); };
@@ -17,7 +18,7 @@ const generic = { message: 'If this address is eligible, an email has been sent.
 export function configuration(env = process.env) {
  const origin = env.APP_ORIGIN;
  if (!origin || new URL(origin).origin !== origin || !origin.startsWith('https://') || !env.DATABASE_URL || !env.TOKEN_SECRET || env.TOKEN_SECRET.length < 64) throw new Error('Service configuration incomplete');
- return { origin, secret: env.TOKEN_SECRET, ...smtpConfiguration(env) };
+ return { origin, secret: env.TOKEN_SECRET, ...smtpConfiguration(env), ...googleConfiguration(env) };
 }
 async function bodyOf(req) {
  if (!String(req.headers['content-type'] || '').startsWith('application/json')) fail(415, 'JSON required');
@@ -63,8 +64,10 @@ async function permitsScope(client,user,module,data) {
  const result=await client.query('SELECT 1 FROM user_scopes WHERE user_id=$1 AND branch=$2 AND line=$3',[user.id,data.scopeBranch,data.scopeLine]);
  return !!result.rowCount;
 }
-const cookie = value => '__Host-scrm=' + value + '; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=' + (value ? 43200 : 0);
-export function createHandler({ pool, config, deliver = message => sendEmail(config, message) }) {
+export const sessionCookie = (value,remember=false) => '__Host-scrm=' + value + '; Path=/; HttpOnly; Secure; SameSite=Lax' + (!value?'; Max-Age=0':remember?'; Max-Age=2592000':'');
+const cookie=sessionCookie;
+const oauthCookie=(value)=>'__Host-scrm-oauth='+value+'; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age='+(value?600:0);
+export function createHandler({ pool, config, deliver = message => sendEmail(config, message), googleExchange=exchangeGoogle }) {
  return async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -84,8 +87,53 @@ export function createHandler({ pool, config, deliver = message => sendEmail(con
    const ip = req.headers['x-real-ip'] || req.socket?.remoteAddress || 'unknown';
    await limit(pool, config, 'all:' + ip, 600, 600);
    if (path[0] === 'auth') {
+    if(path[1]==='google' && path.length===3){
+     if(!config.googleId||!config.googleSecret)fail(503,'Google sign-in is not configured');
+     await limit(pool,config,'google:'+ip,20,900);
+     if(path[2]==='start' && method==='POST'){
+      if(body.remember!==undefined && typeof body.remember!=='boolean')fail(400,'Invalid session preference');
+      const state=token(),browser=token(),nonce=token(),verifier=token();
+      await pool.query("INSERT INTO oauth_states(state_hash,browser_hash,nonce_hash,verifier,remember,expires_at) VALUES($1,$2,$3,$4,$5,now()+interval '10 minutes')",[hash(state),hash(browser),digest(config.secret,nonce),verifier,body.remember===true]);
+      res.setHeader('Set-Cookie',oauthCookie(browser));
+      return reply(200,{url:authorizationURL(config,{state,nonce,verifier})});
+     }
+     if(path[2]==='callback' && method==='GET'){
+      res.setHeader('Set-Cookie',oauthCookie(''));
+      const redirect=outcome=>{res.statusCode=303;res.setHeader('Location',config.origin+'/#auth='+outcome);res.end();};
+      try {
+       const state=url.searchParams.get('state'),code=url.searchParams.get('code');
+       const browser=String(req.headers.cookie||'').split(';').map(s=>s.trim()).find(s=>s.startsWith('__Host-scrm-oauth='))?.slice('__Host-scrm-oauth='.length);
+       if(!/^[a-f0-9]{64}$/.test(state||'')||!/^[a-f0-9]{64}$/.test(browser||''))return redirect('google_error');
+       const saved=(await pool.query('DELETE FROM oauth_states WHERE state_hash=$1 AND browser_hash=$2 AND expires_at>now() RETURNING *',[hash(state),hash(browser)])).rows[0];
+       if(!saved||!code||code.length>4096)return redirect('google_error');
+       const identity=await googleExchange(code,saved.verifier,saved.nonce_hash,config),email=emailOf(identity.email);
+       // Existing password accounts are deliberately not linked by matching email.
+       const encoded=await passwordHash(token());
+       const outcome=await transaction(pool,async client=>{
+        await client.query('SELECT pg_advisory_xact_lock(830148)');
+        let account=(await client.query('SELECT u.* FROM google_identities g JOIN users u ON u.id=g.user_id WHERE g.google_sub=$1 FOR UPDATE OF u',[identity.sub])).rows[0];
+        if(!account){
+         if((await client.query('SELECT 1 FROM users WHERE email=$1',[email])).rowCount)return {status:'google_existing'};
+         account=(await client.query("INSERT INTO users(id,email,name,password_hash,email_verified) VALUES($1,$2,$3,$4,true) RETURNING *",[randomUUID(),email,(identity.name||email).slice(0,120),encoded])).rows[0];
+         await client.query('INSERT INTO google_identities(google_sub,user_id) VALUES($1,$2)',[identity.sub,account.id]);
+         await audit(client,account.id,'Google registration','auth',account.id);
+        }
+        if(account.email!==email||!account.email_verified)return {status:'google_error'};
+        if(account.status!=='approved')return {status:'google_pending'};
+        const value=token(),csrf=token();
+        await client.query("INSERT INTO sessions(token_hash,user_id,csrf,expires_at) VALUES($1,$2,$3,now()+$4*interval '1 second')",[hash(value),account.id,csrf,saved.remember?2592000:43200]);
+        await audit(client,account.id,'Google login','auth',account.id);
+        return {value};
+       });
+       if(outcome.value){res.setHeader('Set-Cookie',[oauthCookie(''),cookie(outcome.value,saved.remember)]);return redirect('google_success');}
+       return redirect(outcome.status);
+      }catch{return redirect('google_error');}
+     }
+     fail(405,'Method not allowed');
+    }
     if(path.length!==2) fail(404,'Not found');
     const action = path[1];
+    if(action==='options' && method==='GET')return reply(200,{googleEnabled:!!(config.googleId&&config.googleSecret)});
     if (action === 'me' && method === 'GET') {
      const user = await session(pool, req);
      if(user)user.scopes=await scopes(pool,user.id);
@@ -120,6 +168,7 @@ export function createHandler({ pool, config, deliver = message => sendEmail(con
      return reply(200, generic);
     }
     if (action === 'login') {
+     if(body.remember!==undefined && typeof body.remember!=='boolean')fail(400,'Invalid session preference');
      if (typeof body.password !== 'string' || body.password.length > 128) fail(400, 'Invalid credentials');
      const result = await pool.query('SELECT * FROM users WHERE email=$1', [email]);
      const user = result.rows[0];
@@ -137,11 +186,11 @@ export function createHandler({ pool, config, deliver = message => sendEmail(con
       // Serialize with admin status changes and password resets.
       const current = (await client.query('SELECT * FROM users WHERE id=$1 FOR UPDATE', [user.id])).rows[0];
       if (current.password_hash !== stored || current.status !== 'approved' || !current.email_verified) fail(401, 'Sign in again');
-      await client.query("INSERT INTO sessions(token_hash,user_id,csrf,expires_at) VALUES($1,$2,$3,now()+interval '12 hours')", [hash(value),user.id,csrf]);
+      await client.query("INSERT INTO sessions(token_hash,user_id,csrf,expires_at) VALUES($1,$2,$3,now()+$4*interval '1 second')", [hash(value),user.id,csrf,body.remember===true?2592000:43200]);
       await audit(client, user.id, 'Login', 'auth', user.id);
      });
      user.scopes=await scopes(pool,user.id);
-     res.setHeader('Set-Cookie', cookie(value)); return reply(200, { user: publicUser(user), csrf });
+     res.setHeader('Set-Cookie', cookie(value,body.remember===true)); return reply(200, { user: publicUser(user), csrf });
     }
     if (action === 'resend' || action === 'forgot') {
      const kind = action === 'resend' ? 'verify' : 'reset';

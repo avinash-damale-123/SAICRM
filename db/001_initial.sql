@@ -1,4 +1,5 @@
 BEGIN;
+SET LOCAL search_path TO public, pg_catalog;
 CREATE TABLE IF NOT EXISTS schema_migrations (version integer PRIMARY KEY);
 CREATE TABLE IF NOT EXISTS users (
  id uuid PRIMARY KEY, email text NOT NULL UNIQUE, name text NOT NULL,
@@ -44,8 +45,9 @@ CREATE TABLE IF NOT EXISTS audit (
  actor uuid REFERENCES users(id), action text NOT NULL, module text NOT NULL,
  record_id text NOT NULL, created_at timestamptz NOT NULL DEFAULT now()
 );
-CREATE OR REPLACE FUNCTION prevent_audit_mutation() RETURNS trigger LANGUAGE plpgsql AS $$
-BEGIN RAISE EXCEPTION 'Audit entries are append-only'; END; $$;
+-- Escaped semicolons keep this body intact in statement-splitting migration clients.
+CREATE OR REPLACE FUNCTION prevent_audit_mutation() RETURNS trigger
+LANGUAGE plpgsql AS E'BEGIN RAISE EXCEPTION ''Audit entries are append-only''\073 END\073';
 DROP TRIGGER IF EXISTS audit_append_only ON audit;
 CREATE TRIGGER audit_append_only BEFORE UPDATE OR DELETE ON audit FOR EACH ROW EXECUTE FUNCTION prevent_audit_mutation();
 INSERT INTO schema_migrations(version) VALUES (1) ON CONFLICT DO NOTHING;

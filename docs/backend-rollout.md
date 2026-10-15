@@ -62,3 +62,12 @@ npm test runs contract/crypto tests; TEST_DATABASE_URL enables real PostgreSQL i
 GitHub Actions provides PostgreSQL 17 and runs backend tests. Browser checks exercise auth forms and preserved modules at mobile/tablet/laptop widths using controlled API responses; they do not prove live email delivery or hosted production behavior.
 
 Release remains blocked on database/TLS/schema checks, least-privilege application credentials, isolated preview configuration, actual SMTP authentication and delivered-email/reset checks, bootstrap of admin@satguruai.com, and initial branch/business-line access assignments.
+
+
+## Login and optional Google sign-in
+Standard login uses a browser session cookie and a server-side 12-hour expiry. Remember me uses a persistent, Secure/HttpOnly cookie with a 30-day server expiry. Browsers may restore session cookies; do not rely on closing a window as logout. Password reset, logout, and administrator access changes revoke server sessions.
+Google is disabled until both GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are set in the existing saicrm project. SMTP credentials do not enable Google SSO.
+Create a Google OAuth Web application with authorized JavaScript origin https://saicrm.vercel.app and exact redirect URI https://saicrm.vercel.app/api/auth/google/callback. Configure the consent screen/audience and test users as appropriate. Put credentials in Vercel, never the repository or chat. Optional GOOGLE_WORKSPACE_DOMAIN enforces the signed Google hosted-domain claim.
+Deploy only after applying migrations 001 and 002. OAuth state is browser-bound, expires after ten minutes, and is consumed once; PKCE, nonce, issuer, audience, signature and verified email are checked. Only identity scopes are requested; Google access/refresh tokens are not stored.
+New Google registrations remain pending until an administrator approves role and exact branch/business-line pairs. Existing password accounts are deliberately not auto-linked by email: these users must continue password login in this release. An explicit authenticated account-linking flow is deferred.
+Before enabling SSO, test a real Google callback, approval, rejection, logout and scope restrictions. No Google credentials or live callback have yet been verified.

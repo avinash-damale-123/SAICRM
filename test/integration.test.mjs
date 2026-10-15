@@ -14,6 +14,7 @@ before(async()=>{
  if(!enabled)return;
  pool=new pg.Pool({connectionString:process.env.TEST_DATABASE_URL,max:8});
  await pool.query(await readFile(new URL('../db/001_initial.sql',import.meta.url),'utf8'));
+ await pool.query(await readFile(new URL('../db/002_google.sql',import.meta.url),'utf8'));
  config=configuration({DATABASE_URL:process.env.TEST_DATABASE_URL,APP_ORIGIN:origin,SMTP_HOST:'smtp.gmail.com',SMTP_PORT:'587',SMTP_USER:'noreply@example.org',SMTP_PASSWORD:'test-only-app-password',EMAIL_FROM:'SCRM <test@example.org>',TOKEN_SECRET:'a'.repeat(64)});
  // Capture only the provider boundary in tests. Production uses authenticated SMTP and has no mock email/OTP path.
  handler=createHandler({pool,config,deliver:async message=>sent.push(message)});
@@ -22,7 +23,7 @@ after(async()=>{if(pool)await pool.end()});
 async function call(route,method='GET',body,session={},extra={}){
  let payload,headers={};
  const req={url:'/api/'+route,query:{route:route.split('?')[0]},method,headers:{origin,'content-type':'application/json','x-real-ip':ip(),cookie:session.cookie||'','x-csrf-token':session.csrf||'',...extra},body};
- const res={statusCode:200,setHeader:(key,value)=>headers[key]=value,end:value=>payload=JSON.parse(value)};
+ const res={statusCode:200,setHeader:(key,value)=>headers[key]=value,end:value=>payload=value?JSON.parse(value):null};
  await handler(req,res);return {status:res.statusCode,body:payload,headers};
 }
 const password='test passphrase 123456789';
@@ -171,4 +172,36 @@ test('registration rejects SMTP recipient and header injection', {skip:!enabled}
  for(const email of ['first,second@example.org','Name <person@example.org>','person@example.org\r\nBcc:other@example.org']){
   assert.equal((await call('auth/register','POST',{email,password,name:'Invalid recipient'})).status,400);
  }
+});
+
+test('remember me uses bounded persistent sessions; standard sessions omit Max-Age',{skip:!enabled},async()=>{
+ const member=await account('remember@example.org');
+ assert.equal(member.response.headers['Set-Cookie'].includes('Max-Age'),false);
+ const remembered=await call('auth/login','POST',{email:member.email,password,remember:true});
+ assert.match(remembered.headers['Set-Cookie'],/Max-Age=2592000/);
+ const row=(await pool.query("SELECT extract(epoch from (s.expires_at-now())) AS remaining FROM sessions s JOIN users u ON u.id=s.user_id WHERE u.email=$1 ORDER BY s.expires_at DESC",[member.email])).rows[0];
+ assert.ok(Number(row.remaining)>2591900 && Number(row.remaining)<=2592000);
+ assert.equal((await call('auth/login','POST',{email:member.email,password,remember:'true'})).status,400);
+ const logged={cookie:remembered.headers['Set-Cookie'].split(';')[0],csrf:remembered.body.csrf};
+ assert.equal((await call('auth/logout','POST',{csrf:logged.csrf},logged)).status,200);
+ assert.equal((await call('auth/me','GET',undefined,logged)).body.user,null);
+});
+test('Google OAuth state is browser-bound, single-use and approval-gated',{skip:!enabled},async()=>{
+ const normal=handler;let exchanges=0;
+ handler=createHandler({pool,config:{...config,googleId:'client',googleSecret:'test'},googleExchange:async()=>{exchanges++;return {sub:'test-google-sub',email:'google-new@example.org',name:'Google User'}}});
+ try{
+ const start=await call('auth/google/start','POST',{remember:true});
+ assert.equal(start.status,200);const url=new URL(start.body.url);
+ assert.equal(url.searchParams.get('code_challenge_method'),'S256');
+ assert.equal(url.searchParams.get('redirect_uri'),origin+'/api/auth/google/callback');
+ const state=url.searchParams.get('state'),cookie=start.headers['Set-Cookie'].split(';')[0];
+ const route='auth/google/callback?state='+state+'&code=test';
+ assert.match((await call(route)).headers.Location,/google_error/);assert.equal(exchanges,0);
+ const pending=await call(route,'GET',undefined,{cookie});
+ assert.match(pending.headers.Location,/google_pending/);assert.equal(exchanges,1);
+ assert.match((await call(route,'GET',undefined,{cookie})).headers.Location,/google_error/);assert.equal(exchanges,1);
+ const user=(await pool.query('SELECT * FROM users WHERE email=$1',['google-new@example.org'])).rows[0];
+ assert.equal(user.status,'pending');assert.equal(user.email_verified,true);
+ assert.equal((await pool.query('SELECT 1 FROM sessions WHERE user_id=$1',[user.id])).rowCount,0);
+ }finally{handler=normal}
 });

@@ -29,6 +29,7 @@ try{
   const request=route.request(),path=new URL(request.url()).pathname.replace('/api/','');
   let body={};
   if(path==='auth/me')body=loggedIn?{user:{id:'test',name:'Test Admin',email:'test@example.org',role:'admin',status:'approved',emailVerified:true},csrf:'csrf'}:{user:null};
+  else if(path==='auth/options')body={googleEnabled:false};
   else if(path==='auth/login'){loggedIn=true;body={user:{id:'test',name:'Test Admin',email:'test@example.org',role:'admin',status:'approved',emailVerified:true},csrf:'csrf'}}
   else if(path.startsWith('records/')){
    const module=path.split('/')[1];
@@ -40,13 +41,16 @@ try{
   await route.fulfill({json:body});
  });
  await page.goto('http://127.0.0.1:4173');
+ await page.locator('#googleSignIn').waitFor();assert.equal(await page.locator('#googleSignIn').isDisabled(),true);
+ for(const width of [320,360,768,1440]){await page.setViewportSize({width,height:850});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await page.screenshot({path:'work/browser/login-'+width+'.png',fullPage:true});}
+ await page.locator('#authPassword').fill('visibility test');await page.locator('#showPassword').click();assert.equal(await page.locator('#authPassword').getAttribute('type'),'text');await page.locator('#showPassword').click();
  await page.getByRole('button',{name:'Register',exact:true}).click();
  await page.locator('#authName').fill('Test Admin');await page.locator('#authEmail').fill('test@example.org');
  await page.locator('#authPassword').fill('a long testing passphrase');await page.locator('#confirmPassword').fill('a long testing passphrase');
  await page.locator('#submitAuth').click();await page.locator('#authCode').waitFor();
  assert.equal(await page.locator('#authCode').inputValue(),'');
  await page.getByRole('button',{name:'Back to sign in'}).click();
- await page.locator('#authPassword').fill('a long testing passphrase');await page.locator('#submitAuth').click();
+ await page.locator('#authPassword').fill('a long testing passphrase');await page.locator('#rememberMe').check();await page.locator('#submitAuth').click();
  await page.locator('#navigation [data-nav]').first().waitFor();
  const modules=['overview','mywork','analytics','leads','customers','contacts','opportunities','activities','quotes','bookings','employees','branches','modules','settings','audit'];
  let checks=0;
