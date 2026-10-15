@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>SCRM | Satguru Enterprise CRM</title><meta name="theme-color" content="#0b1428"/><link rel="stylesheet" href="./styles.css"/></head>
+<body>
+<div id="app">
+<aside class="sidebar" id="sidebar">
+ <div class="brand"><div class="brandmark">S</div><div><strong>SCRM</strong><small>Satguru Enterprise CRM</small></div><button class="mobile-close" id="closeNav" aria-label="Close navigation">×</button></div>
+ <div class="workspace"><div class="workspace-icon">ST</div><div><b>Satguru Travel Group</b><small>Enterprise workspace</small></div><span>⌄</span></div>
+ <div id="navigation" class="navigation"></div>
+ <div class="sidebar-bottom"><div class="build-note"><span class="pulse"></span> UAT prototype · v0.1</div><div class="profile"><div class="avatar">SA</div><div><b>Demo Administrator</b><small>Local demo session</small></div><span>⋯</span></div></div>
+</aside>
+<div class="main">
+<header class="topbar"><div class="top-left"><button id="menuBtn" class="iconbtn mobile-menu" aria-label="Open navigation">☰</button><div class="breadcrumb">Workspace <span>›</span> <strong id="crumb">Overview</strong></div></div><div class="top-actions"><button id="globalSearchBtn" class="search-trigger">⌕ <span>Search anything...</span> <kbd>Ctrl K</kbd></button><span class="environment">● UAT / DEMO</span><button id="notifBtn" class="iconbtn" title="Notifications">♧<i></i></button><div class="top-avatar">SA</div></div></header>
+<main id="content" class="content"></main>
+</div></div>
+<div id="overlay" class="overlay hidden" aria-hidden="true"><div class="modal" role="dialog" aria-modal="true"><div class="modal-head"><div><div class="eyebrow" id="modalEyebrow">SCRM</div><h2 id="modalTitle">New record</h2></div><button class="iconbtn" id="closeModal" aria-label="Close dialog">✕</button></div><div id="modalBody" class="modal-body"></div><div class="modal-footer" id="modalFooter"></div></div></div>
+<div id="toast" class="toast hidden"></div>
+<script src="./app.js"></script></body></html>
