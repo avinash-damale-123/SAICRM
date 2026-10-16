@@ -23,12 +23,14 @@ try{
  await mkdir('work/browser',{recursive:true});
  const page=await browser.newPage();
  const errors=[];page.on('pageerror',error=>errors.push(error.message));
- let loggedIn=false;
+ let loggedIn=false;let recoveryRequest=null,resetRequest=null;
  const records=Object.fromEntries(['leads','customers','contacts','opportunities','activities','quotes','bookings','employees','branches'].map(name=>[name,[{...Object.fromEntries(fields[name].map(([key,,type,,choices])=>[key,type==='select'?choices[0]:type==='number'?1500:type==='email'?'ui-fixture@example.org':type==='date'?'2026-10-15':key==='scopeBranch'?'PUNE':'Long UI fixture record for responsive layout checks'])),id:'fixture-'+name,version:1}]]));
  await page.route('**/api/**',async route=>{
   const request=route.request(),path=new URL(request.url()).pathname.replace('/api/','');
   let body={};
   if(path==='auth/me')body=loggedIn?{user:{id:'test',name:'Test Admin',email:'test@example.org',role:'admin',status:'approved',emailVerified:true},csrf:'csrf'}:{user:null};
+  else if(path==='auth/forgot'){recoveryRequest=request.postDataJSON();body={message:'If eligible, a code has been sent.'}}
+  else if(path==='auth/reset'){resetRequest=request.postDataJSON();body={message:'Password changed. Sign in with your new password.'}}
   else if(path==='auth/options')body={googleEnabled:false};
   else if(path==='auth/login'){loggedIn=true;body={user:{id:'test',name:'Test Admin',email:'test@example.org',role:'admin',status:'approved',emailVerified:true},csrf:'csrf'}}
   else if(path.startsWith('records/')){
@@ -44,6 +46,11 @@ try{
  await page.locator('#googleSignIn').waitFor();assert.equal(await page.locator('#googleSignIn').isDisabled(),true);
  for(const width of [320,360,768,1440]){await page.setViewportSize({width,height:850});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await page.screenshot({path:'work/browser/login-'+width+'.png',fullPage:true});}
  await page.locator('#authPassword').fill('visibility test');await page.locator('#showPassword').click();assert.equal(await page.locator('#authPassword').getAttribute('type'),'text');await page.locator('#showPassword').click();
+ await page.getByRole('button',{name:'Forgot password?',exact:true}).click();
+ await page.locator('#authEmail').fill('test@example.org');await page.locator('#submitAuth').click();await page.locator('#authCode').waitFor();assert.equal(recoveryRequest.method,'otp');
+ for(const width of [320,360,768,1440]){await page.setViewportSize({width,height:850});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));}
+ await page.locator('#authCode').fill('123456');await page.locator('#authPassword').fill('new OTP testing passphrase');await page.locator('#confirmPassword').fill('new OTP testing passphrase');await page.locator('#submitAuth').click();
+ await page.locator('#rememberMe').waitFor();assert.equal(resetRequest.code,'123456');assert.equal(resetRequest.email,'test@example.org');assert.equal(new URL(page.url()).hash,'');
  await page.getByRole('button',{name:'Register',exact:true}).click();
  await page.locator('#authName').fill('Test Admin');await page.locator('#authEmail').fill('test@example.org');
  await page.locator('#authPassword').fill('a long testing passphrase');await page.locator('#confirmPassword').fill('a long testing passphrase');

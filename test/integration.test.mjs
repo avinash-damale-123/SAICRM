@@ -219,3 +219,40 @@ test('Google OAuth state is browser-bound, single-use and approval-gated',{skip:
 
  }finally{handler=normal}
 });
+
+test('OTP password recovery is private, single-use under concurrency, and revokes sessions',{skip:!enabled},async()=>{
+ const user=await account('reset-otp@example.org');
+ const request=await call('auth/forgot','POST',{email:user.email,method:'otp'});
+ assert.equal(request.status,200);assert.equal(request.body.message.includes('eligible'),true);
+ const message=sent.findLast(m=>m.to===user.email),code=message.text.match(/code is (\d{6})/)[1];
+ assert.equal(message.text.includes('https://'),false);assert.equal(JSON.stringify(request.body).includes(code),false);
+ const missing=await call('auth/forgot','POST',{email:'no-otp-account@example.org',method:'otp'});assert.deepEqual(missing.body,request.body);
+ const nextPassword='new OTP reset passphrase 123456';
+ const results=await Promise.all([1,2].map(()=>call('auth/reset','POST',{email:user.email,code,password:nextPassword})));
+ assert.deepEqual(results.map(r=>r.status).sort(),[200,400]);
+ assert.equal((await call('auth/me','GET',undefined,user)).body.user,null);
+ assert.equal((await call('auth/login','POST',{email:user.email,password})).status,401);
+ assert.equal((await call('auth/login','POST',{email:user.email,password:nextPassword})).status,200);
+ assert.equal((await call('auth/reset','POST',{email:user.email,code,password})).status,400);
+});
+test('OTP resend invalidates the previous code; expired and cross-account codes fail',{skip:!enabled},async()=>{
+ const user=await account('reset-resend@example.org');
+ await call('auth/forgot','POST',{email:user.email,method:'otp'});
+ const first=sent.findLast(m=>m.to===user.email).text.match(/code is (\d{6})/)[1];
+ await call('auth/forgot','POST',{email:user.email,method:'otp'});
+ const second=sent.findLast(m=>m.to===user.email).text.match(/code is (\d{6})/)[1];
+ assert.notEqual(first,second);
+ assert.equal((await call('auth/reset','POST',{email:user.email,code:first,password})).status,400);
+ assert.equal((await call('auth/reset','POST',{email:'no-otp-account@example.org',code:second,password})).status,400);
+ assert.equal((await call('auth/reset','POST',{email:user.email,code:second,token:'a'.repeat(64),password})).status,400);
+ await pool.query("UPDATE challenges SET expires_at=now()-interval '1 second' WHERE user_id=(SELECT id FROM users WHERE email=$1) AND kind='reset'",[user.email]);
+ assert.equal((await call('auth/reset','POST',{email:user.email,code:second,password})).status,400);
+});
+test('five wrong password reset OTP guesses exhaust the challenge',{skip:!enabled},async()=>{
+ const user=await account('reset-guesses@example.org');
+ await call('auth/forgot','POST',{email:user.email,method:'otp'});
+ const code=sent.findLast(m=>m.to===user.email).text.match(/code is (\d{6})/)[1],wrong=code==='000000'?'111111':'000000';
+ for(let i=0;i<5;i++)assert.equal((await call('auth/reset','POST',{email:user.email,code:wrong,password})).status,400);
+ const challenge=(await pool.query("SELECT attempts FROM challenges WHERE user_id=(SELECT id FROM users WHERE email=$1) AND kind='reset'",[user.email])).rows[0];assert.equal(challenge.attempts,5);
+ assert.ok([400,429].includes((await call('auth/reset','POST',{email:user.email,code,password})).status));
+});
