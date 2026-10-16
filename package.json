@@ -1,0 +1,23 @@
+{
+  "name": "saicrm",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "db:migrate": "node scripts/migrate.mjs",
+    "admin:bootstrap": "node scripts/bootstrap-admin.mjs",
+    "test:browser": "node test/browser.mjs"
+  },
+  "dependencies": {
+    "pg": "8.16.3",
+    "nodemailer": "10.1.1",
+    "jose": "6.2.12"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1"
+  }
+}

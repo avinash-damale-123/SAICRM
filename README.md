@@ -1,37 +1,30 @@
 # SCRM — Satguru Enterprise CRM
 
-An original Salesforce-inspired, Satguru-specific **UAT prototype** for multi-business-line CRM operations.
+A responsive CRM with a PostgreSQL API and email-verified, administrator-approved accounts. This branch is an implementation pending infrastructure configuration and live verification; it is not certified production-ready.
 
-## Preview locally
+- Login, registration, email OTP verification/resend, expiring single-use password resets, sessions and logout.
+- Google Workspace SMTP from noreply@satguruai.com, using a Google app password and verified TLS. Resend is not required.
+- Server-enforced admin/manager/member/viewer permissions, protected CRUD, input validation, rate limits and audit events.
+- Existing leads, customers, contacts, opportunities, activities, quotations, bookings, employees and branches.
+- No fictional records or browser-local CRM persistence. Existing browser demo records are not automatically imported.
 
-Open `index.html` in a browser. The application uses vanilla HTML, CSS and JavaScript; no installation is required.
+Read [the rollout guide](docs/backend-rollout.md) for environment configuration, migration, administrator bootstrap, permissions, tests and limitations. Configure only the existing avinash-damale-123/SAICRM repository and saicrm.vercel.app Vercel project. Missing services fail closed.
 
-## Available in this prototype
+## Commands
 
-- Executive overview and illustrative pipeline visual
-- Leads and pipeline board
-- Customers, people/contacts, opportunities, activities, quotations, bookings
-- Employees, branches, module directory, settings and local audit log
-- Search, status filters, create/edit forms, CSV export and responsive layout
-- Browser-local demo persistence and reset
+Use Node.js 22 or later.
 
-## Important limitations
+```sh
+npm install
+npm test
+npm run db:migrate
+npm run admin:bootstrap
+```
 
-**This is a front-end demonstration, not a production-ready CRM.** The sample data is fictional. There is no authentication, server-side RBAC, API, shared database, secure audit log, encryption-backed data governance, email integration, booking engine, or production-grade validation. Do not enter actual customer, employee, financial or sensitive data. Local browser storage is not a secure enterprise data store.
+Set environment variables using [.env.example](.env.example) as a reference. Scripts read the process environment; they do not automatically load an .env file. Database integration tests require TEST_DATABASE_URL pointing at an isolated test database. Serve the app through Vercel/its development server for /api routing; opening index.html directly no longer provides a working CRM.
 
-The customer/person/employee identity policy remains unresolved in SCRM-013 and SCRM-015; do not automatically merge identities. Customer categories are scoped per business line.
+## Scope
 
-The architecture follows the confirmed SCRM-001–012 and SCRM-014 business principles as **design intent**. It does not claim to have implemented all of those rules.
+One internal workspace with explicit branch/business-line access pairs and administrator visibility across all scopes. Department-specific access, multiple tenants, financial workflows, external booking systems, notifications and planned directory capabilities need further work. Employee master fields never grant account access. Do not enable real customer use until configuration, delivered email, database security/backup and access policy have been verified.
 
-## Roadmap
-
-1. Secure authentication with administrator-approved employee access.
-2. Backend database, master-data tables, tenant/business-line/branch/department scoped authorization.
-3. Person, organisation, employee, contact, customer relationship and effective-dated category data model.
-4. Real lead lifecycle, conversion, quotations, bookings and fulfilment workflows.
-5. Service cases, marketing, SLA, approvals, audit, reports and integrations.
-6. Security testing, UAT, migration and phased production rollout.
-
-## Intellectual property
-
-This is an original implementation inspired by common enterprise CRM capabilities. It does not copy Salesforce source code, UI assets or proprietary product implementations.
+Original implementation inspired by common enterprise CRM patterns; no Salesforce source code or assets.
