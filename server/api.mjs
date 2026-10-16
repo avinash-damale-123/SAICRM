@@ -42,10 +42,10 @@ async function limit(client, config, key, max, seconds) {
   [id, seconds]);
  if (result.rows[0].count > max) fail(429, 'Too many requests. Try again later.');
 }
-async function issue(client, config, user, kind) {
- let value = kind === 'verify' ? otp() : token();
+async function issue(client, config, user, kind, useOtp = false) {
+ let value = kind === 'verify' || useOtp ? otp() : token();
  const previous=(await client.query('SELECT digest FROM challenges WHERE user_id=$1 AND kind=$2',[user.id,kind])).rows[0]?.digest;
- while(previous && equal(previous,digest(config.secret,user.id+':'+kind+':'+value))) value=kind==='verify'?otp():token();
+ while(previous && equal(previous,digest(config.secret,user.id+':'+kind+':'+value))) value=kind==='verify'||useOtp?otp():token();
  await client.query("INSERT INTO challenges(user_id,kind,digest,expires_at) VALUES($1,$2,$3,now()+interval '15 minutes') ON CONFLICT(user_id,kind) DO UPDATE SET digest=EXCLUDED.digest,expires_at=EXCLUDED.expires_at,attempts=0",
   [user.id, kind, digest(config.secret, user.id + ':' + kind + ':' + value)]);
  return value;
@@ -194,14 +194,17 @@ export function createHandler({ pool, config, deliver = message => sendEmail(con
     }
     if (action === 'resend' || action === 'forgot') {
      const kind = action === 'resend' ? 'verify' : 'reset';
+     if(action==='forgot' && body.method!==undefined && !['otp','link'].includes(body.method))fail(400,'Invalid recovery method');
+     const useOtp=action==='forgot' && body.method==='otp';
      const message = await transaction(pool, async client => {
       const result = await client.query('SELECT * FROM users WHERE email=$1 FOR UPDATE', [email]);
       const user = result.rows[0];
       if (!user || (kind === 'verify' ? user.email_verified : !user.email_verified)) return null;
-      const value = await issue(client, config, user, kind);
+      const value = await issue(client, config, user, kind, useOtp);
       await audit(client, user.id, kind === 'verify' ? 'Verification requested' : 'Password reset requested', 'auth', user.id);
       return { to: email, subject: kind === 'verify' ? 'Verify your SCRM email' : 'Reset your SCRM password',
        text: kind === 'verify' ? 'Your SCRM verification code is ' + value + '. It expires in 15 minutes.' :
+        useOtp ? 'Your SCRM password reset code is ' + value + '. It expires in 15 minutes and can be used once. Enter it on the same CRM website where you requested it. Never share this code.\nIf you did not request this, ignore this email.' :
         'Reset your SCRM password using this single-use link within 15 minutes: ' + config.origin + '/#reset=' + value + '&email=' + encodeURIComponent(email) + '\nIf you did not request this, ignore this email.' };
      });
      if (message) await deliver(message);
@@ -209,8 +212,10 @@ export function createHandler({ pool, config, deliver = message => sendEmail(con
     }
     if (action === 'verify' || action === 'reset') {
      const kind = action === 'verify' ? 'verify' : 'reset';
-     const value = kind === 'verify' ? body.code : body.token;
-     if (typeof value !== 'string' || !(kind === 'verify' ? /^\d{6}$/ : /^[a-f0-9]{64}$/).test(value)) fail(400, 'Invalid or expired code/link');
+     if(kind==='reset' && body.code!==undefined && body.token!==undefined)fail(400,'Use one reset method');
+     const useOtp=kind==='reset' && body.code!==undefined;
+     const value = kind === 'verify' || useOtp ? body.code : body.token;
+     if (typeof value !== 'string' || !(kind === 'verify' || useOtp ? /^\d{6}$/ : /^[a-f0-9]{64}$/).test(value)) fail(400, 'Invalid or expired code/link');
      if (kind === 'reset' && !validPassword(body.password)) fail(400, 'Use a password of 12 to 128 characters');
      const encoded = kind === 'reset' ? await passwordHash(body.password) : null;
      const success = await transaction(pool, async client => {
