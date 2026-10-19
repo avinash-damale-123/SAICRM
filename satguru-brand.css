@@ -1,0 +1,53 @@
+/* SCRM Satguru-inspired interim brand palette. Replace placeholder mark only when official asset supplied.
+   Core green #087B40, accent orange #ED8528, dark evergreen #123427. */
+:root{--brand-green:#087b40;--brand-green-dark:#076237;--brand-orange:#ed8528;--brand-orange-soft:#fff3e8;--brand-green-soft:#e9f6ee;--blue:#087b40;--navy:#123427;--bg:#f5f8f6;--ink:#243b32}
+body{background:var(--bg)}
+:focus-visible{outline-color:#15945c}
+.skip-link{color:var(--brand-green)}
+.sidebar{background:linear-gradient(180deg,#123427 0%,#0d2b22 100%);color:#dfefe4}
+.brandmark{background:linear-gradient(135deg,#087b40 4%,#14975c 70%,#ed8528 100%);color:#fff;box-shadow:0 0 0 1px #ffffff24}
+.brand{border-bottom-color:#ffffff22}
+.brand small,.workspace small{color:#b0cabe}
+.workspace-icon{background:#ffffff17;border-color:#ffffff22;color:#fff}
+.nav-section,.nav-section-label{color:#b2cfc0}
+.nav-item{color:#d5e8de}
+.nav-item:hover{background:#ffffff13;color:#fff}
+.nav-item.active,.nav-item[aria-current="page"]{background:#176644;color:#fff;box-shadow:inset 3px 0 var(--brand-orange)}
+.nav-item.active .nav-icon,.nav-item[aria-current="page"] .nav-icon{color:#fff2e2}
+.nav-count{background:#ffffff24}
+.sidebar-bottom{border-top-color:#ffffff22}
+.avatar,.top-avatar{background:#087b40;color:#fff}
+.pulse{background:#2bc98b}
+.topbar{border-bottom-color:#dce9df}
+.environment{background:#e8f6ed;color:#087b40;border-color:#cae9d6}
+.btn.primary,.btn-primary{background:var(--brand-green);border-color:var(--brand-green);color:white}
+.btn.primary:hover,.btn-primary:hover{background:var(--brand-green-dark);border-color:var(--brand-green-dark)}
+.btn:not(.primary):hover{border-color:#b7d9c5}
+.stat-icon{background:var(--brand-green-soft);color:var(--brand-green)}
+.stat-value,.page-heading h1{color:#1e4633}
+.notice{background:#eef8f1;border-color:#d1ead9;color:#39684f}
+.pill.active{background:var(--brand-green-soft);border-color:#a3d3b7;color:var(--brand-green)}
+.mini-link,.name-cell,.record-name{color:var(--brand-green)}
+.track .fill,.chart-bar{background:var(--brand-green)}
+.timeline-item:before{background:var(--brand-orange)}
+.badge.green{background:var(--brand-green-soft);color:var(--brand-green)}
+.badge.orange{background:var(--brand-orange-soft);color:#a65309}
+.input:focus,.select:focus,.textarea:focus{border-color:var(--brand-green);box-shadow:0 0 0 3px #087b401c}
+/* Existing business module inherits brand tokens; orange is reserved for inactive/attention states. */
+.mw-workspace,.mw-module-header,.mw-dialog{--mw-green:var(--brand-green);--mw-ink:#1e3b30}
+.mw-module-identity-icon{background:#e7f6ed;color:var(--brand-green)}
+.mw-module-tab.mw-active-tab{color:var(--brand-green);border-bottom-color:var(--brand-orange)}
+.mw-module-tab:hover{color:var(--brand-green)}
+.mw-add-record,.mw-btn.mw-primary{background:var(--brand-green)!important;border-color:var(--brand-green)!important}
+.mw-add-record:hover,.mw-btn.mw-primary:hover{background:var(--brand-green-dark)!important;border-color:var(--brand-green-dark)!important}
+.mw-record-link{color:var(--brand-green)}
+.mw-dashboard-metric-active>strong{color:var(--brand-green)}
+.mw-dashboard-metric-inactive>strong{color:#d67314}
+.mw-dashboard-metric-active .mw-metric-glyph{background:var(--brand-green-soft);color:var(--brand-green)}
+.mw-dashboard-metric-inactive .mw-metric-glyph{background:var(--brand-orange-soft);color:#d67314}
+.mw-donut-legend .mw-legend-active,.mw-chart-bar:not(.mw-chart-inactive):not(.mw-chart-archived){background:var(--brand-green)}
+.mw-donut-legend .mw-legend-inactive,.mw-chart-inactive{background:var(--brand-orange)}
+.mw-dashboard-metric{border-color:#dce9df}
+.mw-dashboard-metric>strong{color:#1e4935}
+/* Current system still uses existing S monogram. Do not insert a guessed Satguru logo. */
+@media(max-width:600px){.sidebar{background:#123427}.mw-module-tab.mw-active-tab{border-bottom-color:var(--brand-orange)}}
