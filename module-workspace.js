@@ -25,19 +25,28 @@ function create(host,config) {
  const topbar=document.querySelector('.topbar');
  moduleHeader=document.createElement('div');moduleHeader.className='mw-module-header';
  moduleHeader.innerHTML='<div class="mw-header-primary"><nav class="mw-module-tabs" aria-label="'+esc(config.title)+' views"><button type="button" class="mw-module-tab" data-mw="dashboard" aria-label="'+esc(config.title)+' Dashboard"><span>'+esc(config.title)+'</span> Dashboard</button><button type="button" class="mw-module-tab" data-mw="home" aria-label="'+esc(config.title)+' Home" aria-current="page"><span>'+esc(config.title)+'</span> Home</button></nav><div class="mw-header-account"><div class="mw-common-tools"></div><details class="mw-account-menu"><summary aria-label="User menu for '+esc(user.name||user.email)+'"><span class="mw-avatar-slot"></span><span class="mw-profile-name">'+esc(user.name||user.email)+'</span>'+icon('chevron')+'</summary><div class="mw-account-dropdown"><strong>'+esc(user.name||'')+'</strong><small>'+esc(user.email||'')+'</small><div class="mw-logout-slot"></div></div></details>'+button('Add '+config.singular,'create','mw-primary mw-add-record','plus')+'</div></div><div class="mw-header-toolbar"><div class="mw-search"><label class="mw-sr-only" for="mw-search">Search '+esc(config.title)+'</label>'+icon('search')+'<input id="mw-search" type="search" placeholder="Search '+esc(config.title.toLowerCase())+'…" autocomplete="off" list="mw-recent-searches" disabled><datalist id="mw-recent-searches"></datalist></div><div class="mw-header-actions">'+(config.import&&typeof config.onImport==='function'?button('Import','import','','download'):'')+button('Export','export','','download')+'<button type="button" class="mw-btn" data-mw="filter-toggle" aria-label="Filter" aria-controls="mw-filter-controls" aria-expanded="false">'+icon('filter')+'<span>Filter</span><span class="mw-filter-count" hidden></span></button><details class="mw-settings-menu"><summary class="mw-btn" aria-label="Module settings">'+icon('settings')+'<span>Settings</span>'+icon('chevron')+'</summary><div>'+button('Columns','columns','mw-menu-item','columns')+button('Refresh','refresh','mw-menu-item','refresh')+'</div></details></div></div>';
- const heading=document.createElement('div');heading.className='mw-module-identity';heading.innerHTML='<span class="mw-module-identity-icon">'+icon('briefcase')+'</span><div><span class="mw-module-kicker">MASTERS</span><h2>'+esc(config.title)+'</h2><p>'+esc(config.description||'Manage enterprise records and workflows.')+'</p></div>';moduleHeader.prepend(heading);
- moduleHeader.querySelector('.mw-header-toolbar').append(moduleHeader.querySelector('.mw-header-account'));
- const add=moduleHeader.querySelector('.mw-add-record');add.setAttribute('aria-label','Add '+config.singular);add.innerHTML=icon('plus')+'<span class="mw-add-label">Add '+esc(config.singular)+'</span><span class="mw-add-short">Add</span>';
- if(topbar){
-  const originalActions=topbar.querySelector('.top-actions'),originalNodes=originalActions?[...originalActions.childNodes]:[];
-  const common=moduleHeader.querySelector('.mw-common-tools'),avatarSlot=moduleHeader.querySelector('.mw-avatar-slot'),logoutSlot=moduleHeader.querySelector('.mw-logout-slot');
-  const avatar=document.querySelector('.top-avatar'),originalAvatar=avatar?.textContent;
-  ['#notifBtn','#focusModeBtn'].forEach(selector=>{const node=document.querySelector(selector);if(node)common.append(node)});
-  if(avatar){avatar.textContent=(user.name||user.email||'User').trim().split(/\s+/).slice(0,2).map(v=>v[0]).join('').toUpperCase();avatarSlot.append(avatar)}
-  const logout=document.querySelector('#logoutBtn');if(logout)logoutSlot.append(logout);
-  topbar.classList.add('mw-topbar');topbar.append(moduleHeader);host.classList.add('mw-module-content');
-  headerRestore=()=>{if(originalActions)originalActions.replaceChildren(...originalNodes);if(avatar&&originalAvatar!=null)avatar.textContent=originalAvatar;moduleHeader?.remove();topbar.classList.remove('mw-topbar');host.classList.remove('mw-module-content')};
- }else{find('.mw-workspace').prepend(moduleHeader);headerRestore=()=>moduleHeader?.remove()}
+ const heading=document.createElement('div');heading.className='mw-module-identity';
+ heading.innerHTML='<span class="mw-module-identity-icon">'+icon('briefcase')+'</span><div><span class="mw-module-kicker">MASTERS</span><h2>'+esc(config.title)+'</h2><p>'+esc(config.description||'Manage enterprise records and workflows.')+'</p></div>';
+ moduleHeader.prepend(heading);
+ moduleHeader.classList.add('crm-business-module');
+ const add=moduleHeader.querySelector('.mw-add-record');
+ add.setAttribute('aria-label','Add '+config.singular);
+ add.innerHTML=icon('plus')+'<span class="mw-add-label">Add '+esc(config.singular)+'</span><span class="mw-add-short">Add</span>';
+ moduleHeader.querySelector('.mw-header-actions').append(add);
+ // Show a disabled placeholder only to the Super Admin; secure import is not wired yet.
+ if(user.systemRole==='super_admin'){
+  const hint=document.createElement('button');hint.type='button';hint.className='mw-btn crm-disabled-import';hint.disabled=true;hint.textContent='↑ Import';hint.title='Secure Business Lines import is awaiting backend validation';
+  const actions=moduleHeader.querySelector('.mw-header-actions');actions.insertBefore(hint,actions.querySelector('[data-mw="filter-toggle"]'));
+ }
+ // Global bell, fullscreen, profile and search remain in the persistent global header.
+ // Only this module's local actions/tabs appear in the module work bar.
+ moduleHeader.querySelector('.mw-header-account').remove();
+ if(topbar) {
+  const workbar=document.createElement('div');workbar.className='crm-module-host';
+  topbar.insertAdjacentElement('afterend',workbar);
+  workbar.append(moduleHeader);host.classList.add('mw-module-content');
+  headerRestore=()=>{workbar.remove();host.classList.remove('mw-module-content')};
+ }else{host.prepend(moduleHeader);headerRestore=()=>moduleHeader?.remove()}
  moduleHeader.addEventListener('click',click);
  moduleHeader.querySelector('#mw-search').value=state.q;
  moduleHeader.querySelector('#mw-search').addEventListener('input',e=>{if(!permitted('search'))return;state.view='home';state.q=e.target.value.trim();clearTimeout(timer);renderViews();timer=setTimeout(()=>{rememberSearch(state.q);state.page=1;load()},400)});
@@ -185,7 +194,14 @@ function create(host,config) {
  const d=openDialog('Export '+config.title,'<p class="mw-muted">Download a CSV file. Pagination never limits an export.</p><form id="mw-export-form" class="mw-export-options">'+options.map(([mode,label,desc])=>'<label><input type="radio" name="mode" value="'+mode+'" '+(mode===selected?'checked':'')+' '+(mode==='selected'&&(!state.selected.size||state.selected.size>state.limits.selectedExport)?'disabled':'')+'><span><strong>'+label+'</strong><small>'+esc(desc)+'</small></span></label>').join('')+'</form><p class="mw-form-error" role="alert" hidden></p>','<button class="mw-btn" type="button" id="mw-export-cancel">Cancel</button><button class="mw-btn mw-primary" type="submit" form="mw-export-form" id="mw-export-download">Download CSV</button>');if(!d)return;d.querySelector('#mw-export-cancel').onclick=()=>closeDialog();d.querySelector('form').onsubmit=async e=>{e.preventDefault();if(dialogSaving||!permitted('export'))return;const mode=new FormData(e.target).get('mode');dialogSaving=true;d.querySelector('#mw-export-download').disabled=true;d.querySelector('#mw-export-download').textContent='Preparing…';try{const result=await api(config.endpoint+'/export','POST',{mode,ids:mode==='selected'?[...state.selected]:[],...(mode==='my'?{columns:prefs.columns}:{}),query:query()});if(dead||dialog!==d)return;if(typeof result.csv!=='string')throw Error('The export could not be prepared.');const url=URL.createObjectURL(new Blob([result.csv],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download=result.filename||config.key+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);dialogSaving=false;closeDialog(true);announce('Export ready: '+Number(result.count||0).toLocaleString()+' records.')}catch(e){dialogSaving=false;const err=d.querySelector('.mw-form-error');err.textContent=e.message;err.hidden=false;d.querySelector('#mw-export-download').disabled=false;d.querySelector('#mw-export-download').textContent='Download CSV'}}
  }
  shell();load();
- return {canLeave(){return dead||closeDialog()},destroy(force=false){if(dead)return true;if(!force&&!closeDialog())return false;dead=true;++sequence;clearTimeout(timer);closeDialog(true);host.removeEventListener('click',click);host.removeEventListener('change',change);moduleHeader?.removeEventListener('click',click);headerRestore?.();return true},reload:load,focusSearch(){if(dead||!permitted('search'))return false;find('#mw-search')?.focus();return true}};
+ return {
+  canLeave(){return dead||closeDialog()},
+  destroy(force=false){if(dead)return true;if(!force&&!closeDialog())return false;dead=true;++sequence;clearTimeout(timer);closeDialog(true);host.removeEventListener('click',click);host.removeEventListener('change',change);moduleHeader?.removeEventListener('click',click);headerRestore?.();return true},
+  reload:load,
+  setSearch(q){if(dead||!permitted('search'))return false;state.q=String(q??'').trim().slice(0,100);state.view='home';state.page=1;const field=find('#mw-search');if(field)field.value=state.q;renderViews();clearTimeout(timer);timer=setTimeout(()=>{rememberSearch(state.q);load()},300);return true},
+  openResult(id,label){if(dead||!permitted('read'))return false;state.view='home';renderViews();readRecord(id);return true},
+  focusSearch(){if(dead||!permitted('search'))return false;return window.SCRMWorkspace?.focusSearch?.()||false}
+ };
 }
 window.SCRMModuleWorkspace={create};
 })();
