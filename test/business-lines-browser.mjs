@@ -84,7 +84,7 @@ try{
  };
  const headerRestored=async()=>{
   assert.equal(await page.locator('.mw-module-header').count(),0);
-  assert.ok(await page.evaluate(()=>Object.values(window.__originalHeader).every(({node,parent})=>node.isConnected&&node.parentNode===parent)));
+  assert.ok(await page.evaluate(()=>Object.values(window.__originalHeader).every(({node})=>node.isConnected&&!!node.closest('.topbar')&&!node.closest('.mw-module-header'))),'Global controls must remain in the global top bar, not a module header');
   for(const selector of ['#notifBtn','#focusModeBtn','#logoutBtn','.top-avatar'])assert.equal(await page.locator(selector).count(),1,selector+' must remain unique');
  };
  const noOverflow=async label=>assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Page overflow: '+label);
@@ -93,6 +93,22 @@ try{
  await page.evaluate(()=>{window.__originalHeader=Object.fromEntries(['#notifBtn','#focusModeBtn','#logoutBtn','.top-avatar'].map(selector=>{const node=document.querySelector(selector);return [selector,{node,parent:node.parentNode}]}))});
  await openBusiness();
  assert.equal(await page.locator('.mw-module-header #mw-search').count(),1);
+ const headerLayout=await page.evaluate(()=>{
+  const host=document.querySelector('.crm-module-host'),row=document.querySelector('.crm-business-module');
+  const box=selector=>document.querySelector(selector).getBoundingClientRect();
+  return {direction:getComputedStyle(row).flexDirection,height:host.getBoundingClientRect().height,
+   identityY:box('.crm-business-module .mw-module-identity').y,
+   tabsY:box('.crm-business-module .mw-module-tabs').y,
+   actionsY:box('.crm-business-module .mw-header-actions').y,
+   tableY:box('.mw-home').y};
+ });
+ assert.equal(headerLayout.direction,'row','Business Lines must use horizontal flex direction');
+ assert.ok(headerLayout.height<140,'Business Lines toolbar is too tall: '+JSON.stringify(headerLayout));
+ assert.ok(Math.abs(headerLayout.identityY-headerLayout.tabsY)<24,'Title and Home/Dashboard tabs are disconnected: '+JSON.stringify(headerLayout));
+ assert.ok(Math.abs(headerLayout.tabsY-headerLayout.actionsY)<24,'Module actions are disconnected from tabs: '+JSON.stringify(headerLayout));
+ const homeActive=await page.locator('[data-mw="home"]').evaluate(el=>({bg:getComputedStyle(el).backgroundColor,color:getComputedStyle(el).color}));
+ assert.deepEqual(homeActive,{bg:'rgb(8, 123, 64)',color:'rgb(255, 255, 255)'},'Home selected state must be Satguru dark green');
+
  assert.ok((await page.locator('.crm-profile-trigger').innerText()).includes(user.name));
  await page.locator('#notifBtn').click();await page.locator('#crmNoticeMenu:not([hidden])').waitFor();
  assert.ok((await page.locator('#crmNoticeMenu').innerText()).includes('Notifications'));await page.locator('#notifBtn').click();
@@ -104,6 +120,13 @@ try{
  const headerControls=await page.locator('.mw-module-header').evaluate(node=>Array.from(node.querySelectorAll('[data-mw="export"],[data-mw="filter-toggle"],.mw-settings-menu,#notifBtn,#focusModeBtn,.mw-account-menu,[data-mw="create"]')).map(element=>element.dataset.mw||element.id||element.className));
  assert.equal(headerControls[0],'export');assert.equal(headerControls[1],'filter-toggle');
  await page.locator('[data-mw="dashboard"]').click();
+ // The hovered selected tab intentionally uses #075b33, matching Add button hover.
+ // Move the pointer away to assert the resting selected color #087b40.
+ await page.mouse.move(0,0);
+ await page.waitForFunction(()=>{
+  const button=document.querySelector('.crm-business-module [data-mw="dashboard"]');
+  return button?.classList.contains('mw-active-tab') && document.querySelector('.mw-dashboard')?.hidden===false && getComputedStyle(button).backgroundColor==='rgb(8, 123, 64)' && getComputedStyle(button).color==='rgb(255, 255, 255)';
+ });
  assert.equal(await page.locator('.mw-table').isVisible(),false);
  const dashboard=page.locator('.mw-dashboard');
  assert.equal(await dashboard.isVisible(),true);
@@ -112,6 +135,11 @@ try{
  assert.equal(await dashboard.locator('.mw-status-chart').count(),1);
  await page.screenshot({animations:'disabled',path:'work/browser/header-dashboard-1440.jpg',type:'jpeg',quality:40});
  await page.locator('[data-mw="home"]').click();
+ await page.mouse.move(0,0);
+ await page.waitForFunction(()=>{
+  const button=document.querySelector('.crm-business-module [data-mw="home"]');
+  return button?.classList.contains('mw-active-tab') && getComputedStyle(button).backgroundColor==='rgb(8, 123, 64)' && getComputedStyle(button).color==='rgb(255, 255, 255)';
+ });
  await page.screenshot({animations:'disabled',path:'work/browser/header-home-1440.jpg',type:'jpeg',quality:40});
  await page.screenshot({animations:'disabled',path:'work/browser/header-home-crop.jpg',type:'jpeg',quality:30,clip:{x:0,y:0,width:1440,height:240}});
  assert.equal(await page.locator('.mw-table').isVisible(),true);
@@ -120,6 +148,11 @@ try{
  assert.equal(await page.locator('[data-mw="import"]').count(),0);
  for(const width of [320,360,768,1100,1440]){
   await page.setViewportSize({width,height:850});await noOverflow('list '+width);
+  if(width>=1100){
+   const h=await page.locator('.crm-module-host').evaluate(el=>el.getBoundingClientRect().height);
+   assert.ok(h<175,'Header must stay compact on '+width+'px laptop/desktop: '+h);
+  }
+
   await page.locator('#menuBtn').click();await noOverflow('alternate sidebar '+width);
   if(width<768){await page.locator('#closeNav').click();assert.equal(await page.locator('#sidebar').evaluate(node=>node.classList.contains('open')),false);assert.equal(await page.locator('#navBackdrop').evaluate(node=>node.hidden),true)}else await page.locator('#menuBtn').click();
   await noOverflow('restored sidebar '+width);
@@ -264,7 +297,8 @@ try{
  // Late list/capability responses cannot recreate a departed module header.
  delayNext=true;
  const delayed=page.waitForRequest(request=>request.method()==='GET'&&new URL(request.url()).pathname==='/api/business-lines');
- await refresh(false);await delayed;
+ // This case tests a late API reply, not Settings-menu pointer interactions.
+ await page.evaluate(()=>document.querySelector('.mw-module-header [data-mw="refresh"]').click());await delayed;
  await page.evaluate(()=>document.querySelector('[data-nav="overview"]').click());await page.waitForTimeout(700);await headerRestored();
  await openBusiness();
  // Failure is distinct from a successful response containing zero counts.
