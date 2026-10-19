@@ -37,7 +37,7 @@
     modules: '<rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="3" width="6" height="6" rx="1"/><rect x="3" y="15" width="6" height="6" rx="1"/><rect x="15" y="15" width="6" height="6" rx="1"/>',
     settings: '<path d="M4 7h5m5 0h6M4 17h10m5 0h1"/><circle cx="11" cy="7" r="2"/><circle cx="16" cy="17" r="2"/>',
     audit: '<circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/>',
-    menu: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16m4-10h4m-4 4h4"/>',
+    menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
     search: '<circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/>',
     bell: '<path d="M5 17h14l-2-3V9a5 5 0 0 0-10 0v5Zm5 3a2 2 0 0 0 4 0"/>',
     chevron: '<path d="m9 5 7 7-7 7"/>', down: '<path d="m6 9 6 6 6-6"/>',
