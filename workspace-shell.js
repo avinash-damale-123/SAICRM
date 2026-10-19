@@ -26,7 +26,7 @@ function placeCrumbs(p){
  nav.setAttribute('aria-label','Breadcrumb');
  nav.innerHTML=chain.map(([id,name],i)=>
   (i?'<span class="crumb-divider" aria-hidden="true">›</span>':'')+
-  (i===chain.length-1?'<strong id="crumb" aria-current="page">'+esc(name)+'</strong>':'<button type="button" class="crm-crumb" data-crumb="'+esc(id)+'" title="Open '+esc(name)+'">'+(id==='home'?'⌂ ':'')+esc(name)+'</button>')
+  (i===chain.length-1?'<strong id="crumb" aria-current="page" title="'+esc(name)+'">'+esc(name)+'</strong>':'<button type="button" class="crm-crumb" data-crumb="'+esc(id)+'" aria-label="Open '+esc(name)+'" title="Open '+esc(name)+'">'+(id==='home'?'⌂ ':'')+esc(name)+'</button>')
  ).join('');
  nav.querySelectorAll('[data-crumb]').forEach(button=>button.onclick=()=>window.SCRM.navigateTo(button.dataset.crumb));
 }
