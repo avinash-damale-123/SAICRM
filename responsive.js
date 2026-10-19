@@ -19,6 +19,8 @@
   const persist = () => { try { localStorage.setItem(prefKey, JSON.stringify(prefs)); } catch { /* private browsing */ } };
   let drawerOpen = false, modalOpen = false, returnFocus = null, lastPage = '', navScroll = 0;
   const paths = {
+    home: '<path d="m3 11 9-8 9 8v10H3zM9 21v-7h6v7"/>',
+    notifications: '<path d="M5 17h14l-2-3V9a5 5 0 0 0-10 0v5Zm5 3a2 2 0 0 0 4 0"/>',
     overview: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
     mywork: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="m8 12 3 3 6-6"/>',
     analytics: '<path d="M4 3v18h17M8 16v-5m5 5V6m5 10v-8"/>',
