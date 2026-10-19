@@ -69,7 +69,7 @@
 .crm-home-empty h1{font-size:25px;margin-bottom:8px}
 .crm-home-empty p{font-size:13px;color:#8496a4}
 /* Module work bar: exactly one persistent global topbar and one module-specific row. */
-.crm-module-workbar,.crm-module-host{background:#fff;border-bottom:1px solid #dde8e1;margin:-31px -36px 18px;padding:12px 20px}
+.crm-module-workbar,.crm-module-host{background:#fff;border-bottom:1px solid #dde8e1;margin:-20px -22px 18px;padding:12px 20px}
 .crm-module-workbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .crm-module-heading{display:flex;align-items:center;gap:10px;flex:1 1 235px;min-width:190px}
 .crm-module-heading h1{font-size:20px;font-weight:800;color:#174732;letter-spacing:-.3px;margin:0}
