@@ -199,7 +199,7 @@ try{
  assert.equal(await page.locator('.mw-record-link').innerText(),'Line Bravo');
  await page.locator('.mw-record-link').click();
  await page.locator('.mw-bl-section summary').filter({hasText:'Audit History'}).waitFor();
- await page.locator('.mw-bl-section summary').filter({hasText:'Ownership Details'}).click();
+ await page.locator('[data-bl-sections="expand"]').click();
  assert.ok((await page.locator('dialog').innerText()).includes('UI Super Admin'));
  for(const width of [320,360,768,1440]){await page.setViewportSize({width,height:850});await noOverflow('read '+width)}
  await page.getByRole('button',{name:'Edit Business Line',exact:true}).click();
