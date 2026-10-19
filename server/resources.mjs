@@ -1,7 +1,7 @@
 // Resources are declared with implementation, never created by a browser form.
 // Module Master will reconcile these stable keys without overwriting eligibility.
 const actions=Object.freeze([
- 'read','create','edit','archive','restore','export','history',
+ 'read','create','edit','archive','restore','softDelete','restoreDeleted','export','history',
  'search','filter','settings','dashboard'
 ]);
 export const businessLineResource = Object.freeze({
