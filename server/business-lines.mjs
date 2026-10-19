@@ -208,7 +208,7 @@ export async function businessLines({client,user,path,method,url,body}){
    const totalPages=Math.max(1,Math.ceil(total/options.pageSize));
    const page=Math.min(options.page,totalPages);
    const data=await client.query(select+where.sql+orderFor(options)+' LIMIT $'+(where.params.length+1)+' OFFSET $'+(where.params.length+2),[...where.params,options.pageSize,(page-1)*options.pageSize]);
-   const counts=(await client.query(`SELECT count(*)::integer AS total,
+   const counts=(await client.query(`SELECT count(*) FILTER(WHERE deleted_at IS NULL)::integer AS total,
     count(*) FILTER(WHERE deleted_at IS NULL AND archived_at IS NULL AND status='Active')::integer AS active,
     count(*) FILTER(WHERE deleted_at IS NULL AND archived_at IS NULL AND status='Inactive')::integer AS inactive,
     count(*) FILTER(WHERE deleted_at IS NULL AND archived_at IS NOT NULL)::integer AS archived FROM business_lines`)).rows[0];
@@ -302,6 +302,6 @@ export async function validateBusinessLineReferences(client,module,data){
   for(const part of data.lines.split(/[,;|]/u)){if(part.trim())names.push(part.trim().toLowerCase());}
  if(!names.length)return;
  await client.query('SELECT pg_advisory_xact_lock_shared(830151)');
- const found=await client.query('SELECT status,archived_at FROM business_lines WHERE lower(name)=ANY($1::text[]) FOR SHARE',[names]);
- if(found.rows.some(row=>row.status!=='Active'||row.archived_at))fail(409,'A referenced Business Line is inactive or archived');
+ const found=await client.query('SELECT status,archived_at,deleted_at FROM business_lines WHERE lower(name)=ANY($1::text[]) FOR SHARE',[names]);
+ if(found.rows.some(row=>row.status!=='Active'||row.archived_at||row.deleted_at))fail(409,'A referenced Business Line is inactive or archived');
 }
