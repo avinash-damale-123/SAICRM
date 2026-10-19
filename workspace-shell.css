@@ -70,7 +70,7 @@
 .crm-home-empty p{font-size:13px;color:#8496a4}
 /* Module work bar: exactly one persistent global topbar and one module-specific row. */
 .crm-module-workbar,.crm-module-host{background:#fff;border-bottom:1px solid #dde8e1;margin:-20px -22px 18px;padding:12px 20px}
-.crm-module-workbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.crm-module-workbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:relative;z-index:20}
 .crm-module-heading{display:flex;align-items:center;gap:10px;flex:1 1 235px;min-width:190px}
 .crm-module-heading h1{font-size:20px;font-weight:800;color:#174732;letter-spacing:-.3px;margin:0}
 .crm-module-heading p{font-size:11px;color:#8594a0;margin:3px 0 0}
@@ -108,7 +108,7 @@
 .crm-density-compact .crm-record-panel td{padding:8px 12px!important}
 .crm-density-compact .crm-record-panel th{padding:9px 12px!important}
 /* Business Lines uses the same row as other modules, without moving global actions. */
-.crm-module-host{margin:0;padding:8px 20px 9px;position:relative;z-index:3;display:block;flex:0 0 auto;height:auto;min-height:0;width:100%;box-sizing:border-box}
+.crm-module-host{margin:0;padding:8px 20px 9px;position:relative;z-index:20;display:block;flex:0 0 auto;height:auto;min-height:0;width:100%;box-sizing:border-box}
 .crm-business-module{display:flex!important;flex-direction:row!important;flex:0 0 auto;align-items:center;justify-content:flex-start;flex-wrap:wrap;gap:10px;min-height:64px;height:auto;width:100%;max-width:100%;margin:0;padding:0;position:relative;box-sizing:border-box}
 .crm-business-module .mw-header-primary,.crm-business-module .mw-header-toolbar{display:contents!important}
 .crm-business-module .mw-module-identity{order:0;flex:1 1 240px;min-width:180px;gap:9px;min-height:51px;padding:1px 0}
@@ -148,3 +148,7 @@ button:focus-visible,.crm-global-search:focus-within,.crm-crumb:focus-visible{ou
 .crm-business-module .mw-module-identity,.crm-business-module .mw-module-tabs,.crm-business-module .mw-header-actions{align-self:center}
 @media(max-width:850px){.crm-business-module .mw-module-identity{flex-basis:210px}.crm-business-module .mw-header-actions{flex:1 1 100%;justify-content:flex-start}}
 @media(max-width:650px){.crm-business-module .mw-module-tabs{width:auto;flex:1 1 100%}.crm-business-module .mw-header-actions{width:100%;gap:6px;justify-content:flex-start}.crm-module-tabs button.active{color:#fff;background:#087b40}}
+
+/* Floating module settings and filters must overlay sticky table headers. */
+.crm-business-module .mw-settings-menu[open],.crm-module-workbar .crm-module-settings[open]{position:relative;z-index:30}
+.crm-business-module .mw-settings-menu>div,.crm-module-workbar .crm-settings-popover{z-index:75}
