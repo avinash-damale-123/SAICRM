@@ -78,7 +78,7 @@
 .crm-module-tabs{display:flex;align-items:center;gap:2px;flex-shrink:0}
 .crm-module-tabs button{border:0;background:transparent;border-bottom:3px solid transparent;padding:11px 13px;font-size:12px;font-weight:800;color:#667c90;cursor:pointer;white-space:nowrap}
 .crm-module-tabs button:hover{background:#f1f9f4;color:#087b40}
-.crm-module-tabs button.active{color:#076b40;border-bottom-color:#ed8528;background:#e9f6ee}
+.crm-module-tabs button.active{color:#fff;background:#087b40;border-bottom-color:#ed8528;border-radius:8px 8px 3px 3px;box-shadow:0 2px 8px #087b4029}
 .crm-module-actions{display:flex;align-items:center;gap:7px;flex:1 1 345px;justify-content:flex-end;flex-wrap:wrap}
 .crm-header-button{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:36px;padding:8px 11px;border:1px solid #dae5df;border-radius:8px;background:#fff;color:#355a47;white-space:nowrap;font-size:11px;font-weight:700;cursor:pointer;transition:background .15s,border-color .15s,transform .15s}
 .crm-header-button:hover:not(:disabled),.crm-header-button.selected{background:#e9f6ee;border-color:#94c8a7;color:#087b40}
@@ -108,8 +108,8 @@
 .crm-density-compact .crm-record-panel td{padding:8px 12px!important}
 .crm-density-compact .crm-record-panel th{padding:9px 12px!important}
 /* Business Lines uses the same row as other modules, without moving global actions. */
-.crm-module-host{margin:0;padding:8px 20px 9px;position:relative;z-index:3}
-.crm-business-module{display:flex!important;align-items:center;flex-wrap:wrap;gap:10px;min-height:67px;padding:0;position:relative}
+.crm-module-host{margin:0;padding:8px 20px 9px;position:relative;z-index:3;display:block;flex:0 0 auto;height:auto;min-height:0;width:100%;box-sizing:border-box}
+.crm-business-module{display:flex!important;flex-direction:row!important;flex:0 0 auto;align-items:center;justify-content:flex-start;flex-wrap:wrap;gap:10px;min-height:64px;height:auto;width:100%;max-width:100%;margin:0;padding:0;position:relative;box-sizing:border-box}
 .crm-business-module .mw-header-primary,.crm-business-module .mw-header-toolbar{display:contents!important}
 .crm-business-module .mw-module-identity{order:0;flex:1 1 240px;min-width:180px;gap:9px;min-height:51px;padding:1px 0}
 .crm-business-module .mw-module-identity-icon{width:40px;height:40px;flex:none}
@@ -117,8 +117,8 @@
 .crm-business-module .mw-module-identity h2{font-size:19px;line-height:1.2;color:#174732}
 .crm-business-module .mw-module-identity p{font-size:10px}
 .crm-business-module .mw-module-tabs{order:1;flex:none;gap:3px;padding:0}
-.crm-business-module .mw-module-tab{height:40px;min-height:40px;padding:8px 12px;border-bottom-width:3px}
-.crm-business-module .mw-module-tab.mw-active-tab{color:#087b40!important;background:#e9f6ee!important;border-bottom:3px solid #ed8528!important}
+.crm-business-module .mw-module-tab{height:40px;min-height:40px;padding:8px 12px;border-bottom-width:3px;transition:background-color .15s ease,color .15s ease,box-shadow .15s ease}
+.crm-business-module .mw-module-tab.mw-active-tab{color:#fff!important;background:#087b40!important;border:1px solid #087b40!important;border-bottom:3px solid #ed8528!important;border-radius:8px 8px 4px 4px;box-shadow:0 2px 8px #087b4029}
 .crm-business-module .mw-header-actions{order:2;display:flex;align-items:center;justify-content:flex-end;flex:1 1 325px;gap:7px}
 .crm-business-module .mw-header-actions .mw-btn{min-height:36px;font-size:11px;border-radius:8px}
 .crm-business-module .mw-header-actions .mw-btn:hover{border-color:#9fcbb0;background:#eef8f2}
@@ -140,3 +140,11 @@ button:focus-visible,.crm-global-search:focus-within,.crm-crumb:focus-visible{ou
 
 /* Retain the signed-in profile avatar on mobile even though legacy CSS hides standalone avatars. */
 .crm-profile-trigger .top-avatar{display:grid!important;flex-shrink:0}
+
+/* Focus and selected states must match across all SCRM module tabs. */
+.crm-business-module .mw-module-tab:hover:not(.mw-active-tab){background:#e8f6ee!important;color:#075b33!important;border-radius:8px}
+.crm-business-module .mw-module-tab.mw-active-tab:hover{background:#075b33!important;color:#fff!important}
+.crm-module-tabs button.active:hover{background:#075b33;color:#fff}
+.crm-business-module .mw-module-identity,.crm-business-module .mw-module-tabs,.crm-business-module .mw-header-actions{align-self:center}
+@media(max-width:850px){.crm-business-module .mw-module-identity{flex-basis:210px}.crm-business-module .mw-header-actions{flex:1 1 100%;justify-content:flex-start}}
+@media(max-width:650px){.crm-business-module .mw-module-tabs{width:auto;flex:1 1 100%}.crm-business-module .mw-header-actions{width:100%;gap:6px;justify-content:flex-start}.crm-module-tabs button.active{color:#fff;background:#087b40}}
