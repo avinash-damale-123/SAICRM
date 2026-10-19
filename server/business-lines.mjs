@@ -269,6 +269,7 @@ export async function businessLines({client,user,path,method,url,body}){
    const ownerId=own(body,'ownerId')?body.ownerId:existing.owner_id;
    let ownerTechnicalId=existing.owner_id;
    if(own(body,'ownerId')){
+    requirePermission(permissions,'reassignOwner');
     if(typeof ownerId!=='string'||!/^UID-[0-9]{6,}$/.test(ownerId))fail(400,'Invalid Owner ID');
     const matched=(await client.query("SELECT id FROM users WHERE display_id=$1 AND status='approved' AND email_verified=true FOR SHARE",[ownerId])).rows[0];
     if(!matched)fail(400,'Owner must be an active, approved SCRM user');
