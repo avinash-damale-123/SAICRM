@@ -16,8 +16,8 @@ const fields=Object.freeze({
  updatedAt:{sql:'b.updated_at',label:'Last Modified At',date:true}
 });
 const defaultColumns=Object.freeze(['displayId','name','status','owner','createdBy','createdAt','updatedBy','updatedAt']);
-const select=`SELECT b.*,o.name AS owner_name,c.name AS creator_name,u.name AS updater_name
- FROM business_lines b JOIN users o ON o.id=b.owner_id JOIN users c ON c.id=b.created_by JOIN users u ON u.id=b.updated_by`;
+const select=`SELECT b.*,o.name AS owner_name,o.display_id AS owner_display_id,c.name AS creator_name,c.display_id AS creator_display_id,u.name AS updater_name,u.display_id AS updater_display_id,a.display_id AS archive_display_id,d.display_id AS deleted_display_id
+ FROM business_lines b JOIN users o ON o.id=b.owner_id JOIN users c ON c.id=b.created_by JOIN users u ON u.id=b.updated_by LEFT JOIN users a ON a.id=b.archived_by LEFT JOIN users d ON d.id=b.deleted_by`;
 const joins='FROM business_lines b JOIN users o ON o.id=b.owner_id JOIN users c ON c.id=b.created_by JOIN users u ON u.id=b.updated_by';
 const limits=Object.freeze({selectedExport:250,maxExportRows:10000,maxExportResponseBytes:3*1024*1024});
 const requirePermission=(permissions,action)=>{if(permissions[action]!==true)fail(403,'You do not have permission for this Business Line action');};
@@ -29,9 +29,9 @@ export const businessLineColumns=Object.freeze(Object.entries(fields).map(([key,
 const date=value=>value==null?null:(value instanceof Date?value.toISOString():new Date(value).toISOString());
 export function businessLineView(row){
  return {id:row.id,displayId:row.display_id,name:row.name,code:row.code,description:row.description,status:row.status,
-  ownerId:row.owner_id,owner:row.owner_name,isArchived:!!row.archived_at,archivedById:row.archived_by,isDeleted:!!row.deleted_at,deletedById:row.deleted_by,deletedAt:date(row.deleted_at),
-  createdById:row.created_by,createdBy:row.creator_name,createdAt:date(row.created_at),
-  updatedById:row.updated_by,updatedBy:row.updater_name,updatedAt:date(row.updated_at),
+  ownerId:row.owner_display_id,owner:row.owner_name,isArchived:!!row.archived_at,archivedById:row.archive_display_id,isDeleted:!!row.deleted_at,deletedById:row.deleted_display_id,deletedAt:date(row.deleted_at),
+  createdById:row.creator_display_id,createdBy:row.creator_name,createdAt:date(row.created_at),
+  updatedById:row.updater_display_id,updatedBy:row.updater_name,updatedAt:date(row.updated_at),
   version:row.version,archivedAt:date(row.archived_at)};
 }
 function object(value,message='Expected an object'){
@@ -124,7 +124,7 @@ function whereFor(options){
 }
 const orderFor=options=>' ORDER BY '+fields[options.sort].sql+' '+options.direction.toUpperCase()+',b.id ASC';
 async function owners(client){
- return (await client.query("SELECT id,name,email FROM users WHERE system_role='super_admin' AND status='approved' AND email_verified=true ORDER BY name,id")).rows;
+ return (await client.query("SELECT id,display_id AS "ownerId",name,email FROM users WHERE status='approved' AND email_verified=true ORDER BY name,id")).rows;
 }
 async function record(client,id,lock=false){
  if(!uuid(id))fail(400,'Invalid Business Line ID');
@@ -231,8 +231,8 @@ export async function businessLines({client,user,path,method,url,body}){
   if(path.length===3&&path[2]==='history'&&method==='GET'){
    requirePermission(permissions,'history');
    await record(client,path[1]);
-   const rows=(await client.query('SELECT e.id,e.actor_id,u.name AS actor,e.action,e.changes,e.created_at FROM business_line_events e JOIN users u ON u.id=e.actor_id WHERE e.business_line_id=$1 ORDER BY e.id DESC LIMIT 200',[path[1]])).rows;
-   return {history:rows.map(row=>({id:row.id,actorId:row.actor_id,actor:row.actor,action:row.action,changes:row.changes,createdAt:date(row.created_at)}))};
+   const rows=(await client.query('SELECT e.id,u.display_id AS actor_display_id,u.name AS actor,e.action,e.changes,e.created_at FROM business_line_events e JOIN users u ON u.id=e.actor_id WHERE e.business_line_id=$1 ORDER BY e.id DESC LIMIT 200',[path[1]])).rows;
+   return {history:rows.map(row=>({id:row.id,actorId:row.actor_display_id,actor:row.actor,action:row.action,changes:row.changes,createdAt:date(row.created_at)}))};
   }
   if((path.length===2&&method==='PUT')||(path.length===3&&['archive','restore'].includes(path[2])&&method==='POST')){
    requirePermission(permissions,path.length===2?'edit':path[2]);
@@ -256,12 +256,17 @@ export async function businessLines({client,user,path,method,url,body}){
    const status=own(body,'status')?body.status:existing.status;
    if(!['Active','Inactive'].includes(status))fail(400,'Invalid Business Line status');
    const ownerId=own(body,'ownerId')?body.ownerId:existing.owner_id;
-   if(!uuid(ownerId))fail(400,'Invalid owner');
-   if(ownerId!==existing.owner_id&&!(await client.query("SELECT 1 FROM users WHERE id=$1 AND system_role='super_admin' AND status='approved' AND email_verified=true FOR SHARE",[ownerId])).rowCount)fail(400,'Owner must be an approved, verified Super Admin');
+   let ownerTechnicalId=existing.owner_id;
+   if(own(body,'ownerId')){
+    if(typeof ownerId!=='string'||!/^UID-[0-9]{6,}$/.test(ownerId))fail(400,'Invalid Owner ID');
+    const matched=(await client.query("SELECT id FROM users WHERE display_id=$1 AND status='approved' AND email_verified=true FOR SHARE",[ownerId])).rows[0];
+    if(!matched)fail(400,'Owner must be an active, approved SCRM user');
+    ownerTechnicalId=matched.id;
+   }
    if(status==='Inactive'&&existing.status!=='Inactive'&&await dependencies(client,existing))fail(409,'Referenced Business Lines cannot be deactivated. Review dependent records first.');
    if(name!==existing.name&&await dependencies(client,existing,true))fail(409,'Legacy records reference this name. Migrate those references before renaming.');
-   if(name===existing.name&&description===existing.description&&status===existing.status&&ownerId===existing.owner_id)return {record:before};
-   await client.query('UPDATE business_lines SET name=$2,status=$3,description=$4,owner_id=$5,updated_by=$6,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,name,status,description,ownerId,user.id]);
+   if(name===existing.name&&description===existing.description&&status===existing.status&&ownerTechnicalId===existing.owner_id)return {record:before};
+   await client.query('UPDATE business_lines SET name=$2,status=$3,description=$4,owner_id=$5,updated_by=$6,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,name,status,description,ownerTechnicalId,user.id]);
    const after=businessLineView(await record(client,existing.id));
    await event(client,user,existing.id,'Updated',before,after);
    return {record:after};
