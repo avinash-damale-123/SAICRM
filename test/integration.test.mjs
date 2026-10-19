@@ -331,13 +331,14 @@ test('Business Line validation prevents field injection and duplicates including
 
 test('Business Lines retain audited history and reject stale or immutable updates',{skip:!enabled},async()=>{
  const {superAdmin}=await businessActors(),record=await businessCreate('History Fixture','Before');
- for(const field of ['code','remarks','createdAt','createdById','updatedAt','updatedById','displayId','archivedAt']){
+ for(const field of ['remarks','createdAt','createdById','updatedAt','updatedById','displayId','archivedAt']){
   assert.equal((await call('business-lines/'+record.id,'PUT',{version:record.version,[field]:'injected'},superAdmin)).status,400,field);
  }
- const first=await call('business-lines/'+record.id,'PUT',{version:record.version,name:'History Revised',description:'After'},superAdmin);
+ const first=await call('business-lines/'+record.id,'PUT',{version:record.version,name:'History Revised',code:'HISTORY-NEW',description:'After'},superAdmin);
  assert.equal(first.status,200);
  const updated=first.body.record;
  assert.equal(updated.version,record.version+1);
+ assert.equal(updated.code,'HISTORY-NEW');
  assert.equal(updated.createdAt,record.createdAt);
  assert.equal(updated.createdById,record.createdById);
  assert.equal(updated.ownerId,record.ownerId);

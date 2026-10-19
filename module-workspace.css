@@ -262,3 +262,47 @@ html.mw-modal-open{overflow:hidden}
 .mw-bl-dialog .mw-danger{background:#c8323d;color:#fff;border-color:#c8323d}
 
 .mw-bl-reason select{border:1px solid #c3d2dc;border-radius:7px;min-height:42px;padding:9px 11px;background:#fff;color:#183349}
+
+
+/* Compact Business Lines dialogs: retain readability at desktop and mobile sizes. */
+.mw-bl-dialog{width:min(795px,calc(100vw - 42px));max-height:min(86dvh,780px)}
+.mw-bl-dialog>header{padding:13px 19px}
+.mw-bl-dialog>footer{padding:10px 19px;min-height:57px}
+.mw-bl-dialog .mw-dialog-body{padding:12px 17px 14px}
+.mw-bl-dialog .mw-bl-section{margin-bottom:9px;border-radius:8px}
+.mw-bl-dialog .mw-bl-section details>summary{background:#d2eae1;color:#164c3e;padding:9px 13px;min-height:37px;font-size:12px}
+.mw-bl-dialog .mw-bl-section-content{padding:12px 13px 14px}
+.mw-bl-dialog .mw-bl-grid{gap:11px 15px}
+.mw-bl-dialog .mw-bl-field{gap:4px}
+.mw-bl-dialog .mw-bl-field>label{font-size:11px}
+.mw-bl-dialog .mw-bl-field input,.mw-bl-dialog .mw-bl-field select,.mw-bl-dialog .mw-bl-field textarea{min-height:33px;padding:6px 9px;font-size:12px;line-height:1.4;border-radius:5px}
+.mw-bl-dialog .mw-bl-field textarea{min-height:62px}
+.mw-bl-dialog .mw-bl-read-value{min-height:33px;padding:7px 9px;font-size:12px;line-height:1.4}
+.mw-bl-dialog .mw-bl-read-description{min-height:51px}
+.mw-bl-dialog .mw-bl-hint{font-size:10px;line-height:1.3}
+.mw-bl-section-tools{display:flex;justify-content:flex-end;gap:8px;margin:0 0 9px}
+.mw-bl-section-action{background:transparent;border:1px solid #afcfbf;color:#126547;border-radius:5px;padding:5px 9px;font-size:11px;font-weight:650;min-height:27px;cursor:pointer}
+.mw-bl-section-action:hover{background:#ecf7f1}
+.mw-bl-dialog .mw-dialog-close{width:30px;height:30px}
+@media(max-width:640px){.mw-bl-dialog{width:calc(100vw - 14px);max-height:calc(100dvh - 14px)}.mw-bl-dialog>header,.mw-bl-dialog>footer{padding:12px}.mw-bl-dialog .mw-dialog-body{padding:10px}.mw-bl-dialog .mw-bl-grid{grid-template-columns:1fr;gap:10px}.mw-bl-dialog .mw-bl-section-content{padding:10px}.mw-bl-dialog .mw-bl-field input,.mw-bl-dialog .mw-bl-field select,.mw-bl-dialog .mw-bl-field textarea{font-size:16px;min-height:39px}}
+
+.mw-bl-status-reason{margin:8px 0 12px;padding:11px 13px;background:#f0f8f4;border:1px solid #b8dacb;border-radius:7px}
+.mw-bl-status-reason[hidden]{display:none!important}
+.mw-bl-status-reason label{display:block;font-size:12px;font-weight:700;color:#194b39;margin-bottom:6px}
+.mw-bl-status-reason textarea{display:block;width:100%;resize:vertical;min-height:60px;border:1px solid #a9c6b8;border-radius:5px;padding:8px 10px;color:#193b30}
+.mw-bl-status-reason small{font-size:11px;color:#536b5f}
+.mw-bl-dialog .mw-bl-field select{width:100%;border:1px solid #bfcfde;border-radius:5px;background:#fff;color:#182f43}
+
+/* Preserve approved left/right pairing and intentional empty partner cells. */
+@media(min-width:641px){
+.mw-bl-dialog .mw-bl-field-archivedById{grid-column:1}
+.mw-bl-dialog .mw-bl-field-isDeleted{grid-column:1}
+.mw-bl-dialog .mw-bl-field-deletedAt{grid-column:2}
+.mw-bl-dialog .mw-bl-field-deletedById{grid-column:1}
+.mw-bl-dialog .mw-bl-field-createdById{grid-column:1}
+.mw-bl-dialog .mw-bl-field-updatedBy{grid-column:1}
+.mw-bl-dialog .mw-bl-field-updatedAt{grid-column:2}
+.mw-bl-dialog .mw-bl-field-updatedById{grid-column:1}
+}
+.mw-bl-dialog .mw-bl-read .mw-bl-read-value{background:#fafcfb;border-color:#e0e9e5}
+.mw-bl-dialog .mw-bl-read .mw-bl-field>label{color:#536e62}
