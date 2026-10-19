@@ -44,6 +44,23 @@ try{
  });
  await page.goto('http://127.0.0.1:4173');
  await page.locator('#googleSignIn').waitFor();assert.equal(await page.locator('#googleSignIn').isDisabled(),true);
+ // Login must fit normal laptop browser heights without the bottom of the form being clipped.
+ assert.ok(await page.evaluate(()=>document.querySelector('.auth-panel')!==null));
+ assert.ok(await page.evaluate(()=>!!(document.querySelector('.auth-intro img')?.getAttribute('alt'))));
+ assert.ok(await page.evaluate(()=>document.querySelector('#googleSignIn').compareDocumentPosition(document.querySelector('#authForm')) & Node.DOCUMENT_POSITION_FOLLOWING),'Google login should appear before email/password fields');
+ for(const [width,height,fullFit] of [[1366,630,true],[1280,540,true],[1024,650,true],[390,700,true],[360,640,true],[320,568,false]]) {
+  await page.setViewportSize({width,height});
+  const layout=await page.evaluate(()=>{
+   const card=document.querySelector('.auth-card').getBoundingClientRect();
+   const button=document.querySelector('#submitAuth').getBoundingClientRect();
+   const footer=document.querySelector('.auth-footer').getBoundingClientRect();
+   return {width:document.documentElement.scrollWidth,height:document.documentElement.scrollHeight,cardBottom:card.bottom,submitBottom:button.bottom,footerBottom:footer.bottom};
+  });
+  assert.ok(layout.width<=width+1,'Horizontal overflow on login '+width+'x'+height+': '+JSON.stringify(layout));
+  assert.ok(layout.submitBottom<=height+1,'Sign in action is initially clipped at '+width+'x'+height+': '+JSON.stringify(layout));
+  if(fullFit)assert.ok(layout.height<=height+1&&layout.footerBottom<=height+1,'Login does not fit viewport '+width+'x'+height+': '+JSON.stringify(layout));
+ }
+ await page.setViewportSize({width:1440,height:850});
  for(const width of [320,360,768,1440]){await page.setViewportSize({width,height:850});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await page.screenshot({path:'work/browser/login-'+width+'.png',fullPage:true});}
  await page.locator('#authPassword').fill('visibility test');await page.locator('#showPassword').click();assert.equal(await page.locator('#authPassword').getAttribute('type'),'text');await page.locator('#showPassword').click();
  await page.getByRole('button',{name:'Forgot password?',exact:true}).click();
