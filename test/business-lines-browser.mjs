@@ -104,10 +104,13 @@ try{
  });
  assert.equal(headerLayout.direction,'row','Business Lines must use horizontal flex direction');
  assert.ok(headerLayout.height<140,'Business Lines toolbar is too tall: '+JSON.stringify(headerLayout));
- assert.ok(Math.abs(headerLayout.identityY-headerLayout.tabsY)<24,'Title and Home/Dashboard tabs are disconnected: '+JSON.stringify(headerLayout));
+ assert.ok(headerLayout.identityY<headerLayout.tabsY,'Business Lines title should sit above Records/Dashboard toolbar: '+JSON.stringify(headerLayout));
+ assert.equal(await page.locator('.scrm-bl-primary [data-mw="create"]').count(),1,'Add Business Line must remain a real button in the primary row');
+ assert.equal(await page.locator('.scrm-tabs [data-mw="home"] .scrm-view-title').innerText(),'Records');
  assert.ok(Math.abs(headerLayout.tabsY-headerLayout.actionsY)<24,'Module actions are disconnected from tabs: '+JSON.stringify(headerLayout));
  const homeActive=await page.locator('[data-mw="home"]').evaluate(el=>({bg:getComputedStyle(el).backgroundColor,color:getComputedStyle(el).color}));
- assert.deepEqual(homeActive,{bg:'rgb(8, 123, 64)',color:'rgb(255, 255, 255)'},'Home selected state must be Satguru dark green');
+ assert.equal(await page.locator('[data-mw="home"]').evaluate(el=>el.classList.contains('mw-active-tab')),true);
+ assert.equal(homeActive.color,'rgb(7, 111, 67)','Records selected tab must be highlighted in Satguru green');
 
  assert.ok((await page.locator('.crm-profile-trigger').innerText()).includes(user.name));
  await page.locator('#notifBtn').click();await page.locator('#crmNoticeMenu:not([hidden])').waitFor();
@@ -118,14 +121,14 @@ try{
  await page.keyboard.press('Control+k');
  assert.equal(await page.locator('#crmSearchInput').evaluate(node=>document.activeElement===node),true);
  const headerControls=await page.locator('.mw-module-header').evaluate(node=>Array.from(node.querySelectorAll('[data-mw="export"],[data-mw="filter-toggle"],.mw-settings-menu,#notifBtn,#focusModeBtn,.mw-account-menu,[data-mw="create"]')).map(element=>element.dataset.mw||element.id||element.className));
- assert.equal(headerControls[0],'export');assert.equal(headerControls[1],'filter-toggle');
+ assert.ok(headerControls.includes('export')&&headerControls.includes('filter-toggle')&&headerControls.includes('create'),'All original actions must remain present');
  await page.locator('[data-mw="dashboard"]').click();
  // The hovered selected tab intentionally uses #075b33, matching Add button hover.
  // Move the pointer away to assert the resting selected color #087b40.
  await page.mouse.move(0,0);
  await page.waitForFunction(()=>{
   const button=document.querySelector('.crm-business-module [data-mw="dashboard"]');
-  return button?.classList.contains('mw-active-tab') && document.querySelector('.mw-dashboard')?.hidden===false && getComputedStyle(button).backgroundColor==='rgb(8, 123, 64)' && getComputedStyle(button).color==='rgb(255, 255, 255)';
+  return button?.classList.contains('mw-active-tab') && document.querySelector('.mw-dashboard')?.hidden===false && getComputedStyle(button).color==='rgb(7, 111, 67)';
  });
  assert.equal(await page.locator('.mw-table').isVisible(),false);
  const dashboard=page.locator('.mw-dashboard');
@@ -138,7 +141,7 @@ try{
  await page.mouse.move(0,0);
  await page.waitForFunction(()=>{
   const button=document.querySelector('.crm-business-module [data-mw="home"]');
-  return button?.classList.contains('mw-active-tab') && getComputedStyle(button).backgroundColor==='rgb(8, 123, 64)' && getComputedStyle(button).color==='rgb(255, 255, 255)';
+  return button?.classList.contains('mw-active-tab') && getComputedStyle(button).color==='rgb(7, 111, 67)';
  });
  await page.screenshot({animations:'disabled',path:'work/browser/header-home-1440.jpg',type:'jpeg',quality:40});
  await page.screenshot({animations:'disabled',path:'work/browser/header-home-crop.jpg',type:'jpeg',quality:30,clip:{x:0,y:0,width:1440,height:240}});

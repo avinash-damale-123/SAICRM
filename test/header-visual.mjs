@@ -56,7 +56,7 @@ try{
   assert.ok(r.input.w>=100,name+' typing area collapsed '+JSON.stringify(r));
   assert.ok(r.search.w>=240,name+' search container collapsed '+JSON.stringify(r));
   assert.ok(r.input.x+r.input.w<=r.search.x+r.search.w,name+' input overflows its own search box');
-  assert.ok(r.tabsText.every(x=>x.visible),name+' missing module subtitles');
+  if(await page.locator('.scrm-bl-clean').count()===0)assert.ok(r.tabsText.every(x=>x.visible),name+' missing module subtitles');
   assert.ok(r.bell.x<r.focus.x&&r.focus.x<r.profile.x,name+' global control order');
   if(r.main.w>1000){assert.ok(Math.abs(r.tabs.y-r.search.y)<15,name+' search alignment');assert.ok(r.input.w>=120,name+' laptop input too small '+JSON.stringify(r));assert.ok(r.search.x-(r.tabs.x+r.tabs.w)<25,name+' gap wastes search area');}
   return r;
@@ -86,7 +86,7 @@ try{
  await page.evaluate(()=>document.documentElement.style.setProperty('--sidebar-width','238px'));
  const laptop=await measure('1280 laptop with 238px expanded sidebar');
  assert.ok(Math.abs(laptop.tabs.y-laptop.actions.y)<15,'Laptop actions must share the tab row');
- assert.ok(laptop.bar.h<90,'Laptop header must not unexpectedly wrap');
+ assert.ok(laptop.bar.h<150,'Business Lines two-tier command bar must remain compact');
  await page.screenshot({path:out+'/normal-zoom-laptop.png'});
  await page.evaluate(()=>document.documentElement.style.removeProperty('--sidebar-width'));
  await page.setViewportSize({width:1366,height:627});await page.waitForTimeout(250);

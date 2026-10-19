@@ -58,9 +58,9 @@ function control(button,kind,label) {
 function tab(button,view,label) {
  button.innerHTML=svg(view)+'<span class="scrm-view-copy"><small class="scrm-view-context"></small><strong class="scrm-view-title"></strong></span>';
  button.querySelector('small').textContent=label;
- button.querySelector('strong').textContent=view==='dashboard'?'Dashboard':'Home';
+ button.querySelector('strong').textContent=view==='dashboard'?'Dashboard':label==='Business Lines'?'Records':'Home';
  button.classList.add('scrm-view');
- button.title=label+' '+(view==='dashboard'?'Dashboard':'Home');
+ button.title=label+' '+(view==='dashboard'?'Dashboard':label==='Business Lines'?'Records':'Home');
  button.setAttribute('aria-label',button.title);
 }
 function decorate(row,page,label) {
@@ -94,10 +94,23 @@ function decorate(row,page,label) {
    control(button,'add','Add');
   }
  });
+ if(label==='Business Lines'){
+  row.classList.add('scrm-bl-clean');
+  const home=tabs.querySelector('[data-mw="home"]');
+  if(home)tabs.prepend(home);
+  const add=actions.querySelector('[data-mw="create"]');
+  if(add){
+   const primary=document.createElement('div');primary.className='scrm-bl-primary';
+   primary.append(add);
+   add.querySelector('.scrm-action-label').textContent='Add Business Line';
+   row.dataset.scrmBlPrimary='yes';
+   row._scrmBlPrimary=primary;
+  }
+ }
  const slot=document.createElement('div');slot.className='scrm-search-slot';
  const legacy=document.createElement('div');legacy.hidden=true;legacy.className='scrm-legacy-search';
  const legacySearch=row.querySelector('.mw-search');if(legacySearch)legacy.append(legacySearch);
- row.replaceChildren(identity,tabs,slot,actions,legacy);
+ if(label==='Business Lines'&&row._scrmBlPrimary)row.replaceChildren(identity,row._scrmBlPrimary,tabs,slot,actions,legacy);else row.replaceChildren(identity,tabs,slot,actions,legacy);
  row.classList.add('scrm-workbar');row.dataset.scrmHeader=page;
 }
 function sync(page,label) {
