@@ -128,3 +128,14 @@
 .scrm-workbar .scrm-actions>.scrm-action[hidden],
 .scrm-workbar .scrm-actions>details[hidden],
 .scrm-workbar .scrm-tabs>.scrm-view[hidden]{display:none!important}
+/* Non-record workspaces retain global search, on its own row on narrow screens. */
+@container scrm-main (max-width:790px){
+ .topbar:has(.top-actions>.crm-global-search){display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;height:auto;gap:8px;padding:8px 12px}
+ .topbar:has(.top-actions>.crm-global-search)>.top-left{grid-column:1;grid-row:1}
+ .topbar:has(.top-actions>.crm-global-search)>.top-actions{display:contents}
+ .topbar .top-actions>.crm-global-search{grid-column:1 / -1;grid-row:2;width:100%;min-width:0;max-width:none;box-sizing:border-box}
+ .topbar:has(.top-actions>.crm-global-search) #notifBtn{grid-column:2;grid-row:1}
+ .topbar:has(.top-actions>.crm-global-search) #focusModeBtn{grid-column:3;grid-row:1}
+ .topbar:has(.top-actions>.crm-global-search) .crm-profile{grid-column:4;grid-row:1}
+ .topbar .top-actions>.crm-global-search input{font-size:16px;min-width:0}
+}
