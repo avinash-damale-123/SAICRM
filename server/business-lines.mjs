@@ -127,7 +127,7 @@ function whereFor(options){
 }
 const orderFor=options=>' ORDER BY '+fields[options.sort].sql+' '+options.direction.toUpperCase()+',b.id ASC';
 async function owners(client){
- return (await client.query("SELECT id,display_id AS "ownerId",name,email FROM users WHERE status='approved' AND email_verified=true ORDER BY name,id")).rows;
+ return (await client.query(`SELECT id,display_id AS "ownerId",name,email FROM users WHERE status='approved' AND email_verified=true ORDER BY name,id`)).rows;
 }
 async function record(client,id,lock=false){
  if(!uuid(id))fail(400,'Invalid Business Line ID');
