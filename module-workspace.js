@@ -167,7 +167,7 @@ function create(host,config) {
   let control=key==='status'&&editable?'<select name="status" aria-label="Business Line Status"><option value="Active"'+(shown==='Active'?' selected':'')+'>Active</option><option value="Inactive"'+(shown==='Inactive'?' selected':'')+'>Inactive</option></select>':full?'<textarea rows="2"'+attrs+'>'+esc(shown)+'</textarea>':'<input type="text"'+attrs+' value="'+esc(shown)+'"'+(editable?' autocomplete="off"':'')+'>';
   if(mode==='read')control='<div class="mw-bl-read-value'+(full?' mw-bl-read-description':'')+'">'+esc(value)+'</div>';
   const hint=editable&&key==='status'?'<small class="mw-bl-hint">Changing status requires a reason and may be blocked when records depend on this line.</small>':editable&&key==='code'?'<small class="mw-bl-hint">Uppercase letters, digits and hyphens; maximum 20 characters.</small>':editable&&key==='description'?'<small class="mw-bl-hint">Maximum 500 characters. <span data-count-for="description">'+shown.length+'</span> / 500</small>':'';
-  return '<div class="mw-bl-field'+(full?' mw-bl-full':'')+'"><label>'+esc(label)+(required?' <span class="mw-required">*</span>':'')+'</label>'+control+hint+'</div>';
+  return '<div class="mw-bl-field mw-bl-field-'+esc(key)+(full?' mw-bl-full':'')+'"><label>'+esc(label)+(required?' <span class="mw-required">*</span>':'')+'</label>'+control+hint+'</div>';
  }
  function blFormSections(record,mode){
   if(mode==='create'){
