@@ -10,7 +10,9 @@
     "test": "node --test test/*.test.mjs",
     "db:migrate": "node scripts/migrate.mjs",
     "admin:bootstrap": "node scripts/bootstrap-admin.mjs",
-    "test:browser": "node test/browser.mjs"
+    "test:browser": "node test/browser.mjs",
+    "test:business-browser": "node test/business-lines-browser.mjs",
+    "super-admin:bootstrap": "node scripts/bootstrap-super-admin.mjs"
   },
   "dependencies": {
     "pg": "8.16.3",
