@@ -43,16 +43,20 @@ function focusSearch(){
 }
 function updateScopeDisplay(){
  if(!scopeBtn)return;
- scopeBtn.innerHTML=(scope==='global'?'🌐 Global':'⌕ This module')+' <span aria-hidden="true">⌄</span>';
+ scopeBtn.innerHTML=(scope==='global'?'Global':'This module')+' <span aria-hidden="true">⌄</span>';
  scopeBtn.title=scope==='global'?'Search records across authorized CRM modules':'Search only the current module. Click to switch to Global.';
  scopeMenu?.querySelectorAll('[data-search-scope]').forEach(item=>item.setAttribute('aria-pressed',String(item.dataset.searchScope===scope)));
+}
+function applyModuleSearch(value){
+ const action=()=>window.SCRM?.setModuleSearch?.(value);
+ return window.SCRMHeader?window.SCRMHeader.preserveSearch(action):action();
 }
 function changeScope(next){
  if(next==='module'&&!activeModule())next='global';
  scope=next;closeScope();updateScopeDisplay();
  if(searchInput?.value.trim())search(searchInput.value.trim());else hideResults();
- if(scope==='module')window.SCRM?.setModuleSearch?.(searchInput?.value||'');
- else if(activeModule())window.SCRM?.setModuleSearch?.('');
+ if(scope==='module')applyModuleSearch(searchInput?.value||'');
+ else if(activeModule())applyModuleSearch('');
  searchInput?.focus();
 }
 function updatePlaceholder(p){
@@ -63,6 +67,7 @@ function updatePlaceholder(p){
 function onRender(p){
  placeCrumbs(p);
  if($('#content'))$('#content').classList.toggle('crm-content-module',modules.has(p));
+ window.SCRMHeader?.sync(p,label(p));
 }
 function onNavigate(p){
  current=p;scope=activeModule()?'module':'global';
@@ -108,7 +113,7 @@ async function openResult(i){
 function search(text){
  const query=text.trim();
  sequence++;const mine=sequence;clearTimeout(queryTimer);
- if(scope==='module'&&activeModule())window.SCRM?.setModuleSearch?.(query);
+ if(scope==='module'&&activeModule())applyModuleSearch(query);
  if(query.length<2){
   if(!query)hideResults();
   else{searchResults.innerHTML='<div class="crm-search-empty">Type at least 2 characters to search.</div>';searchResults.hidden=false}
@@ -136,7 +141,7 @@ function mountSearch(){
  old.replaceWith(region);
  searchInput=$('#crmSearchInput');scopeBtn=$('#crmScopeBtn');scopeMenu=$('#crmScopeMenu');searchResults=$('#crmSearchResults');
  region.onclick=event=>{if(event.target===region)focusSearch()};
- searchInput.onfocus=()=>{if(searchInput.value.trim())search(searchInput.value)};
+ searchInput.onfocus=()=>{if(window.SCRMHeader?.restoringSearchFocus)return;if(searchInput.value.trim())search(searchInput.value)};
  searchInput.oninput=()=>search(searchInput.value);
  searchInput.onkeydown=event=>{
   if(event.key==='Escape'){hideResults();searchInput.blur();return}
