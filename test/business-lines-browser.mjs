@@ -108,7 +108,8 @@ try{
  const dashboard=page.locator('.mw-dashboard');
  assert.equal(await dashboard.isVisible(),true);
  for(const [metric,count]of Object.entries({total:30,active:25,inactive:5,archived:0}))assert.equal(await dashboard.locator('.mw-dashboard-metric-'+metric+' > strong').innerText(),String(count));
- assert.equal(await dashboard.locator('.mw-status-chart[role="img"]').count(),1);
+ assert.equal(await dashboard.locator('.mw-donut[role="img"]').count(),1);
+ assert.equal(await dashboard.locator('.mw-status-chart').count(),1);
  await page.screenshot({animations:'disabled',path:'work/browser/header-dashboard-1440.jpg',type:'jpeg',quality:40});
  await page.locator('[data-mw="home"]').click();
  await page.screenshot({animations:'disabled',path:'work/browser/header-home-1440.jpg',type:'jpeg',quality:40});
