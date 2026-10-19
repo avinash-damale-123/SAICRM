@@ -245,3 +245,14 @@ html{scrollbar-gutter:stable}
  .crm-business-module .crm-search-in-workbar{grid-row:3}
  .crm-business-module .mw-header-actions{grid-row:4}
 }
+
+/* At standard 1366px desktops keep the complete workbar on one row. */
+@media(min-width:1051px){
+ .crm-business-module{grid-template-columns:145px 260px minmax(175px,1fr) auto;column-gap:7px}
+ .crm-business-module .mw-module-identity{grid-column:1;grid-row:1}
+ .crm-business-module .mw-module-tabs{grid-column:2;grid-row:1}
+ .crm-business-module .crm-search-in-workbar{grid-column:3;grid-row:1}
+ .crm-business-module .mw-header-actions{grid-column:4;grid-row:1;justify-self:end;flex-wrap:nowrap;gap:4px}
+ .crm-business-module .mw-header-actions .mw-btn,.crm-business-module .mw-settings-menu>summary{padding:8px 7px}
+ .crm-business-module .mw-module-tab{padding:7px 12px}
+}
