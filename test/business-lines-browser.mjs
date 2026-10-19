@@ -141,7 +141,7 @@ try{
  await page.mouse.move(0,0);
  await page.waitForFunction(()=>{
   const button=document.querySelector('.crm-business-module [data-mw="home"]');
-  return button?.classList.contains('mw-active-tab') && getComputedStyle(button).backgroundColor==='rgb(8, 123, 64)' && getComputedStyle(button).color==='rgb(255, 255, 255)';
+  return button?.classList.contains('mw-active-tab') && getComputedStyle(button).color==='rgb(7, 111, 67)';
  });
  await page.screenshot({animations:'disabled',path:'work/browser/header-home-1440.jpg',type:'jpeg',quality:40});
  await page.screenshot({animations:'disabled',path:'work/browser/header-home-crop.jpg',type:'jpeg',quality:30,clip:{x:0,y:0,width:1440,height:240}});
