@@ -160,6 +160,7 @@
     }
     content.querySelectorAll('.stat-icon, .activity-bullet, .feature-icon').forEach(e => { if (!e.querySelector('svg')) e.innerHTML = icon(glyphs[e.textContent.trim()] || 'modules'); });
     content.querySelectorAll('[data-action]').forEach(button => {
+      if (button.closest('.crm-module-workbar, .crm-settings-popover, .crm-inline-filters')) return;
       if (button.querySelector('svg')) return;
       const action = button.dataset.action;
       const key = action.startsWith('new') ? 'plus' : action.startsWith('export') ? 'download' : action === 'toggleView' ? 'modules' : 'audit';
