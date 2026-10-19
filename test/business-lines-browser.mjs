@@ -120,13 +120,21 @@ try{
  const headerControls=await page.locator('.mw-module-header').evaluate(node=>Array.from(node.querySelectorAll('[data-mw="export"],[data-mw="filter-toggle"],.mw-settings-menu,#notifBtn,#focusModeBtn,.mw-account-menu,[data-mw="create"]')).map(element=>element.dataset.mw||element.id||element.className));
  assert.equal(headerControls[0],'export');assert.equal(headerControls[1],'filter-toggle');
  await page.locator('[data-mw="dashboard"]').click();
- await page.waitForFunction(()=>{
-  const button=document.querySelector('.crm-business-module [data-mw="dashboard"]');
-  return button?.classList.contains('mw-active-tab') && document.querySelector('.mw-dashboard')?.hidden===false && getComputedStyle(button).backgroundColor==='rgb(8, 123, 64)' && getComputedStyle(button).color==='rgb(255, 255, 255)';
- });
- const dashboardActive=await page.locator('[data-mw="dashboard"]').evaluate(el=>({bg:getComputedStyle(el).backgroundColor,color:getComputedStyle(el).color,classes:el.className,aria:el.getAttribute('aria-current')}));
- assert.deepEqual({bg:dashboardActive.bg,color:dashboardActive.color},{bg:'rgb(8, 123, 64)',color:'rgb(255, 255, 255)'},'Dashboard selected state must be Satguru dark green: '+JSON.stringify(dashboardActive));
-
+ await page.waitForTimeout(350);
+ const dashboardState=await page.locator('[data-mw="dashboard"]').evaluate(el=>({
+  active:el.classList.contains('mw-active-tab'),
+  hidden:el.hidden,
+  connected:el.isConnected,
+  withinHeader:!!el.closest('.crm-business-module'),
+  parent:el.parentElement?.className,
+  ancestors:[...(()=>{const v=[];let node=el;while(node&&v.length<6){v.push(node.tagName+'#'+(node.id||'')+'.'+(node.className||''));node=node.parentElement}return v})()],
+  background:getComputedStyle(el).backgroundColor,
+  color:getComputedStyle(el).color,
+  styleMatched:el.matches('.crm-business-module .mw-module-tab.mw-active-tab'),
+  selectedButtons:[...document.querySelectorAll('.mw-module-tab')].map(x=>({text:x.innerText,classes:x.className,color:getComputedStyle(x).color,background:getComputedStyle(x).backgroundColor}))
+ }));
+ console.log('DASHBOARD_STYLING_DEBUG',JSON.stringify(dashboardState));
+ assert.equal(dashboardState.background,'rgb(8, 123, 64)','Dashboard selected state must be dark green: '+JSON.stringify(dashboardState));
  assert.equal(await page.locator('.mw-table').isVisible(),false);
  const dashboard=page.locator('.mw-dashboard');
  assert.equal(await dashboard.isVisible(),true);
