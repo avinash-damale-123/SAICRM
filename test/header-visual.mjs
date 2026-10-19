@@ -58,7 +58,7 @@ try{
   assert.ok(r.input.x+r.input.w<=r.search.x+r.search.w,name+' input overflows its own search box');
   assert.ok(r.tabsText.every(x=>x.visible),name+' missing module subtitles');
   assert.ok(r.bell.x<r.focus.x&&r.focus.x<r.profile.x,name+' global control order');
-  if(r.main.w>1100){assert.ok(Math.abs(r.tabs.y-r.search.y)<15,name+' search alignment');assert.ok(r.input.w>=150,name+' laptop input too small '+JSON.stringify(r));assert.ok(r.search.x-(r.tabs.x+r.tabs.w)<25,name+' gap wastes search area');}
+  if(r.main.w>1000){assert.ok(Math.abs(r.tabs.y-r.search.y)<15,name+' search alignment');assert.ok(r.input.w>=120,name+' laptop input too small '+JSON.stringify(r));assert.ok(r.search.x-(r.tabs.x+r.tabs.w)<25,name+' gap wastes search area');}
   return r;
  };
  await open('businesslines');await measure('Business Lines Home laptop expanded');
@@ -69,7 +69,7 @@ try{
  await page.keyboard.press('Control+k');assert.equal(await page.locator('#crmSearchInput').evaluate(e=>e===document.activeElement),true);
  await page.locator('#crmSearchInput').fill('STTS');await page.waitForTimeout(550);assert.equal(await page.locator('.mw-table tbody tr').count(),1);
  await page.locator('#crmSearchInput').fill('');await page.keyboard.press('Escape');await page.waitForTimeout(550);
- for(const width of [1920,1440,1366,1280,1100,1024,768,390,360,320]){
+ for(const width of [1920,1708,1518,1440,1366,1280,1100,1024,768,390,360,320]){
   await page.setViewportSize({width,height:width<700?844:768});
   if(width>=768){
    for(const collapsed of [false,true]){
@@ -80,6 +80,15 @@ try{
   }else await measure('businesslines '+width);
   if([1920,390,320].includes(width))await page.screenshot({path:out+'/home-'+width+'.png',fullPage:true});
  }
+ // Conservative laptop case: an expanded sidebar and less available CSS width.
+ await page.setViewportSize({width:1280,height:627});
+ if(await page.locator('#app').evaluate(e=>e.classList.contains('nav-collapsed')))await page.locator('#menuBtn').click();
+ await page.evaluate(()=>document.documentElement.style.setProperty('--sidebar-width','238px'));
+ const laptop=await measure('1280 laptop with 238px expanded sidebar');
+ assert.ok(Math.abs(laptop.tabs.y-laptop.actions.y)<15,'Laptop actions must share the tab row');
+ assert.ok(laptop.bar.h<90,'Laptop header must not unexpectedly wrap');
+ await page.screenshot({path:out+'/normal-zoom-laptop.png'});
+ await page.evaluate(()=>document.documentElement.style.removeProperty('--sidebar-width'));
  await page.setViewportSize({width:1366,height:627});await page.waitForTimeout(250);
  if(await page.locator('#app').evaluate(e=>e.classList.contains('nav-collapsed')))await page.locator('#menuBtn').click();await page.waitForTimeout(250);
  for(const module of ['leads','customers','contacts','opportunities','activities','quotes','bookings','employees','branches']){

@@ -63,7 +63,7 @@
  .scrm-workbar .scrm-actions>.scrm-action,.scrm-workbar .scrm-actions>details>.scrm-action{font-size:12px!important;padding:9px 12px!important}
  .scrm-search #crmSearchInput{font-size:13px}
 }
-@container scrm-main (max-width:1100px){
+@container scrm-main (max-width:1000px){
  .scrm-workbar.scrm-workbar{grid-template-columns:minmax(240px,1fr) max-content;gap:9px 12px}
  .scrm-workbar>.scrm-identity{grid-row:1!important;grid-column:1!important}
  .scrm-workbar>.scrm-tabs{grid-row:1!important;grid-column:2!important;justify-self:end;width:224px!important}
@@ -115,14 +115,19 @@
  .scrm-workbar .scrm-tabs>.scrm-view{padding:5px!important;gap:3px}
 }
 @media(prefers-reduced-motion:reduce){.scrm-workbar *{transition:none!important}}
-/* Compact desktop density leaves real typing space, not just a search icon. */
-@container scrm-main (min-width:1101px) and (max-width:1419px){
- .scrm-workbar.scrm-workbar{grid-template-columns:125px 218px minmax(240px,1fr) max-content;gap:8px}
- .scrm-identity h1,.scrm-identity h2{font-size:17px!important}
+/* Compact laptop layout: preserve one work row at normal browser zoom.
+   Use available container width; never scale the entire interface or hide labels. */
+@container scrm-main (min-width:1001px) and (max-width:1419px){
+ .scrm-workbar.scrm-workbar{grid-template-columns:116px 208px minmax(270px,1fr) max-content;gap:6px}
+ .scrm-identity h1,.scrm-identity h2{font-size:17px!important;overflow-wrap:anywhere}
+ .scrm-workbar>.scrm-identity{gap:7px}
+ .scrm-identity :is(.mw-module-identity-icon,.crm-module-glyph){width:34px;flex-basis:34px}
  .scrm-workbar .scrm-tabs>.scrm-view{padding:7px 6px!important;gap:5px}
  .scrm-workbar .scrm-view .scrm-view-context{font-size:9.5px!important;white-space:nowrap}
- .scrm-workbar .scrm-actions>.scrm-action,.scrm-workbar .scrm-actions>details>.scrm-action{padding:8px 6px!important;gap:5px}
- .scrm-workbar .scrm-actions>.scrm-add{min-width:64px!important}
+ .scrm-workbar .scrm-actions>.scrm-action,.scrm-workbar .scrm-actions>details>.scrm-action{padding:8px 4px!important;gap:4px}
+ .scrm-workbar>.scrm-actions{gap:4px;padding-left:6px}
+ .scrm-workbar .scrm-action .scrm-ui-icon{width:14px;height:14px}
+ .scrm-workbar .scrm-actions>.scrm-add{min-width:60px!important}
 }
 /* Capability flags always win over the presentational display rules. */
 .scrm-workbar .scrm-actions>.scrm-action[hidden],
