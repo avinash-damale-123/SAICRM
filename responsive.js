@@ -151,7 +151,7 @@
   function enhanceContent() {
     const content = $('#content'), crumb = $('#crumb').textContent;
     $('#crumb').title = crumb;
-    if (crumb === 'Overview') content.querySelector('h1').textContent = 'Workspace overview';
+    if (crumb === 'Overview' && content.querySelector('h1')) content.querySelector('h1').textContent = 'Workspace overview';
     const oldNotice = content.querySelector('div.notice');
     if (oldNotice) {
       const details = document.createElement('details'); details.className = 'notice';
