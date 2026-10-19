@@ -66,7 +66,7 @@ try{
   for(const module of modules){
    await page.evaluate(module=>document.querySelector('[data-nav="'+module+'"]').click(),module);
    await page.waitForTimeout(30);
-   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Page overflow: '+module+' '+width);
+   const extent=await page.evaluate(()=>({viewport:innerWidth,actual:document.documentElement.scrollWidth,bar:document.querySelector('.crm-module-workbar')?.getBoundingClientRect().right}));assert.ok(extent.actual<=extent.viewport+1,'Page overflow: '+module+' '+width+' '+JSON.stringify(extent));
    checks++;
   }
  }
