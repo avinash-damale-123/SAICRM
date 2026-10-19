@@ -192,3 +192,67 @@ html{scrollbar-gutter:stable}
  .topbar .breadcrumb .crm-crumb{max-width:75px}
  .topbar .breadcrumb strong{max-width:100px}
 }
+
+/* Shared SCRM module workbar design tokens and responsive layout. */
+:root{--scrm-header-tint:#f5faf7;--scrm-soft-line:#e8f0ec;--scrm-action-line:#e1ebe7}
+.topbar{background:linear-gradient(180deg,#fff 0%,#fafdfa 100%);border-bottom:1px solid var(--scrm-soft-line)}
+.crm-module-host,.crm-module-workbar{background:linear-gradient(110deg,#f2faf5,#f9fcfa);border-bottom:1px solid var(--scrm-soft-line)}
+.crm-business-module{display:grid!important;grid-template-columns:minmax(150px,185px) auto minmax(210px,1fr) auto;column-gap:12px;row-gap:10px;align-items:center;padding:5px 0}
+.crm-business-module .mw-module-identity{grid-column:1;min-width:0;gap:9px}
+.crm-business-module .mw-module-identity h2{white-space:normal;max-width:105px;font-size:19px;line-height:1.18;font-weight:800}
+.crm-business-module .mw-module-tabs{grid-column:2;display:flex;gap:0;justify-self:start;border:1px solid var(--scrm-action-line);border-radius:22px;background:#f9fbfa;padding:2px;overflow:hidden}
+.crm-business-module .mw-module-tab{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;min-height:55px;height:auto;padding:7px 17px;border-radius:20px!important;border:1px solid transparent!important;border-bottom:2px solid transparent!important;gap:3px;line-height:1.12}
+.crm-business-module .mw-module-tab span{font-size:10px;font-weight:500;opacity:.84}
+.crm-business-module .mw-module-tab strong{font-size:14px;font-weight:750}
+.crm-business-module .mw-module-tab.mw-active-tab{background:#087b40!important;color:#fff!important;border-bottom:2px solid #ed8528!important}
+.crm-business-module .mw-header-toolbar{display:contents!important}
+.crm-business-module .crm-search-in-workbar{grid-column:3;position:relative;left:auto;top:auto;width:100%;max-width:none;min-width:0;min-height:51px;height:51px;border:1px solid var(--scrm-action-line);border-radius:11px;background:#fff;display:flex;align-items:center;flex:1 1 auto}
+.crm-business-module .crm-search-in-workbar input{min-width:0;flex:1 1 auto}
+.crm-business-module .mw-header-actions{grid-column:4;display:flex;flex-wrap:nowrap;align-items:center;justify-self:end;gap:5px;min-width:0}
+.crm-business-module .mw-header-actions .mw-btn,.crm-business-module .mw-settings-menu>summary{border-color:var(--scrm-action-line);background:#fff;border-radius:11px;min-height:46px;padding:9px 10px}
+.crm-business-module .mw-add-record{min-width:75px;min-height:47px!important;border-radius:12px!important;background:#087b40!important;color:#fff!important}
+.crm-business-module .mw-module-identity-icon{width:45px;height:45px;border-radius:12px;background:#e4f6ed}
+.crm-business-module .mw-module-identity-icon svg{width:24px;height:24px}
+.crm-business-module .mw-header-actions .mw-btn:focus-visible,.crm-business-module .mw-module-tab:focus-visible{outline:2px solid #ed8528;outline-offset:2px}
+@media(max-width:1500px){
+ .crm-business-module{grid-template-columns:minmax(140px,175px) auto minmax(190px,1fr);gap:9px}
+ .crm-business-module .mw-header-actions{grid-column:1 / -1;justify-self:end}
+ .crm-business-module .crm-search-in-workbar{grid-column:3}
+}
+@media(max-width:1050px){
+ .crm-business-module{grid-template-columns:minmax(145px,1fr) auto}
+ .crm-business-module .mw-module-identity{grid-column:1}
+ .crm-business-module .mw-module-tabs{grid-column:2}
+ .crm-business-module .crm-search-in-workbar{grid-column:1 / -1;grid-row:2;min-height:45px;height:45px}
+ .crm-business-module .mw-header-actions{grid-column:1 / -1;grid-row:3;justify-self:start;flex-wrap:wrap}
+}
+@media(max-width:650px){
+ .crm-module-host{padding:9px 12px}
+ .crm-business-module{grid-template-columns:minmax(95px,1fr) auto;gap:8px}
+ .crm-business-module .mw-module-identity h2{font-size:17px;max-width:95px}
+ .crm-business-module .mw-module-tab{padding:7px 10px;min-height:47px}
+ .crm-business-module .mw-module-tab strong{font-size:12px}
+ .crm-business-module .mw-module-tab span{font-size:9px}
+ .crm-business-module .crm-search-in-workbar{grid-column:1 / -1;width:100%;min-width:0}
+ .crm-business-module .mw-header-actions{grid-column:1 / -1;display:flex;width:100%;justify-self:stretch;gap:5px;flex-wrap:wrap}
+ .crm-business-module .mw-header-actions .mw-btn,.crm-business-module .mw-settings-menu>summary{min-height:39px;padding:7px 9px}
+ .crm-business-module .mw-add-record{min-height:40px!important}
+}
+@media(max-width:370px){
+ .crm-business-module{grid-template-columns:1fr}
+ .crm-business-module .mw-module-identity,.crm-business-module .mw-module-tabs,.crm-business-module .crm-search-in-workbar,.crm-business-module .mw-header-actions{grid-column:1}
+ .crm-business-module .mw-module-tabs{grid-row:2}
+ .crm-business-module .crm-search-in-workbar{grid-row:3}
+ .crm-business-module .mw-header-actions{grid-row:4}
+}
+
+/* At standard 1366px desktops keep the complete workbar on one row. */
+@media(min-width:1051px){
+ .crm-business-module{grid-template-columns:145px 260px minmax(175px,1fr) auto;column-gap:7px}
+ .crm-business-module .mw-module-identity{grid-column:1;grid-row:1}
+ .crm-business-module .mw-module-tabs{grid-column:2;grid-row:1}
+ .crm-business-module .crm-search-in-workbar{grid-column:3;grid-row:1}
+ .crm-business-module .mw-header-actions{grid-column:4;grid-row:1;justify-self:end;flex-wrap:nowrap;gap:4px}
+ .crm-business-module .mw-header-actions .mw-btn,.crm-business-module .mw-settings-menu>summary{padding:8px 7px}
+ .crm-business-module .mw-module-tab{padding:7px 12px}
+}
