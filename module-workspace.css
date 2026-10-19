@@ -227,3 +227,38 @@ html.mw-modal-open{overflow:hidden}
 
 .mw-header-toolbar{flex-wrap:wrap}.mw-header-toolbar>.mw-header-account{width:auto}.mw-module-header .mw-menu-item>span{display:inline!important}.mw-dialog [hidden]{display:none!important}
 @media(max-width:760px){.mw-header-toolbar>.mw-header-account{width:100%}.mw-header-toolbar .mw-search{flex:1 1 100px}}
+
+
+/* Business Lines approved modal layout; isolated from other CRM modules. */
+.mw-bl-dialog{width:min(1000px,calc(100vw - 44px));max-height:min(92dvh,920px);border:1px solid #0a9b67;border-radius:13px;box-shadow:0 28px 90px #0b2d3045}
+.mw-bl-dialog::backdrop{background:#0b1d32a6;backdrop-filter:blur(5px)}
+.mw-bl-dialog>header{background:#fff;padding:20px 25px}
+.mw-bl-dialog>footer{background:#fff;padding:15px 25px}
+.mw-bl-dialog>footer .mw-primary{background:#098353;color:white;border-color:#098353;min-width:102px}
+.mw-bl-dialog>footer #mw-cancel{color:#cf2636;border-color:#e3a2aa;background:#fff;min-width:100px}
+.mw-bl-dialog .mw-dialog-body{padding:18px 24px 22px;min-height:0}
+.mw-bl-section{border:1px solid #dce8e5;border-radius:10px;overflow:hidden;margin-bottom:13px;background:#fff}
+.mw-bl-section details>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;list-style:none;cursor:pointer;background:#e6f5f0;color:#104f40;padding:13px 17px;font-weight:750;font-size:13px;min-height:47px}
+.mw-bl-section details>summary::-webkit-details-marker{display:none}
+.mw-bl-section details>summary:focus-visible{outline:3px solid #1d9d72;outline-offset:-3px}
+.mw-bl-chevron{font-size:19px;line-height:1;transform:rotate(0);transition:transform .15s}
+.mw-bl-section details[open] .mw-bl-chevron{transform:rotate(180deg)}
+.mw-bl-section-content{padding:16px 17px 19px}
+.mw-bl-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 20px}
+.mw-bl-field{min-width:0;display:flex;flex-direction:column;gap:6px}
+.mw-bl-field>label{color:#123e35;font-weight:650;font-size:12px}
+.mw-bl-field input,.mw-bl-field textarea{width:100%;min-height:40px;max-width:100%;border:1px solid #bfcfde;border-radius:6px;padding:9px 11px;color:#182f43;background:#fff;font-size:13px}
+.mw-bl-field textarea{min-height:95px;resize:vertical}
+.mw-bl-field input[readonly],.mw-bl-field textarea[readonly]{background:#f3f5f8;color:#52667e;cursor:default}
+.mw-bl-field .mw-bl-hint{font-size:10px;color:#6b7e96}
+.mw-bl-full{grid-column:1/-1}
+.mw-bl-read-value{border:1px solid #e0e8ed;background:#f8fafc;border-radius:6px;min-height:40px;padding:10px 11px;overflow-wrap:anywhere;color:#263b53}
+.mw-bl-read-description{min-height:76px;white-space:pre-wrap}
+.mw-bl-dialog .mw-form-error{margin:12px 0;color:#bd1f2d}
+@media(max-width:640px){.mw-bl-dialog{width:calc(100vw - 16px);max-height:calc(100dvh - 16px)}.mw-bl-dialog .mw-dialog-body{padding:12px}.mw-bl-grid{grid-template-columns:1fr;gap:13px}.mw-bl-full{grid-column:auto}.mw-bl-section-content{padding:13px}.mw-bl-dialog>header,.mw-bl-dialog>footer{padding:13px}}
+
+.mw-bl-reason{display:flex;flex-direction:column;gap:8px;color:#183e34;font-weight:650;margin:14px 0}
+.mw-bl-reason textarea{border:1px solid #c3d2dc;border-radius:7px;min-height:95px;padding:11px;resize:vertical;font-weight:400;color:#183349;background:#fff}
+.mw-bl-dialog .mw-danger{background:#c8323d;color:#fff;border-color:#c8323d}
+
+.mw-bl-reason select{border:1px solid #c3d2dc;border-radius:7px;min-height:42px;padding:9px 11px;background:#fff;color:#183349}

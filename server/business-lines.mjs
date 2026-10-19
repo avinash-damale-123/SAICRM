@@ -6,18 +6,19 @@ const uuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-
 const own=(object,key)=>Object.prototype.hasOwnProperty.call(object,key);
 const fields=Object.freeze({
  id:{sql:'b.id',label:'Business Line UUID'},displayId:{sql:'b.display_id',label:'Business Line ID'},
- name:{sql:'b.name',label:'Business Line Name'},status:{sql:'b.status',label:'Status'},
+ name:{sql:'b.name',label:'Business Line Name'},code:{sql:'b.code',label:'Business Line Code'},description:{sql:'b.description',label:'Business Line Description'},status:{sql:'b.status',label:'Business Line Status'},
  ownerId:{sql:'b.owner_id',label:'Owner ID'},owner:{sql:'o.name',label:'Owner'},
- remarks:{sql:'b.remarks',label:'Remarks'},
+ isArchived:{sql:'(b.archived_at IS NOT NULL)',label:'Is Archived'},archivedById:{sql:'b.archived_by',label:'Archived By ID'},archivedAt:{sql:'b.archived_at',label:'Archived At',date:true},
+ isDeleted:{sql:'(b.deleted_at IS NOT NULL)',label:'Is Deleted'},deletedById:{sql:'b.deleted_by',label:'Deleted By ID'},deletedAt:{sql:'b.deleted_at',label:'Deleted At',date:true},
  createdById:{sql:'b.created_by',label:'Created By ID'},createdBy:{sql:'c.name',label:'Created By'},
  createdAt:{sql:'b.created_at',label:'Created At',date:true},
  updatedById:{sql:'b.updated_by',label:'Last Modified By ID'},updatedBy:{sql:'u.name',label:'Last Modified By'},
  updatedAt:{sql:'b.updated_at',label:'Last Modified At',date:true}
 });
-const defaultColumns=Object.freeze(['displayId','name','status','owner','remarks','createdBy','createdAt','updatedBy','updatedAt']);
-const select=`SELECT b.*,o.name AS owner_name,c.name AS creator_name,u.name AS updater_name
- FROM business_lines b JOIN users o ON o.id=b.owner_id JOIN users c ON c.id=b.created_by JOIN users u ON u.id=b.updated_by`;
-const joins='FROM business_lines b JOIN users o ON o.id=b.owner_id JOIN users c ON c.id=b.created_by JOIN users u ON u.id=b.updated_by';
+const defaultColumns=Object.freeze(['displayId','name','status','owner','createdBy','createdAt','updatedBy','updatedAt']);
+const select=`SELECT b.*,o.name AS owner_name,o.display_id AS owner_display_id,c.name AS creator_name,c.display_id AS creator_display_id,u.name AS updater_name,u.display_id AS updater_display_id,a.display_id AS archive_display_id,d.display_id AS deleted_display_id
+ FROM business_lines b JOIN users o ON o.id=b.owner_id JOIN users c ON c.id=b.created_by JOIN users u ON u.id=b.updated_by LEFT JOIN users a ON a.id=b.archived_by LEFT JOIN users d ON d.id=b.deleted_by`;
+const joins='FROM business_lines b JOIN users o ON o.id=b.owner_id JOIN users c ON c.id=b.created_by JOIN users u ON u.id=b.updated_by LEFT JOIN users a ON a.id=b.archived_by LEFT JOIN users d ON d.id=b.deleted_by';
 const limits=Object.freeze({selectedExport:250,maxExportRows:10000,maxExportResponseBytes:3*1024*1024});
 const requirePermission=(permissions,action)=>{if(permissions[action]!==true)fail(403,'You do not have permission for this Business Line action');};
 function requireQueryPermissions(permissions,options){
@@ -27,10 +28,10 @@ function requireQueryPermissions(permissions,options){
 export const businessLineColumns=Object.freeze(Object.entries(fields).map(([key,field])=>({key,label:field.label,type:field.date?'datetime':'text'})));
 const date=value=>value==null?null:(value instanceof Date?value.toISOString():new Date(value).toISOString());
 export function businessLineView(row){
- return {id:row.id,displayId:row.display_id,name:row.name,status:row.status,
-  ownerId:row.owner_id,owner:row.owner_name,remarks:row.remarks,
-  createdById:row.created_by,createdBy:row.creator_name,createdAt:date(row.created_at),
-  updatedById:row.updated_by,updatedBy:row.updater_name,updatedAt:date(row.updated_at),
+ return {id:row.id,displayId:row.display_id,name:row.name,code:row.code,description:row.description,status:row.status,
+  ownerId:row.owner_display_id,owner:row.owner_name,isArchived:!!row.archived_at,archivedById:row.archive_display_id,isDeleted:!!row.deleted_at,deletedById:row.deleted_display_id,deletedAt:date(row.deleted_at),
+  createdById:row.creator_display_id,createdBy:row.creator_name,createdAt:date(row.created_at),
+  updatedById:row.updater_display_id,updatedBy:row.updater_name,updatedAt:date(row.updated_at),
   version:row.version,archivedAt:date(row.archived_at)};
 }
 function object(value,message='Expected an object'){
@@ -48,10 +49,17 @@ function text(value,label,max,required=false){
  return normalized;
 }
 function businessName(value){
- const name=text(value,'Business Line name',120,true);
+ const name=text(value,'Business Line name',150,true).replace(/\s+/gu,' ');
  if(/[\t\r\n]/u.test(name))fail(400,'Business Line name must be a single line');
  return name;
 }
+function businessCode(value){
+ if(typeof value!=='string')fail(400,'Business Line Code must be text');
+ const code=value.trim().toUpperCase();
+ if(!/^[A-Z0-9-]{1,20}$/.test(code))fail(400,'Business Line Code must contain 1–20 uppercase letters, digits or hyphens, without spaces');
+ return code;
+}
+function lifecycleReason(value){return text(value,'Lifecycle reason',500,true);}
 function version(value){
  if(!Number.isSafeInteger(value)||value<1)fail(400,'A valid record version is required');
  return value;
@@ -67,7 +75,7 @@ function parameters(source={}){
  object(source,'Invalid list query');
  const q=source.q===undefined?'':text(source.q,'Search',200);
  const sort=source.sort||'updatedAt',direction=source.direction||'desc',status=source.status||'all',archived=source.archived||'exclude';
- if(!own(fields,sort)||!['asc','desc'].includes(direction)||!['all','Active','Inactive'].includes(status)||!['exclude','only','all'].includes(archived))fail(400,'Invalid list options');
+ if(!own(fields,sort)||!['asc','desc'].includes(direction)||!['all','Active','Inactive'].includes(status)||!['exclude','only','all','deleted'].includes(archived))fail(400,'Invalid list options');
  let filters=source.filters||[];
  if(typeof filters==='string'){
   if(filters.length>4000)fail(400,'Too many filter details');
@@ -91,8 +99,10 @@ function parameters(source={}){
 }
 function whereFor(options){
  const params=[],conditions=[],add=value=>{params.push(value);return '$'+params.length;};
+ if(options.archived==='deleted')conditions.push('b.deleted_at IS NOT NULL');
+ else {conditions.push('b.deleted_at IS NULL');
  if(options.archived==='exclude')conditions.push('b.archived_at IS NULL');
- if(options.archived==='only')conditions.push('b.archived_at IS NOT NULL');
+ if(options.archived==='only')conditions.push('b.archived_at IS NOT NULL');}
  if(options.status!=='all')conditions.push('b.status='+add(options.status));
  const words=options.q.split(/\s+/u).filter(Boolean);
  if(words.length>12)fail(400,'Use at most twelve search words');
@@ -117,7 +127,7 @@ function whereFor(options){
 }
 const orderFor=options=>' ORDER BY '+fields[options.sort].sql+' '+options.direction.toUpperCase()+',b.id ASC';
 async function owners(client){
- return (await client.query("SELECT id,name,email FROM users WHERE system_role='super_admin' AND status='approved' AND email_verified=true ORDER BY name,id")).rows;
+ return (await client.query(`SELECT id,display_id AS "ownerId",name,email FROM users WHERE status='approved' AND email_verified=true ORDER BY name,id`)).rows;
 }
 async function record(client,id,lock=false){
  if(!uuid(id))fail(400,'Invalid Business Line ID');
@@ -143,12 +153,12 @@ async function dependencies(client,line,textOnly=false){
 }
 const changesFor=(before,after)=>{
  const changes={};
- for(const key of ['name','status','ownerId','remarks','archivedAt'])
+ for(const key of ['name','code','description','status','ownerId','archivedAt','isArchived','isDeleted','deletedAt'])
   if((before?.[key]??null)!==(after?.[key]??null))changes[key]={before:before?.[key]??null,after:after?.[key]??null};
  return changes;
 };
-async function event(client,user,id,action,before,after){
- await client.query('INSERT INTO business_line_events(business_line_id,actor_id,action,changes) VALUES($1,$2,$3,$4)',[id,user.id,action,changesFor(before,after)]);
+async function event(client,user,id,action,before,after,reason=null){
+ await client.query('INSERT INTO business_line_events(business_line_id,actor_id,action,changes,reason) VALUES($1,$2,$3,$4,$5)',[id,user.id,action,changesFor(before,after),reason]);
  await client.query('INSERT INTO audit(actor,action,module,record_id) VALUES($1,$2,$3,$4)',[user.id,action,'business-lines',id]);
 }
 function csvCell(value){
@@ -198,20 +208,21 @@ export async function businessLines({client,user,path,method,url,body}){
    const totalPages=Math.max(1,Math.ceil(total/options.pageSize));
    const page=Math.min(options.page,totalPages);
    const data=await client.query(select+where.sql+orderFor(options)+' LIMIT $'+(where.params.length+1)+' OFFSET $'+(where.params.length+2),[...where.params,options.pageSize,(page-1)*options.pageSize]);
-   const counts=(await client.query(`SELECT count(*)::integer AS total,
-    count(*) FILTER(WHERE archived_at IS NULL AND status='Active')::integer AS active,
-    count(*) FILTER(WHERE archived_at IS NULL AND status='Inactive')::integer AS inactive,
-    count(*) FILTER(WHERE archived_at IS NOT NULL)::integer AS archived FROM business_lines`)).rows[0];
+   const counts=(await client.query(`SELECT count(*) FILTER(WHERE deleted_at IS NULL)::integer AS total,
+    count(*) FILTER(WHERE deleted_at IS NULL AND archived_at IS NULL AND status='Active')::integer AS active,
+    count(*) FILTER(WHERE deleted_at IS NULL AND archived_at IS NULL AND status='Inactive')::integer AS inactive,
+    count(*) FILTER(WHERE deleted_at IS NULL AND archived_at IS NOT NULL)::integer AS archived FROM business_lines`)).rows[0];
    return {records:data.rows.map(businessLineView),total,page,pageSize:options.pageSize,totalPages,counts,owners:await owners(client),resource:{...businessLineResource,columns:businessLineColumns,limits},permissions};
   }
   if(path.length===2&&path[1]==='export'&&method==='POST')return await exportRecords(client,user,body,permissions);
   if(path.length===1&&method==='POST'){
    requirePermission(permissions,'create');
-   onlyKeys(body,['name','remarks']);
+   onlyKeys(body,['name','code','description']);
    const name=businessName(body.name);
-   const remarks=body.remarks===undefined?'':text(body.remarks,'Remarks',255);
+   const code=businessCode(body.code);
+   const description=body.description===undefined?'':text(body.description,'Business Line Description',500);
    const id=randomUUID();
-   await client.query('INSERT INTO business_lines(id,name,owner_id,remarks,created_by,updated_by) VALUES($1,$2,$3,$4,$3,$3)',[id,name,user.id,remarks]);
+   await client.query('INSERT INTO business_lines(id,name,code,description,owner_id,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$5,$5)',[id,name,code,description,user.id]);
    const created=businessLineView(await record(client,id));
    await event(client,user,id,'Created',null,created);
    return {record:created};
@@ -223,44 +234,59 @@ export async function businessLines({client,user,path,method,url,body}){
   if(path.length===3&&path[2]==='history'&&method==='GET'){
    requirePermission(permissions,'history');
    await record(client,path[1]);
-   const rows=(await client.query('SELECT e.id,e.actor_id,u.name AS actor,e.action,e.changes,e.created_at FROM business_line_events e JOIN users u ON u.id=e.actor_id WHERE e.business_line_id=$1 ORDER BY e.id DESC LIMIT 200',[path[1]])).rows;
-   return {history:rows.map(row=>({id:row.id,actorId:row.actor_id,actor:row.actor,action:row.action,changes:row.changes,createdAt:date(row.created_at)}))};
+   const rows=(await client.query('SELECT e.id,u.display_id AS actor_display_id,u.name AS actor,e.action,e.changes,e.reason,e.created_at FROM business_line_events e JOIN users u ON u.id=e.actor_id WHERE e.business_line_id=$1 ORDER BY e.id DESC LIMIT 200',[path[1]])).rows;
+   return {history:rows.map(row=>({id:row.id,actorId:row.actor_display_id,actor:row.actor,action:row.action,changes:row.changes,reason:row.reason,createdAt:date(row.created_at)}))};
   }
-  if((path.length===2&&method==='PUT')||(path.length===3&&['archive','restore'].includes(path[2])&&method==='POST')){
-   requirePermission(permissions,path.length===2?'edit':path[2]);
-   onlyKeys(body,path.length===2?['name','status','remarks','ownerId','version']:['version']);
+  if((path.length===2&&method==='PUT')||(path.length===3&&['archive','restore','soft-delete','restore-deleted'].includes(path[2])&&method==='POST')){
+   requirePermission(permissions,path.length===2?'edit':({'soft-delete':'softDelete','restore-deleted':'restoreDeleted'}[path[2]]||path[2]));
+   onlyKeys(body,path.length===2?['name','description','status','ownerId','version','reason']:['version','reason']);
    version(body.version);
    const existing=await record(client,path[1],true),before=businessLineView(existing);
    if(existing.version!==body.version)fail(409,'This record changed. Refresh and try again.');
    if(path.length===3){
-    const archive=path[2]==='archive';
-    if(archive&&existing.archived_at)fail(409,'This Business Line is already archived');
-    if(!archive&&!existing.archived_at)fail(409,'This Business Line is not archived');
-    if(archive&&await dependencies(client,existing))fail(409,'Referenced Business Lines cannot be archived. Review dependent records first.');
-    await client.query('UPDATE business_lines SET archived_at=$2,archived_by=$3,updated_by=$4,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,archive?new Date():null,archive?user.id:null,user.id]);
+    const action=path[2],reason=lifecycleReason(body.reason),archive=action==='archive',unarchive=action==='restore',softDelete=action==='soft-delete',undelete=action==='restore-deleted';
+    if(softDelete||undelete){
+     if(softDelete&&existing.deleted_at)fail(409,'This Business Line is already deleted');
+     if(undelete&&!existing.deleted_at)fail(409,'This Business Line is not deleted');
+     if(softDelete&&await dependencies(client,existing))fail(409,'Referenced Business Lines cannot be deleted. Reassign linked records first.');
+     await client.query('UPDATE business_lines SET deleted_at=$2,deleted_by=$3,updated_by=$4,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,softDelete?new Date():null,softDelete?user.id:null,user.id]);
+    }else{
+     if(existing.deleted_at)fail(409,'Restore this deleted Business Line first');
+     if(archive&&existing.archived_at)fail(409,'This Business Line is already archived');
+     if(unarchive&&!existing.archived_at)fail(409,'This Business Line is not archived');
+     if(archive&&await dependencies(client,existing))fail(409,'Referenced Business Lines cannot be archived. Review dependent records first.');
+     await client.query('UPDATE business_lines SET archived_at=$2,archived_by=$3,updated_by=$4,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,archive?new Date():null,archive?user.id:null,user.id]);
+    }
     const after=businessLineView(await record(client,existing.id));
-    await event(client,user,existing.id,archive?'Archived':'Restored',before,after);
+    await event(client,user,existing.id,softDelete?'Soft Deleted':undelete?'Restored Deleted':archive?'Archived':'Restored',before,after,reason);
     return {record:after};
    }
-   if(existing.archived_at)fail(409,'Restore this Business Line before editing');
+   if(existing.archived_at||existing.deleted_at)fail(409,'Restore this Business Line before editing');
    const name=own(body,'name')?businessName(body.name):existing.name;
-   const remarks=own(body,'remarks')?text(body.remarks,'Remarks',255):existing.remarks;
+   const description=own(body,'description')?text(body.description,'Business Line Description',500):existing.description;
    const status=own(body,'status')?body.status:existing.status;
    if(!['Active','Inactive'].includes(status))fail(400,'Invalid Business Line status');
    const ownerId=own(body,'ownerId')?body.ownerId:existing.owner_id;
-   if(!uuid(ownerId))fail(400,'Invalid owner');
-   if(ownerId!==existing.owner_id&&!(await client.query("SELECT 1 FROM users WHERE id=$1 AND system_role='super_admin' AND status='approved' AND email_verified=true FOR SHARE",[ownerId])).rowCount)fail(400,'Owner must be an approved, verified Super Admin');
+   let ownerTechnicalId=existing.owner_id;
+   if(own(body,'ownerId')){
+    requirePermission(permissions,'reassignOwner');
+    if(typeof ownerId!=='string'||!/^UID-[0-9]{6,}$/.test(ownerId))fail(400,'Invalid Owner ID');
+    const matched=(await client.query("SELECT id FROM users WHERE display_id=$1 AND status='approved' AND email_verified=true FOR SHARE",[ownerId])).rows[0];
+    if(!matched)fail(400,'Owner must be an active, approved SCRM user');
+    ownerTechnicalId=matched.id;
+   }
    if(status==='Inactive'&&existing.status!=='Inactive'&&await dependencies(client,existing))fail(409,'Referenced Business Lines cannot be deactivated. Review dependent records first.');
    if(name!==existing.name&&await dependencies(client,existing,true))fail(409,'Legacy records reference this name. Migrate those references before renaming.');
-   if(name===existing.name&&remarks===existing.remarks&&status===existing.status&&ownerId===existing.owner_id)return {record:before};
-   await client.query('UPDATE business_lines SET name=$2,status=$3,remarks=$4,owner_id=$5,updated_by=$6,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,name,status,remarks,ownerId,user.id]);
+   const reason=status!==existing.status?lifecycleReason(body.reason):null;
+   if(name===existing.name&&description===existing.description&&status===existing.status&&ownerTechnicalId===existing.owner_id)return {record:before};
+   await client.query('UPDATE business_lines SET name=$2,status=$3,description=$4,owner_id=$5,updated_by=$6,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,name,status,description,ownerTechnicalId,user.id]);
    const after=businessLineView(await record(client,existing.id));
-   await event(client,user,existing.id,'Updated',before,after);
+   await event(client,user,existing.id,status!==existing.status?(status==='Inactive'?'Deactivated':'Reactivated'):'Updated',before,after,reason);
    return {record:after};
   }
   fail(405,'Unsupported Business Line action');
  }catch(error){
-  if(error.code==='23505')fail(409,'A Business Line with this name already exists, including archived records');
+  if(error.code==='23505')fail(409,'A Business Line with this name or code already exists, including archived records');
   throw error;
  }
 }
@@ -277,6 +303,6 @@ export async function validateBusinessLineReferences(client,module,data){
   for(const part of data.lines.split(/[,;|]/u)){if(part.trim())names.push(part.trim().toLowerCase());}
  if(!names.length)return;
  await client.query('SELECT pg_advisory_xact_lock_shared(830151)');
- const found=await client.query('SELECT status,archived_at FROM business_lines WHERE lower(name)=ANY($1::text[]) FOR SHARE',[names]);
- if(found.rows.some(row=>row.status!=='Active'||row.archived_at))fail(409,'A referenced Business Line is inactive or archived');
+ const found=await client.query('SELECT status,archived_at,deleted_at FROM business_lines WHERE lower(name)=ANY($1::text[]) FOR SHARE',[names]);
+ if(found.rows.some(row=>row.status!=='Active'||row.archived_at||row.deleted_at))fail(409,'A referenced Business Line is inactive or archived');
 }
