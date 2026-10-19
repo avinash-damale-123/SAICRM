@@ -110,3 +110,230 @@ input[type="checkbox"],input[type="radio"]{accent-color:#087b40}
 .mw-workspace .mw-record-link,.mw-workspace .mw-link,.mw-workspace a{color:#087b40}
 .mw-workspace .mw-btn:focus-visible,.mw-workspace .mw-icon-btn:focus-visible,.nav-item:focus-visible{outline:2px solid #ed8528;outline-offset:2px}
 @media(min-width:768px){.nav-collapsed .brand{padding:0 10px}.nav-collapsed .brandmark{width:38px;height:38px;flex:0 0 38px;padding:1px;box-shadow:none!important}.nav-collapsed .brandmark img{object-fit:cover;object-position:center center}}
+
+
+/* SCRM 2026-10-20: Unified dark sidebar and in-sidebar navigation controls.
+   Keep the Satguru logo on authentication screens; sidebar uses wordmark only. */
+.sidebar {
+  --sidebar-surface: #0b291f;
+  --sidebar-elevated: #12382a;
+  --sidebar-hover: #20503c;
+  --sidebar-muted: #aac8b8;
+  background: linear-gradient(180deg, #112e24 0%, #0c271f 70%, #09221c 100%);
+  color: #e6f1e8;
+}
+.sidebar .brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  border-bottom: 1px solid #ffffff1e;
+  background: #09241c;
+}
+.sidebar .brand-copy { min-width: 0; }
+.sidebar .brand-copy strong {
+  display: block;
+  color: #f4faf5;
+  font-size: 19px;
+  font-weight: 750;
+  letter-spacing: .55px;
+  line-height: 1.2;
+}
+.sidebar #menuBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 35px;
+  height: 35px;
+  min-width: 35px;
+  flex: 0 0 35px;
+  border: 1px solid #2a5241;
+  border-radius: 8px;
+  color: #e8f6ed;
+  background: #173b2d;
+  padding: 7px;
+}
+.sidebar #menuBtn .ui-icon { width: 19px; height: 19px; }
+.sidebar #menuBtn:hover {
+  border-color: #5c9779;
+  background: #20523c;
+  color: #fff;
+}
+.sidebar .workspace {
+  border: 1px solid #29503e;
+  background: #153a2c;
+  border-radius: 8px;
+  margin: 9px 9px 6px;
+  padding: 7px;
+}
+.sidebar .workspace-icon {
+  background: #245b42;
+  border-color: #417259;
+  color: #e7f6ed;
+}
+.sidebar .workspace b { color: #edf7f1; }
+.sidebar .workspace small { color: #accbbb; }
+.sidebar .navigation {
+  padding: 2px 8px 10px;
+  scrollbar-color: #4a725e transparent;
+}
+.sidebar .nav-group { padding-top: 3px; }
+.sidebar .nav-section {
+  border-radius: 6px;
+  color: #a9c8b8;
+  font-size: 10px;
+  letter-spacing: .72px;
+  font-weight: 700;
+}
+.sidebar .nav-section[aria-expanded="true"] {
+  color: #e0f3e7;
+  background: #17392c;
+}
+.sidebar .nav-section:hover {
+  color: #fff;
+  background: #214938;
+}
+.sidebar .nav-item {
+  border: 1px solid transparent;
+  color: #d0e0d5;
+  background: transparent;
+  border-radius: 7px;
+  font-weight: 500;
+}
+.sidebar .nav-item .nav-icon { color: #b9d9c6; }
+.sidebar .nav-item:hover:not(.active):not([aria-current="page"]) {
+  border-color: #3a6650;
+  background: #204a37;
+  color: #fff;
+}
+.sidebar .nav-item.active,
+.sidebar .nav-item[aria-current="page"] {
+  background: #176445!important;
+  border-color: #33785b;
+  box-shadow: inset 3px 0 #ed8528!important;
+  color: #fff!important;
+  font-weight: 650;
+}
+.sidebar .nav-item.active .nav-icon,
+.sidebar .nav-item[aria-current="page"] .nav-icon { color: #fff2e1; }
+.sidebar .nav-count {
+  background: #36614c;
+  color: #e1f5e9;
+}
+.sidebar .sidebar-bottom {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 11px 10px 13px;
+  background: #081f19;
+  border-top: 1px solid #315344;
+}
+.sidebar .profile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 2px 3px 5px;
+}
+.sidebar .profile .avatar {
+  width: 32px;
+  height: 32px;
+  background: #206c49!important;
+  border: 1px solid #5e9474;
+}
+.sidebar .profile-copy {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+.sidebar .profile-copy b {
+  display: block;
+  color: #eff8f0;
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sidebar .sidebar-signout {
+  appearance: none;
+  display: inline-flex;
+  width: 100%;
+  min-height: 37px;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 11px;
+  border: 1px solid #66403c;
+  border-radius: 8px;
+  background: #53252144;
+  color: #ffaaa9;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.sidebar .sidebar-signout .ui-icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+}
+.sidebar .sidebar-signout:hover {
+  background: #67332e88;
+  border-color: #d47169;
+  color: #ffe1d9;
+}
+.sidebar .sidebar-signout:focus-visible,
+.sidebar #menuBtn:focus-visible,
+.topbar #mobileMenuBtn:focus-visible {
+  outline: 2px solid #ffac5a;
+  outline-offset: 2px;
+}
+.topbar #mobileMenuBtn { display: none; }
+
+/* Collapsed desktop rail retains only icons, with usable sign-out. */
+@media (min-width: 768px) {
+  .nav-collapsed .sidebar .brand {
+    padding: 0 8px;
+    justify-content: center;
+  }
+  .nav-collapsed .sidebar #menuBtn {
+    width: 39px;
+    height: 39px;
+    min-width: 39px;
+    flex-basis: 39px;
+  }
+  .nav-collapsed .sidebar .profile { justify-content: center; padding: 5px 0 2px; }
+  .nav-collapsed .sidebar .profile-copy { display: none; }
+  .nav-collapsed .sidebar .sidebar-bottom { padding: 9px 5px 12px; }
+  .nav-collapsed .sidebar .sidebar-signout {
+    justify-content: center;
+    gap: 0;
+    width: 44px;
+    min-height: 42px;
+    padding: 7px;
+    margin: 0 auto;
+  }
+  .nav-collapsed .sidebar .sidebar-signout span { display: none; }
+}
+
+/* A narrow/mobile viewport needs an accessible opener outside the closed drawer. */
+@media (max-width: 767px) {
+  .sidebar .brand { padding: 0 14px; gap: 12px; }
+  .sidebar #menuBtn { display: none; }
+  .sidebar .brand-copy strong { font-size: 21px; }
+  .topbar #mobileMenuBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    min-height: 41px;
+    width: 41px;
+    border: 1px solid #cbe4d5;
+    border-radius: 8px;
+    background: #f4faf6;
+    color: #087b40;
+  }
+  .sidebar .sidebar-bottom { padding-bottom: max(13px, env(safe-area-inset-bottom)); }
+  .sidebar .sidebar-signout { min-height: 44px; font-size: 13px; }
+}
