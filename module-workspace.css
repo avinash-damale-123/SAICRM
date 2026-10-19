@@ -262,3 +262,26 @@ html.mw-modal-open{overflow:hidden}
 .mw-bl-dialog .mw-danger{background:#c8323d;color:#fff;border-color:#c8323d}
 
 .mw-bl-reason select{border:1px solid #c3d2dc;border-radius:7px;min-height:42px;padding:9px 11px;background:#fff;color:#183349}
+
+
+/* Compact Business Lines dialogs: retain readability at desktop and mobile sizes. */
+.mw-bl-dialog{width:min(795px,calc(100vw - 42px));max-height:min(86dvh,780px)}
+.mw-bl-dialog>header{padding:13px 19px}
+.mw-bl-dialog>footer{padding:10px 19px;min-height:57px}
+.mw-bl-dialog .mw-dialog-body{padding:12px 17px 14px}
+.mw-bl-dialog .mw-bl-section{margin-bottom:9px;border-radius:8px}
+.mw-bl-dialog .mw-bl-section details>summary{background:#d2eae1;color:#164c3e;padding:9px 13px;min-height:37px;font-size:12px}
+.mw-bl-dialog .mw-bl-section-content{padding:12px 13px 14px}
+.mw-bl-dialog .mw-bl-grid{gap:11px 15px}
+.mw-bl-dialog .mw-bl-field{gap:4px}
+.mw-bl-dialog .mw-bl-field>label{font-size:11px}
+.mw-bl-dialog .mw-bl-field input,.mw-bl-dialog .mw-bl-field select,.mw-bl-dialog .mw-bl-field textarea{min-height:33px;padding:6px 9px;font-size:12px;line-height:1.4;border-radius:5px}
+.mw-bl-dialog .mw-bl-field textarea{min-height:62px}
+.mw-bl-dialog .mw-bl-read-value{min-height:33px;padding:7px 9px;font-size:12px;line-height:1.4}
+.mw-bl-dialog .mw-bl-read-description{min-height:51px}
+.mw-bl-dialog .mw-bl-hint{font-size:10px;line-height:1.3}
+.mw-bl-section-tools{display:flex;justify-content:flex-end;gap:8px;margin:0 0 9px}
+.mw-bl-section-action{background:transparent;border:1px solid #afcfbf;color:#126547;border-radius:5px;padding:5px 9px;font-size:11px;font-weight:650;min-height:27px;cursor:pointer}
+.mw-bl-section-action:hover{background:#ecf7f1}
+.mw-bl-dialog .mw-dialog-close{width:30px;height:30px}
+@media(max-width:640px){.mw-bl-dialog{width:calc(100vw - 14px);max-height:calc(100dvh - 14px)}.mw-bl-dialog>header,.mw-bl-dialog>footer{padding:12px}.mw-bl-dialog .mw-dialog-body{padding:10px}.mw-bl-dialog .mw-bl-grid{grid-template-columns:1fr;gap:10px}.mw-bl-dialog .mw-bl-section-content{padding:10px}.mw-bl-dialog .mw-bl-field input,.mw-bl-dialog .mw-bl-field select,.mw-bl-dialog .mw-bl-field textarea{font-size:16px;min-height:39px}}
