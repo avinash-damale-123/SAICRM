@@ -54,7 +54,7 @@ export async function notificationsFeed(client, principal, current) {
  if (readable.length) {
   const rows = (await client.query(`
     SELECT a.id,a.action,a.module,a.record_id,a.created_at,r.data
-    FROM audit a JOIN records r ON r.id=a.record_id AND r.module=a.module
+    FROM audit a JOIN records r ON r.id::text=a.record_id AND r.module=a.module
     WHERE a.module = ANY($1::text[]) AND a.action IN ('Created','Updated')
       AND ($2::boolean OR EXISTS (
        SELECT 1 FROM user_scopes s
