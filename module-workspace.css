@@ -285,3 +285,10 @@ html.mw-modal-open{overflow:hidden}
 .mw-bl-section-action:hover{background:#ecf7f1}
 .mw-bl-dialog .mw-dialog-close{width:30px;height:30px}
 @media(max-width:640px){.mw-bl-dialog{width:calc(100vw - 14px);max-height:calc(100dvh - 14px)}.mw-bl-dialog>header,.mw-bl-dialog>footer{padding:12px}.mw-bl-dialog .mw-dialog-body{padding:10px}.mw-bl-dialog .mw-bl-grid{grid-template-columns:1fr;gap:10px}.mw-bl-dialog .mw-bl-section-content{padding:10px}.mw-bl-dialog .mw-bl-field input,.mw-bl-dialog .mw-bl-field select,.mw-bl-dialog .mw-bl-field textarea{font-size:16px;min-height:39px}}
+
+.mw-bl-status-reason{margin:8px 0 12px;padding:11px 13px;background:#f0f8f4;border:1px solid #b8dacb;border-radius:7px}
+.mw-bl-status-reason[hidden]{display:none!important}
+.mw-bl-status-reason label{display:block;font-size:12px;font-weight:700;color:#194b39;margin-bottom:6px}
+.mw-bl-status-reason textarea{display:block;width:100%;resize:vertical;min-height:60px;border:1px solid #a9c6b8;border-radius:5px;padding:8px 10px;color:#193b30}
+.mw-bl-status-reason small{font-size:11px;color:#536b5f}
+.mw-bl-dialog .mw-bl-field select{width:100%;border:1px solid #bfcfde;border-radius:5px;background:#fff;color:#182f43}
