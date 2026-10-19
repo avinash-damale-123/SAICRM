@@ -41,12 +41,18 @@ function create(host,config) {
  // Global bell, fullscreen, profile and search remain in the persistent global header.
  // Only this module's local actions/tabs appear in the module work bar.
  moduleHeader.querySelector('.mw-header-account').remove();
+ const sharedSearch=document.getElementById('globalSearchBtn');
+ const searchOrigin=sharedSearch?.parentNode||null;
+ const searchNext=sharedSearch?.nextSibling||null;
+ if(sharedSearch){moduleHeader.querySelector('.mw-header-toolbar').prepend(sharedSearch);sharedSearch.classList.add('crm-search-in-workbar');}
+ const restoreSearch=()=>{if(!sharedSearch||!searchOrigin)return;sharedSearch.classList.remove('crm-search-in-workbar');if(searchNext&&searchNext.parentNode===searchOrigin)searchOrigin.insertBefore(sharedSearch,searchNext);else searchOrigin.append(sharedSearch)};
+
  if(topbar) {
   const workbar=document.createElement('div');workbar.className='crm-module-host';
   topbar.insertAdjacentElement('afterend',workbar);
   workbar.append(moduleHeader);host.classList.add('mw-module-content');
-  headerRestore=()=>{workbar.remove();host.classList.remove('mw-module-content')};
- }else{host.prepend(moduleHeader);headerRestore=()=>moduleHeader?.remove()}
+  headerRestore=()=>{restoreSearch();workbar.remove();host.classList.remove('mw-module-content')};
+ }else{host.prepend(moduleHeader);headerRestore=()=>{restoreSearch();moduleHeader?.remove()}}
  moduleHeader.addEventListener('click',click);
  moduleHeader.querySelector('#mw-search').value=state.q;
  moduleHeader.querySelector('#mw-search').addEventListener('input',e=>{if(!permitted('search'))return;state.view='home';state.q=e.target.value.trim();clearTimeout(timer);renderViews();timer=setTimeout(()=>{rememberSearch(state.q);state.page=1;load()},400)});
