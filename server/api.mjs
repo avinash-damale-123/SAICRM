@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { businessLines, validateBusinessLineReferences } from './business-lines.mjs';
+import { searchWorkspace, notificationsFeed } from './workspace-discovery.mjs';
 import { transaction } from './db.mjs';
 import { authorize, modules, validateRecord } from './contracts.mjs';
 import { token, otp, hash, digest, equal, validPassword, passwordHash, passwordMatches } from './crypto.mjs';
@@ -252,6 +253,15 @@ export function createHandler({ pool, config, deliver = message => sendEmail(con
     const principal = publicUser(current);
     if (!principal.emailVerified || principal.status !== 'approved') fail(403, 'Access is not approved');
     if (mutation && !equal(req.headers['x-csrf-token'], user.csrf)) fail(403, 'Session check failed');
+    if (path[0] === 'search') {
+     if (method !== 'GET' || path.length !== 1) fail(405, 'Method not allowed');
+     await limit(client, config, 'search:' + current.id, 120, 60);
+     return await searchWorkspace(client, principal, current, url);
+    }
+    if (path[0] === 'notifications') {
+     if (method !== 'GET' || path.length !== 1) fail(405, 'Method not allowed');
+     return await notificationsFeed(client, principal, current);
+    }
     if (path[0] === 'business-lines') return await businessLines({client,user:current,path,method,url,body});
     if (path[0] === 'access') {
      if (!authorize(principal, method === 'GET' ? 'read' : 'approve', 'access')) fail(403, 'Administrator access required');
