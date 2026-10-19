@@ -260,3 +260,5 @@ html.mw-modal-open{overflow:hidden}
 .mw-bl-reason{display:flex;flex-direction:column;gap:8px;color:#183e34;font-weight:650;margin:14px 0}
 .mw-bl-reason textarea{border:1px solid #c3d2dc;border-radius:7px;min-height:95px;padding:11px;resize:vertical;font-weight:400;color:#183349;background:#fff}
 .mw-bl-dialog .mw-danger{background:#c8323d;color:#fff;border-color:#c8323d}
+
+.mw-bl-reason select{border:1px solid #c3d2dc;border-radius:7px;min-height:42px;padding:9px 11px;background:#fff;color:#183349}
