@@ -44,7 +44,6 @@
   user=session.user;csrf=session.csrf||'';window.SCRM.user=user;
   root.hidden=true;app.hidden=false;
   document.querySelector('.profile-copy b').textContent=user.name;
-  document.querySelector('.profile-copy small').textContent=(user.systemRole==='super_admin'?'Super Admin':user.role)+' · approved';
   document.querySelector('.profile').title=user.email;
   document.querySelector('.top-avatar').title=user.email;
   if(loaded){location.reload();return}
@@ -103,6 +102,9 @@
   if(window.SCRM.activeWorkspace&&!window.SCRM.activeWorkspace.canLeave())return;
   try{await api('auth/logout','POST',{csrf});location.replace('/')}catch(error){alert(error.message)}
  };
+ // The sidebar footer delegates to the existing protected logout flow,
+ // including unsaved-work checks and server-side session revocation.
+ document.querySelector('#sidebarSignOut').onclick=()=>document.querySelector('#logoutBtn').click();
  draw('Checking session…');
  Promise.all([api('auth/me'),api('auth/options').catch(()=>({googleEnabled:false}))]).then(([session,options])=>{googleEnabled=options.googleEnabled===true;return session}).then(session=>{if(mode==='reset'){draw();return}if(session.user?.emailVerified&&session.user.status==='approved')return enter(session);draw(initialMessage)}).catch(error=>draw(error.message));
 })();
