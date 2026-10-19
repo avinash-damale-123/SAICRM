@@ -59,6 +59,7 @@ function businessCode(value){
  if(!/^[A-Z0-9-]{1,20}$/.test(code))fail(400,'Business Line Code must contain 1–20 uppercase letters, digits or hyphens, without spaces');
  return code;
 }
+function lifecycleReason(value){return text(value,'Lifecycle reason',500,true);}
 function version(value){
  if(!Number.isSafeInteger(value)||value<1)fail(400,'A valid record version is required');
  return value;
@@ -74,7 +75,7 @@ function parameters(source={}){
  object(source,'Invalid list query');
  const q=source.q===undefined?'':text(source.q,'Search',200);
  const sort=source.sort||'updatedAt',direction=source.direction||'desc',status=source.status||'all',archived=source.archived||'exclude';
- if(!own(fields,sort)||!['asc','desc'].includes(direction)||!['all','Active','Inactive'].includes(status)||!['exclude','only','all'].includes(archived))fail(400,'Invalid list options');
+ if(!own(fields,sort)||!['asc','desc'].includes(direction)||!['all','Active','Inactive'].includes(status)||!['exclude','only','all','deleted'].includes(archived))fail(400,'Invalid list options');
  let filters=source.filters||[];
  if(typeof filters==='string'){
   if(filters.length>4000)fail(400,'Too many filter details');
@@ -98,8 +99,10 @@ function parameters(source={}){
 }
 function whereFor(options){
  const params=[],conditions=[],add=value=>{params.push(value);return '$'+params.length;};
+ if(options.archived==='deleted')conditions.push('b.deleted_at IS NOT NULL');
+ else {conditions.push('b.deleted_at IS NULL');
  if(options.archived==='exclude')conditions.push('b.archived_at IS NULL');
- if(options.archived==='only')conditions.push('b.archived_at IS NOT NULL');
+ if(options.archived==='only')conditions.push('b.archived_at IS NOT NULL');}
  if(options.status!=='all')conditions.push('b.status='+add(options.status));
  const words=options.q.split(/\s+/u).filter(Boolean);
  if(words.length>12)fail(400,'Use at most twelve search words');
@@ -154,8 +157,8 @@ const changesFor=(before,after)=>{
   if((before?.[key]??null)!==(after?.[key]??null))changes[key]={before:before?.[key]??null,after:after?.[key]??null};
  return changes;
 };
-async function event(client,user,id,action,before,after){
- await client.query('INSERT INTO business_line_events(business_line_id,actor_id,action,changes) VALUES($1,$2,$3,$4)',[id,user.id,action,changesFor(before,after)]);
+async function event(client,user,id,action,before,after,reason=null){
+ await client.query('INSERT INTO business_line_events(business_line_id,actor_id,action,changes,reason) VALUES($1,$2,$3,$4,$5)',[id,user.id,action,changesFor(before,after),reason]);
  await client.query('INSERT INTO audit(actor,action,module,record_id) VALUES($1,$2,$3,$4)',[user.id,action,'business-lines',id]);
 }
 function csvCell(value){
@@ -206,9 +209,9 @@ export async function businessLines({client,user,path,method,url,body}){
    const page=Math.min(options.page,totalPages);
    const data=await client.query(select+where.sql+orderFor(options)+' LIMIT $'+(where.params.length+1)+' OFFSET $'+(where.params.length+2),[...where.params,options.pageSize,(page-1)*options.pageSize]);
    const counts=(await client.query(`SELECT count(*)::integer AS total,
-    count(*) FILTER(WHERE archived_at IS NULL AND status='Active')::integer AS active,
-    count(*) FILTER(WHERE archived_at IS NULL AND status='Inactive')::integer AS inactive,
-    count(*) FILTER(WHERE archived_at IS NOT NULL)::integer AS archived FROM business_lines`)).rows[0];
+    count(*) FILTER(WHERE deleted_at IS NULL AND archived_at IS NULL AND status='Active')::integer AS active,
+    count(*) FILTER(WHERE deleted_at IS NULL AND archived_at IS NULL AND status='Inactive')::integer AS inactive,
+    count(*) FILTER(WHERE deleted_at IS NULL AND archived_at IS NOT NULL)::integer AS archived FROM business_lines`)).rows[0];
    return {records:data.rows.map(businessLineView),total,page,pageSize:options.pageSize,totalPages,counts,owners:await owners(client),resource:{...businessLineResource,columns:businessLineColumns,limits},permissions};
   }
   if(path.length===2&&path[1]==='export'&&method==='POST')return await exportRecords(client,user,body,permissions);
@@ -231,26 +234,34 @@ export async function businessLines({client,user,path,method,url,body}){
   if(path.length===3&&path[2]==='history'&&method==='GET'){
    requirePermission(permissions,'history');
    await record(client,path[1]);
-   const rows=(await client.query('SELECT e.id,u.display_id AS actor_display_id,u.name AS actor,e.action,e.changes,e.created_at FROM business_line_events e JOIN users u ON u.id=e.actor_id WHERE e.business_line_id=$1 ORDER BY e.id DESC LIMIT 200',[path[1]])).rows;
-   return {history:rows.map(row=>({id:row.id,actorId:row.actor_display_id,actor:row.actor,action:row.action,changes:row.changes,createdAt:date(row.created_at)}))};
+   const rows=(await client.query('SELECT e.id,u.display_id AS actor_display_id,u.name AS actor,e.action,e.changes,e.reason,e.created_at FROM business_line_events e JOIN users u ON u.id=e.actor_id WHERE e.business_line_id=$1 ORDER BY e.id DESC LIMIT 200',[path[1]])).rows;
+   return {history:rows.map(row=>({id:row.id,actorId:row.actor_display_id,actor:row.actor,action:row.action,changes:row.changes,reason:row.reason,createdAt:date(row.created_at)}))};
   }
-  if((path.length===2&&method==='PUT')||(path.length===3&&['archive','restore'].includes(path[2])&&method==='POST')){
-   requirePermission(permissions,path.length===2?'edit':path[2]);
-   onlyKeys(body,path.length===2?['name','description','status','ownerId','version']:['version']);
+  if((path.length===2&&method==='PUT')||(path.length===3&&['archive','restore','soft-delete','restore-deleted'].includes(path[2])&&method==='POST')){
+   requirePermission(permissions,path.length===2?'edit':({'soft-delete':'softDelete','restore-deleted':'restoreDeleted'}[path[2]]||path[2]));
+   onlyKeys(body,path.length===2?['name','description','status','ownerId','version','reason']:['version','reason']);
    version(body.version);
    const existing=await record(client,path[1],true),before=businessLineView(existing);
    if(existing.version!==body.version)fail(409,'This record changed. Refresh and try again.');
    if(path.length===3){
-    const archive=path[2]==='archive';
-    if(archive&&existing.archived_at)fail(409,'This Business Line is already archived');
-    if(!archive&&!existing.archived_at)fail(409,'This Business Line is not archived');
-    if(archive&&await dependencies(client,existing))fail(409,'Referenced Business Lines cannot be archived. Review dependent records first.');
-    await client.query('UPDATE business_lines SET archived_at=$2,archived_by=$3,updated_by=$4,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,archive?new Date():null,archive?user.id:null,user.id]);
+    const action=path[2],reason=lifecycleReason(body.reason),archive=action==='archive',unarchive=action==='restore',softDelete=action==='soft-delete',undelete=action==='restore-deleted';
+    if(softDelete||undelete){
+     if(softDelete&&existing.deleted_at)fail(409,'This Business Line is already deleted');
+     if(undelete&&!existing.deleted_at)fail(409,'This Business Line is not deleted');
+     if(softDelete&&await dependencies(client,existing))fail(409,'Referenced Business Lines cannot be deleted. Reassign linked records first.');
+     await client.query('UPDATE business_lines SET deleted_at=$2,deleted_by=$3,updated_by=$4,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,softDelete?new Date():null,softDelete?user.id:null,user.id]);
+    }else{
+     if(existing.deleted_at)fail(409,'Restore this deleted Business Line first');
+     if(archive&&existing.archived_at)fail(409,'This Business Line is already archived');
+     if(unarchive&&!existing.archived_at)fail(409,'This Business Line is not archived');
+     if(archive&&await dependencies(client,existing))fail(409,'Referenced Business Lines cannot be archived. Review dependent records first.');
+     await client.query('UPDATE business_lines SET archived_at=$2,archived_by=$3,updated_by=$4,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,archive?new Date():null,archive?user.id:null,user.id]);
+    }
     const after=businessLineView(await record(client,existing.id));
-    await event(client,user,existing.id,archive?'Archived':'Restored',before,after);
+    await event(client,user,existing.id,softDelete?'Soft Deleted':undelete?'Restored Deleted':archive?'Archived':'Restored',before,after,reason);
     return {record:after};
    }
-   if(existing.archived_at)fail(409,'Restore this Business Line before editing');
+   if(existing.archived_at||existing.deleted_at)fail(409,'Restore this Business Line before editing');
    const name=own(body,'name')?businessName(body.name):existing.name;
    const description=own(body,'description')?text(body.description,'Business Line Description',500):existing.description;
    const status=own(body,'status')?body.status:existing.status;
@@ -265,10 +276,11 @@ export async function businessLines({client,user,path,method,url,body}){
    }
    if(status==='Inactive'&&existing.status!=='Inactive'&&await dependencies(client,existing))fail(409,'Referenced Business Lines cannot be deactivated. Review dependent records first.');
    if(name!==existing.name&&await dependencies(client,existing,true))fail(409,'Legacy records reference this name. Migrate those references before renaming.');
+   const reason=status!==existing.status?lifecycleReason(body.reason):null;
    if(name===existing.name&&description===existing.description&&status===existing.status&&ownerTechnicalId===existing.owner_id)return {record:before};
    await client.query('UPDATE business_lines SET name=$2,status=$3,description=$4,owner_id=$5,updated_by=$6,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,name,status,description,ownerTechnicalId,user.id]);
    const after=businessLineView(await record(client,existing.id));
-   await event(client,user,existing.id,'Updated',before,after);
+   await event(client,user,existing.id,status!==existing.status?(status==='Inactive'?'Deactivated':'Reactivated'):'Updated',before,after,reason);
    return {record:after};
   }
   fail(405,'Unsupported Business Line action');
