@@ -297,7 +297,8 @@ try{
  // Late list/capability responses cannot recreate a departed module header.
  delayNext=true;
  const delayed=page.waitForRequest(request=>request.method()==='GET'&&new URL(request.url()).pathname==='/api/business-lines');
- await refresh(false);await delayed;
+ // This case tests a late API reply, not Settings-menu pointer interactions.
+ await page.evaluate(()=>document.querySelector('.mw-module-header [data-mw="refresh"]').click());await delayed;
  await page.evaluate(()=>document.querySelector('[data-nav="overview"]').click());await page.waitForTimeout(700);await headerRestored();
  await openBusiness();
  // Failure is distinct from a successful response containing zero counts.
