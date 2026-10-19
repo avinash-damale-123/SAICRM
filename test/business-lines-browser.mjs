@@ -122,7 +122,7 @@ try{
  await page.locator('[data-mw="dashboard"]').click();
  await page.waitForFunction(()=>{
   const button=document.querySelector('.crm-business-module [data-mw="dashboard"]');
-  return button?.classList.contains('mw-active-tab') && document.querySelector('.mw-dashboard')?.hidden===false;
+  return button?.classList.contains('mw-active-tab') && document.querySelector('.mw-dashboard')?.hidden===false && getComputedStyle(button).backgroundColor==='rgb(8, 123, 64)' && getComputedStyle(button).color==='rgb(255, 255, 255)';
  });
  const dashboardActive=await page.locator('[data-mw="dashboard"]').evaluate(el=>({bg:getComputedStyle(el).backgroundColor,color:getComputedStyle(el).color,classes:el.className,aria:el.getAttribute('aria-current')}));
  assert.deepEqual({bg:dashboardActive.bg,color:dashboardActive.color},{bg:'rgb(8, 123, 64)',color:'rgb(255, 255, 255)'},'Dashboard selected state must be Satguru dark green: '+JSON.stringify(dashboardActive));
@@ -135,6 +135,10 @@ try{
  assert.equal(await dashboard.locator('.mw-status-chart').count(),1);
  await page.screenshot({animations:'disabled',path:'work/browser/header-dashboard-1440.jpg',type:'jpeg',quality:40});
  await page.locator('[data-mw="home"]').click();
+ await page.waitForFunction(()=>{
+  const button=document.querySelector('.crm-business-module [data-mw="home"]');
+  return button?.classList.contains('mw-active-tab') && getComputedStyle(button).backgroundColor==='rgb(8, 123, 64)' && getComputedStyle(button).color==='rgb(255, 255, 255)';
+ });
  await page.screenshot({animations:'disabled',path:'work/browser/header-home-1440.jpg',type:'jpeg',quality:40});
  await page.screenshot({animations:'disabled',path:'work/browser/header-home-crop.jpg',type:'jpeg',quality:30,clip:{x:0,y:0,width:1440,height:240}});
  assert.equal(await page.locator('.mw-table').isVisible(),true);
