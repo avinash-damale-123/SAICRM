@@ -23,7 +23,7 @@ try{
  await mkdir('work/browser',{recursive:true});
  const page=await browser.newPage();
  const errors=[];page.on('pageerror',error=>errors.push(error.message));
- let loggedIn=false;let recoveryRequest=null,resetRequest=null;
+ let loggedIn=false;let recoveryRequest=null,resetRequest=null,logoutCalls=0;
  const records=Object.fromEntries(['leads','customers','contacts','opportunities','activities','quotes','bookings','employees','branches'].map(name=>[name,[{...Object.fromEntries(fields[name].map(([key,,type,,choices])=>[key,type==='select'?choices[0]:type==='number'?1500:type==='email'?'ui-fixture@example.org':type==='date'?'2026-10-15':key==='scopeBranch'?'PUNE':'Long UI fixture record for responsive layout checks'])),id:'fixture-'+name,version:1}]]));
  await page.route('**/api/**',async route=>{
   const request=route.request(),path=new URL(request.url()).pathname.replace('/api/','');
@@ -32,6 +32,7 @@ try{
   else if(path==='auth/forgot'){recoveryRequest=request.postDataJSON();body={message:'If eligible, a code has been sent.'}}
   else if(path==='auth/reset'){resetRequest=request.postDataJSON();body={message:'Password changed. Sign in with your new password.'}}
   else if(path==='auth/options')body={googleEnabled:false};
+  else if(path==='auth/logout'){logoutCalls++;loggedIn=false;body={message:'Signed out'}}
   else if(path==='auth/login'){loggedIn=true;body={user:{id:'test',name:'Test Admin',email:'test@example.org',role:'admin',status:'approved',emailVerified:true},csrf:'csrf'}}
   else if(path.startsWith('records/')){
    const module=path.split('/')[1];
@@ -76,6 +77,12 @@ try{
  await page.getByRole('button',{name:'Back to sign in'}).click();
  await page.locator('#authPassword').fill('a long testing passphrase');await page.locator('#rememberMe').check();await page.locator('#submitAuth').click();
  await page.locator('#navigation [data-nav]').first().waitFor();
+ assert.equal(await page.locator('#sidebar .brandmark').count(),0,'Sidebar logo should be removed');
+ assert.equal((await page.locator('#sidebar .brand-copy').innerText()).trim(),'SCRM','Sidebar should show only SCRM');
+ assert.equal(await page.locator('#sidebar .profile-copy small').count(),0,'Do not show Super Admin / approved status');
+ assert.equal(await page.locator('#menuBtn').evaluate(node=>!!node.closest('#sidebar .brand')),true,'Desktop nav toggle belongs in the sidebar');
+ assert.equal(await page.locator('.topbar #menuBtn').count(),0,'Desktop nav toggle must not occupy the topbar');
+ assert.equal((await page.locator('#sidebarSignOut').innerText()).trim(),'Sign out','Sidebar must offer a footer sign out');
  const modules=['overview','mywork','analytics','leads','customers','contacts','opportunities','activities','quotes','bookings','employees','branches','modules','settings','audit'];
  let checks=0;
  for(const width of [320,360,768,1280,1440]){
@@ -88,7 +95,7 @@ try{
   }
  }
  await page.setViewportSize({width:360,height:800});
- await page.locator('#menuBtn').click();await page.locator('#closeNav').waitFor({state:'visible'});await page.locator('#closeNav').click();
+ await page.locator('#mobileMenuBtn').click();await page.locator('#closeNav').waitFor({state:'visible'});await page.locator('#closeNav').click();
  await page.evaluate(()=>document.querySelector('[data-nav="leads"]').click());
  await page.locator('[data-action="new"]').click();
  await page.locator('#f_name').fill('Actual typed lead');
@@ -101,6 +108,9 @@ try{
  assert.ok((await readFile(await download.path(),'utf8')).includes('Fresh server-authorized export row'));
  await page.screenshot({path:'work/browser/mobile.png',fullPage:true});
  await page.setViewportSize({width:1440,height:900});await page.screenshot({path:'work/browser/laptop.png',fullPage:true});
+ await page.locator('#sidebarSignOut').click();
+ await page.locator('#authPassword').waitFor();
+ assert.equal(logoutCalls,1,'Sidebar sign out should use the protected server logout request');
  await page.goto('http://127.0.0.1:4173/#reset='+'a'.repeat(64)+'&email=test%40example.org');
  await page.locator('#confirmPassword').waitFor();
  assert.equal(new URL(page.url()).hash,'');
