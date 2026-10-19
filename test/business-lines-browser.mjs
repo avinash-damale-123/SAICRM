@@ -20,7 +20,7 @@ await new Promise(resolve=>server.listen(4174,'127.0.0.1',resolve));
 const browser=await chromium.launch({headless:true});
 const now='2026-10-16T09:00:00.000Z';
 const user={id:'11111111-1111-4111-8111-111111111111',name:'UI Super Admin',email:'ui-super@example.org',role:'admin',systemRole:'super_admin',status:'approved',emailVerified:true};
-const line=(number)=>({id:'20000000-0000-4000-8000-'+String(number).padStart(12,'0'),displayId:'BL-'+String(number).padStart(6,'0'),name:number===1?'Line Alpha':number===2?'Line Bravo':'Line '+String(number).padStart(2,'0'),remarks:'Fixture details '+number,status:number<=25?'Active':'Inactive',ownerId:user.id,owner:user.name,createdById:user.id,createdBy:user.name,createdAt:now,updatedById:user.id,updatedBy:user.name,updatedAt:now,version:1,archivedAt:null});
+const line=(number)=>({id:'20000000-0000-4000-8000-'+String(number).padStart(12,'0'),displayId:'BL-'+String(number).padStart(3,'0'),name:number===1?'Line Alpha':number===2?'Line Bravo':'Line '+String(number).padStart(2,'0'),code:'BLTEST-'+number,description:'Fixture details '+number,isArchived:false,isDeleted:false,archivedById:null,deletedById:null,deletedAt:null,status:number<=25?'Active':'Inactive',ownerId:user.id,owner:user.name,createdById:user.id,createdBy:user.name,createdAt:now,updatedById:user.id,updatedBy:user.name,updatedAt:now,version:1,archivedAt:null});
 const records=Array.from({length:30},(_,index)=>line(index+1));
 const requests=[],exports=[],errors=[];
 const fullPermissions=Object.fromEntries(['read','create','edit','archive','restore','export','history','search','filter','settings','dashboard'].map(key=>[key,true]));
@@ -198,13 +198,14 @@ try{
  await page.waitForTimeout(1000);
  assert.equal(await page.locator('.mw-record-link').innerText(),'Line Bravo');
  await page.locator('.mw-record-link').click();
- await page.getByRole('heading',{name:'Audit history',exact:true}).waitFor();
+ await page.locator('.mw-bl-section summary').filter({hasText:'Audit History'}).waitFor();
+ await page.locator('.mw-bl-section summary').filter({hasText:'Ownership Details'}).click();
  assert.ok((await page.locator('dialog').innerText()).includes('UI Super Admin'));
  for(const width of [320,360,768,1440]){await page.setViewportSize({width,height:850});await noOverflow('read '+width)}
  await page.getByRole('button',{name:'Edit Business Line',exact:true}).click();
  assert.equal(await page.locator('#mw-record-form [name="name"]').inputValue(),'Line Bravo');
  await page.locator('#mw-record-form [name="name"]').fill('Line Bravo Updated');
- await page.locator('#mw-record-form [name="remarks"]').fill('Saved UI context');
+ await page.locator('#mw-record-form [name="description"]').fill('Saved UI context');
  await page.locator('#mw-save').click();await page.locator('dialog').waitFor({state:'detached'});await waitReady();
  assert.equal(await page.locator('#mw-search').inputValue(),'Line Bravo');
  assert.equal(await page.locator('.mw-record-link').innerText(),'Line Bravo Updated');
@@ -212,7 +213,7 @@ try{
  const createsBefore=requests.filter(request=>request.path==='business-lines'&&request.method==='POST').length;
  await page.locator('#mw-record-form [name="name"]').fill('   ');await page.locator('#mw-save').click();
  assert.equal(requests.filter(request=>request.path==='business-lines'&&request.method==='POST').length,createsBefore);
- await page.locator('#mw-record-form [name="name"]').fill('New UI Business');
+ await page.locator('#mw-record-form [name="name"]').fill('New UI Business');await page.locator('#mw-record-form [name="code"]').fill('UI-NEW');
  for(const width of [320,360,768,1440]){await page.setViewportSize({width,height:850});await noOverflow('create '+width)}
  await page.locator('#mw-save').click();await page.locator('dialog').waitFor({state:'detached'});await waitReady();
  assert.ok(records.some(record=>record.name==='New UI Business'));
@@ -230,13 +231,13 @@ try{
  assert.equal(await page.locator('.mw-settings-menu [data-mw]').first().getAttribute('data-mw'),'columns');
  await page.locator('.mw-settings-menu [data-mw="columns"]').click();
  assert.equal(await page.locator('[data-column-check="name"]').isDisabled(),true);
- await page.locator('[data-column-check="owner"]').uncheck();await page.locator('[data-column-check="remarks"]').check();await page.locator('#mw-freeze').uncheck();
+ await page.locator('[data-column-check="owner"]').uncheck();await page.locator('[data-column-check="description"]').check();await page.locator('#mw-freeze').uncheck();
  await page.locator('#mw-columns-save').click();
  await page.reload();await openBusiness();
  const prefs=await page.evaluate(()=>JSON.parse(localStorage.getItem('scrm:view:11111111-1111-4111-8111-111111111111:business-lines')));
- assert.equal(prefs.columns.includes('owner'),false);assert.equal(prefs.columns.includes('remarks'),true);assert.equal(prefs.freeze,false);
+ assert.equal(prefs.columns.includes('owner'),false);assert.equal(prefs.columns.includes('description'),true);assert.equal(prefs.freeze,false);
  assert.equal(await page.locator('thead [data-column="owner"]').count(),0);
- assert.equal(await page.locator('thead [data-column="remarks"]').count(),1);
+ assert.equal(await page.locator('thead [data-column="description"]').count(),1);
  for(const mode of ['default','my','all']){
   await page.locator('[data-mw="export"]').click();await page.locator('#mw-export-form input[value="'+mode+'"]').check();
   const pendingDownload=page.waitForEvent('download');await page.locator('#mw-export-download').click();await pendingDownload;
@@ -263,7 +264,7 @@ try{
  await page.locator('dialog').waitFor({state:'detached'});assert.equal(await page.locator('.mw-workspace').count(),0);
  await headerRestored();
  await openBusiness();
- await page.locator('[data-mw="create"]').click();await page.locator('#mw-record-form [name="name"]').fill('Slow Saved Business');
+ await page.locator('[data-mw="create"]').click();await page.locator('#mw-record-form [name="name"]').fill('Slow Saved Business');await page.locator('#mw-record-form [name="code"]').fill('UI-SLOW');
  const saving=page.waitForRequest(request=>request.method()==='POST'&&new URL(request.url()).pathname==='/api/business-lines');
  await page.locator('#mw-save').click();await saving;
  await page.evaluate(()=>document.querySelector('[data-nav="overview"]').click());
@@ -271,7 +272,7 @@ try{
  assert.equal(await page.locator('#mw-save').isDisabled(),true);
  await page.locator('dialog').waitFor({state:'detached'});await waitReady();
  assert.ok(records.some(record=>record.name==='Slow Saved Business'));
- await page.locator('[data-mw="create"]').click();await page.locator('#mw-record-form [name="name"]').fill('Slow Teardown Business');
+ await page.locator('[data-mw="create"]').click();await page.locator('#mw-record-form [name="name"]').fill('Slow Teardown Business');await page.locator('#mw-record-form [name="code"]').fill('UI-TEARDOWN');
  const teardownSave=page.waitForRequest(request=>request.method()==='POST'&&new URL(request.url()).pathname==='/api/business-lines');
  await page.locator('#mw-save').click();await teardownSave;
  await page.evaluate(()=>{window.SCRM.activeWorkspace.destroy(true);document.querySelector('[data-nav="overview"]').click()});
