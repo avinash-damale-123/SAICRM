@@ -19,6 +19,7 @@
  }
  function can(module,action='read') {
   if(!user||user.status!=='approved'||!user.emailVerified)return false;
+  if(module==='businesslines')return user.systemRole==='super_admin';
   if(['employees','branches','audit','access'].includes(module))return user.role==='admin';
   if(action==='read')return true;
   if(action==='delete')return ['admin','manager'].includes(user.role);
@@ -40,7 +41,7 @@
   user=session.user;csrf=session.csrf||'';window.SCRM.user=user;
   root.hidden=true;app.hidden=false;
   document.querySelector('.profile-copy b').textContent=user.name;
-  document.querySelector('.profile-copy small').textContent=user.role+' · approved';
+  document.querySelector('.profile-copy small').textContent=(user.systemRole==='super_admin'?'Super Admin':user.role)+' · approved';
   document.querySelector('.profile').title=user.email;
   document.querySelector('.top-avatar').title=user.email;
   if(loaded){location.reload();return}
@@ -48,6 +49,7 @@
  }
  const titles={login:'Sign in to SCRM',register:'Request CRM access',verify:'Verify your email',forgot:'Reset your password',reset:'Choose a new password',resetOtp:'Reset with email code'};
  function draw(message=''){
+  window.SCRM?.activeWorkspace?.destroy(true);if(window.SCRM)window.SCRM.activeWorkspace=null;
   app.hidden=true;root.hidden=false;
   const password=['login','register','reset','resetOtp'].includes(mode), wantsEmail=!['reset','resetOtp'].includes(mode);
   root.innerHTML='<div class="auth-card"><div class="auth-brand" aria-label="Satguru CRM"><span>Satguru<span class="auth-orange">AI</span></span><small>CRM</small></div><p class="eyebrow">SATGURU ENTERPRISE CRM</p><h1>'+titles[mode]+'</h1><p class="subtle">'+(mode==='register'?'Verify your email, then wait for administrator approval.':mode==='verify'?'Enter the six-digit code sent to your email. Codes expire after 15 minutes.':mode==='forgot'?'We will email a six-digit reset code if the account is eligible.':mode==='resetOtp'?'Enter the six-digit code sent to '+esc(email)+'. It expires after 15 minutes.':mode==='reset'?'Reset links expire after 15 minutes and can be used once.':'Welcome back. Sign in with your approved work account.')+'</p><p id="authMessage" class="auth-message" role="status">'+esc(message)+'</p><form id="authForm">'+(mode==='register'?'<label for="authName">Full name</label><input class="input" id="authName" name="name" autocomplete="name" required maxlength="120">':'')+(wantsEmail?'<label for="authEmail">Work email</label><input class="input" id="authEmail" name="email" type="email" autocomplete="email" value="'+esc(email)+'" maxlength="254" required>':'')+(password?'<label for="authPassword">Password</label><div class="password-field"><input class="input" id="authPassword" name="password" type="password" autocomplete="'+(mode==='login'?'current-password':'new-password')+'" minlength="'+(mode==='login'?1:12)+'" maxlength="128" required><button class="mini-link password-toggle" type="button" id="showPassword" aria-label="Show password" aria-pressed="false">Show</button></div><small id="capsWarning" hidden>Caps Lock is on</small>'+(mode==='login'?'':'<small>Use 12–128 characters. A long, unique passphrase is recommended.</small><label for="confirmPassword">Confirm password</label><input class="input" id="confirmPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" required>'):'')+(['verify','resetOtp'].includes(mode)?'<label for="authCode">Email code</label><input class="input" id="authCode" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" required>':'')+(mode==='login'?'<div class="auth-session"><label class="remember-label"><input id="rememberMe" type="checkbox" '+(remember?'checked':'')+'> Remember me</label><button class="mini-link" type="button" data-mode="forgot">Forgot password?</button></div><small class="session-hint">Remember this device for 30 days. Use only on a private device.</small>':'')+'<button id="submitAuth" class="btn primary" type="submit">'+(mode==='login'?'Sign in':mode==='register'?'Register & send code':mode==='verify'?'Verify email':mode==='forgot'?'Send reset code':'Change password')+'</button></form>'+(mode==='login'?'<div class="auth-divider"><span>or</span></div><button type="button" class="google-button" id="googleSignIn" '+(googleEnabled?'':'disabled')+'><span class="google-mark" aria-hidden="true">G</span>Continue with Google</button>'+(googleEnabled?'':'<small class="google-note">Google sign-in is not yet available. Use your work email.</small>'):'')+'<nav class="auth-links" aria-label="Account options">'+(mode==='login'?'<button data-mode="register">Register</button><button data-mode="verify">Verify email / resend code</button>':'<button data-mode="login">Back to sign in</button>')+(mode==='verify'?'<button id="resendCode">Resend verification code</button>':mode==='resetOtp'?'<button id="resendReset">Resend reset code</button><button data-mode="forgot">Use a different email</button>':'')+'</nav><footer class="auth-footer">Need help? <a href="mailto:admin@satguruai.com">Contact administrator</a><span>Access is subject to administrator approval.</span></footer></div>';
@@ -92,7 +94,7 @@
  }
  function fail(error){app.hidden=true;root.hidden=false;draw(error.message)}
  window.SCRM={api,loadRecords,readModule,can,manageAccess,fail,user:null};
- async function checkSession(){if(app.hidden||!user)return;try{const current=await api('auth/me');if(!current.user||!current.user.emailVerified||current.user.status!=='approved'){user=null;csrf='';window.SCRM.user=null;document.querySelector('#overlay').classList.add('hidden');draw('Your session or access has ended. Sign in again.');return}if(current.user.role!==user.role||JSON.stringify(current.user.scopes||[])!==JSON.stringify(user.scopes||[]))location.reload()}catch(error){fail(error)}}
+ async function checkSession(){if(app.hidden||!user)return;try{const current=await api('auth/me');if(!current.user||!current.user.emailVerified||current.user.status!=='approved'){user=null;csrf='';window.SCRM.user=null;document.querySelector('#overlay').classList.add('hidden');draw('Your session or access has ended. Sign in again.');return}if(current.user.role!==user.role||current.user.systemRole!==user.systemRole||JSON.stringify(current.user.scopes||[])!==JSON.stringify(user.scopes||[]))location.reload()}catch(error){fail(error)}}
  window.addEventListener('focus',checkSession);document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkSession()});setInterval(checkSession,60000);
  document.querySelector('#logoutBtn').onclick=async()=>{
   try{await api('auth/logout','POST',{csrf});location.replace('/')}catch(error){alert(error.message)}

@@ -1,7 +1,7 @@
 name: Backend security checks
 on:
   push:
-    branches: [codex/production-crm-auth]
+    branches: [main, codex/production-crm-auth, codex/business-lines]
   pull_request:
 permissions:
   contents: read
@@ -31,9 +31,12 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: node scripts/build.mjs
       - run: node --check app.js && node --check auth.js && node --check responsive.js
+      - run: node --check module-workspace.js
+      - run: node --check business-lines-ui.js
       - run: npm test
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
+      - run: npm run test:business-browser
       - uses: actions/upload-artifact@v4
         if: always()
         with:

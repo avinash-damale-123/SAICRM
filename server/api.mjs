@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { businessLines, validateBusinessLineReferences } from './business-lines.mjs';
 import { transaction } from './db.mjs';
 import { authorize, modules, validateRecord } from './contracts.mjs';
 import { token, otp, hash, digest, equal, validPassword, passwordHash, passwordMatches } from './crypto.mjs';
@@ -12,7 +13,7 @@ const emailOf = value => {
  return value.trim().toLowerCase();
 };
 const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
-const publicUser = user => ({ id: user.id, email: user.email, name: user.name, role: user.role, status: user.status, emailVerified: user.email_verified, scopes: user.scopes || [] });
+const publicUser = user => ({ id: user.id, email: user.email, name: user.name, role: user.role, systemRole: user.system_role || 'user', status: user.status, emailVerified: user.email_verified, scopes: user.scopes || [] });
 const audit = (client, actor, action, module, id) => client.query('INSERT INTO audit(actor,action,module,record_id) VALUES($1,$2,$3,$4)', [actor, action, module, id]);
 const generic = { message: 'If this address is eligible, an email has been sent. Check your inbox and spam folder.' };
 export function configuration(env = process.env) {
@@ -251,12 +252,13 @@ export function createHandler({ pool, config, deliver = message => sendEmail(con
     const principal = publicUser(current);
     if (!principal.emailVerified || principal.status !== 'approved') fail(403, 'Access is not approved');
     if (mutation && !equal(req.headers['x-csrf-token'], user.csrf)) fail(403, 'Session check failed');
+    if (path[0] === 'business-lines') return await businessLines({client,user:current,path,method,url,body});
     if (path[0] === 'access') {
      if (!authorize(principal, method === 'GET' ? 'read' : 'approve', 'access')) fail(403, 'Administrator access required');
      if (method === 'GET') {
       const cursor = url.searchParams.get('cursor') || '00000000-0000-0000-0000-000000000000';
       if (cursor !== '00000000-0000-0000-0000-000000000000' && !uuid(cursor)) fail(400, 'Invalid cursor');
-      const rows = (await client.query(`SELECT u.id,u.email,u.name,u.role,u.status,u.email_verified,COALESCE((SELECT json_agg(json_build_object('branch',s.branch,'line',s.line)) FROM user_scopes s WHERE s.user_id=u.id),'[]'::json) AS scopes FROM users u WHERE u.id>$1 ORDER BY u.id LIMIT 101`, [cursor])).rows;
+      const rows = (await client.query(`SELECT u.id,u.email,u.name,u.role,u.system_role,u.status,u.email_verified,COALESCE((SELECT json_agg(json_build_object('branch',s.branch,'line',s.line)) FROM user_scopes s WHERE s.user_id=u.id),'[]'::json) AS scopes FROM users u WHERE u.id>$1 ORDER BY u.id LIMIT 101`, [cursor])).rows;
       return { users: rows.slice(0,100).map(publicUser), next: rows.length>100 ? rows[99].id : null };
      }
      if (method !== 'PUT' || !uuid(path[1])) fail(400, 'Invalid access request');
@@ -267,6 +269,11 @@ export function createHandler({ pool, config, deliver = message => sendEmail(con
      await client.query('SELECT pg_advisory_xact_lock(830147)');
      const target = (await client.query('SELECT * FROM users WHERE id=$1 FOR UPDATE NOWAIT', [path[1]])).rows[0];
      if (!target) fail(404, 'Account not found');
+     if(target.system_role==='super_admin'){
+      if(current.system_role!=='super_admin')fail(403,'Only a Super Admin can change this account');
+      if(body.role!=='admin')fail(400,'Super Admin accounts must retain the administrator role');
+      if(body.status!=='approved'&&!(await client.query("SELECT 1 FROM users WHERE system_role='super_admin' AND status='approved' AND email_verified=true AND id<>$1",[target.id])).rowCount)fail(409,'The last approved Super Admin cannot be suspended or rejected');
+     }
      if (body.status === 'approved' && !target.email_verified) fail(400, 'Email verification is required');
      let assigned=await scopes(client,target.id);
      if(body.scopes!==undefined){
@@ -298,6 +305,7 @@ export function createHandler({ pool, config, deliver = message => sendEmail(con
     }
     if (method === 'POST') {
      let data; try { data=validateRecord(module,body); } catch(error) { fail(400,error.message); }
+     await validateBusinessLineReferences(client,module,data);
      if(!await permitsScope(client,user,module,data))fail(403,'This branch/business-line pair is not assigned to your account');
      const id = randomUUID();
      await client.query('INSERT INTO records(id,module,data,created_by,updated_by,scope_branch,scope_line) VALUES($1,$2,$3,$4,$4,$5,$6)',[id,module,data,user.id,data.scopeBranch||'',data.scopeLine||'']);
@@ -313,6 +321,7 @@ export function createHandler({ pool, config, deliver = message => sendEmail(con
      await audit(client,user.id,'Deleted',module,existing.id); return {message:'Record deleted'};
     }
     let data; try { data=validateRecord(module,body.data); } catch(error) { fail(400,error.message); }
+    await validateBusinessLineReferences(client,module,data);
     if(!await permitsScope(client,user,module,data))fail(403,'This branch/business-line pair is not assigned to your account');
     if(user.role!=='admin'&&(data.scopeBranch!==existing.scope_branch||data.scopeLine!==existing.scope_line))fail(403,'Only administrators can move records between access scopes');
     await client.query('UPDATE records SET data=$2,version=version+1,updated_by=$3,updated_at=now(),scope_branch=$4,scope_line=$5 WHERE id=$1',[existing.id,data,user.id,data.scopeBranch||'',data.scopeLine||'']);

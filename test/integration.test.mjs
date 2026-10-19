@@ -15,6 +15,9 @@ before(async()=>{
  pool=new pg.Pool({connectionString:process.env.TEST_DATABASE_URL,max:8});
  await pool.query(await readFile(new URL('../db/001_initial.sql',import.meta.url),'utf8'));
  await pool.query(await readFile(new URL('../db/002_google.sql',import.meta.url),'utf8'));
+ await pool.query(await readFile(new URL('../db/003_business_lines.sql',import.meta.url),'utf8'));
+ // Applying a migration twice must preserve an initialized database.
+ await pool.query(await readFile(new URL('../db/003_business_lines.sql',import.meta.url),'utf8'));
  config=configuration({DATABASE_URL:process.env.TEST_DATABASE_URL,APP_ORIGIN:origin,SMTP_HOST:'smtp.gmail.com',SMTP_PORT:'587',SMTP_USER:'noreply@example.org',SMTP_PASSWORD:'test-only-app-password',EMAIL_FROM:'SCRM <test@example.org>',TOKEN_SECRET:'a'.repeat(64)});
  // Capture only the provider boundary in tests. Production uses authenticated SMTP and has no mock email/OTP path.
  handler=createHandler({pool,config,deliver:async message=>sent.push(message)});
@@ -255,4 +258,198 @@ test('five wrong password reset OTP guesses exhaust the challenge',{skip:!enable
  for(let i=0;i<5;i++)assert.equal((await call('auth/reset','POST',{email:user.email,code:wrong,password})).status,400);
  const challenge=(await pool.query("SELECT attempts FROM challenges WHERE user_id=(SELECT id FROM users WHERE email=$1) AND kind='reset'",[user.email])).rows[0];assert.equal(challenge.attempts,5);
  assert.ok([400,429].includes((await call('auth/reset','POST',{email:user.email,code,password})).status));
+});
+
+/* Business Line requests run against TEST_DATABASE_URL only. No application credentials,
+   production database or external email provider is used by this suite. */
+let businessSuper,businessOrdinary;
+async function businessActors(){
+ if(!businessSuper){
+  businessOrdinary=await account('business-admin@example.org','admin');
+  businessSuper=await account('business-super@example.org','admin');
+  await pool.query("UPDATE users SET system_role='super_admin' WHERE email=$1",[businessSuper.email]);
+ }
+ return {superAdmin:businessSuper,admin:businessOrdinary};
+}
+async function businessCreate(name,remarks=''){
+ const {superAdmin}=await businessActors();
+ const result=await call('business-lines','POST',{name,remarks},superAdmin);
+ assert.equal(result.status,200,JSON.stringify(result.body));
+ assert.ok(result.body.record?.id);
+ return result.body.record;
+}
+const businessURL=(query={})=>'business-lines?'+new URLSearchParams(query);
+
+test('Business Lines require an approved Super Admin and enforce Origin and CSRF',{skip:!enabled},async()=>{
+ const {superAdmin,admin}=await businessActors();
+ assert.equal((await call('business-lines')).status,401);
+ assert.equal((await call('business-lines','GET',undefined,admin)).status,403);
+ assert.equal((await call('business-lines','POST',{name:'Forbidden Admin'},admin)).status,403);
+ assert.equal((await call('business-lines/export','POST',{mode:'all'},admin)).status,403);
+ assert.equal((await call('business-lines','POST',{name:'No CSRF'},{...superAdmin,csrf:''})).status,403);
+ assert.equal((await call('business-lines','POST',{name:'Wrong Origin'},superAdmin,{origin:'https://evil.example'})).status,403);
+ const me=await call('auth/me','GET',undefined,superAdmin);
+ assert.equal(me.body.user.systemRole,'super_admin');
+ const list=await call('business-lines','GET',undefined,superAdmin);
+ assert.equal(list.status,200);
+ assert.equal(typeof list.body.total,'number');
+ await pool.query("UPDATE users SET status='suspended' WHERE email=$1",[superAdmin.email]);
+ assert.ok([401,403].includes((await call('business-lines','GET',undefined,superAdmin)).status));
+ await pool.query("UPDATE users SET status='approved' WHERE email=$1",[superAdmin.email]);
+});
+
+test('Business Line validation prevents field injection and duplicates including archived names',{skip:!enabled},async()=>{
+ const {superAdmin}=await businessActors();
+ for(const field of ['id','displayId','createdAt','createdById','updatedAt','updatedById','archivedAt','ownerId','status','systemRole']){
+  const result=await call('business-lines','POST',{name:'Injected Field',remarks:'', [field]:'injected'},superAdmin);
+  assert.equal(result.status,400,field+' must not be mass assignable on create');
+ }
+ for(const name of ['', '   ', 'x'.repeat(256)]){
+  assert.equal((await call('business-lines','POST',{name,remarks:''},superAdmin)).status,400);
+ }
+ const record=await businessCreate('  Unique Fixture  ','Original remarks');
+ assert.equal(record.name,'Unique Fixture');
+ assert.equal(record.status,'Active');
+ assert.equal(record.version,1);
+ assert.ok(record.displayId);
+ assert.ok(record.ownerId);
+ assert.ok(record.createdById);
+ assert.ok(record.createdAt);
+ assert.equal((await call('business-lines','POST',{name:'unique fixture',remarks:''},superAdmin)).status,409);
+ const archived=await call('business-lines/'+record.id+'/archive','POST',{version:record.version},superAdmin);
+ assert.equal(archived.status,200);
+ assert.equal((await call('business-lines','POST',{name:'UNIQUE FIXTURE',remarks:''},superAdmin)).status,409);
+ assert.equal((await call('business-lines/'+record.id,'DELETE',{version:archived.body.record.version},superAdmin)).status,405);
+ assert.equal((await call('business-lines/import','POST',{records:[]},superAdmin)).status,405);
+});
+
+test('Business Lines retain audited history and reject stale or immutable updates',{skip:!enabled},async()=>{
+ const {superAdmin}=await businessActors(),record=await businessCreate('History Fixture','Before');
+ for(const field of ['createdAt','createdById','updatedAt','updatedById','displayId','archivedAt']){
+  assert.equal((await call('business-lines/'+record.id,'PUT',{version:record.version,[field]:'injected'},superAdmin)).status,400,field);
+ }
+ const first=await call('business-lines/'+record.id,'PUT',{version:record.version,name:'History Revised',remarks:'After'},superAdmin);
+ assert.equal(first.status,200);
+ const updated=first.body.record;
+ assert.equal(updated.version,record.version+1);
+ assert.equal(updated.createdAt,record.createdAt);
+ assert.equal(updated.createdById,record.createdById);
+ assert.equal(updated.ownerId,record.ownerId);
+ assert.equal((await call('business-lines/'+record.id,'PUT',{version:record.version,name:'Stale overwrite'},superAdmin)).status,409);
+ const read=await call('business-lines/'+record.id,'GET',undefined,superAdmin);
+ assert.equal(read.body.record.name,'History Revised');
+ const history=await call('business-lines/'+record.id+'/history','GET',undefined,superAdmin);
+ assert.equal(history.status,200);
+ assert.ok(history.body.history.length>=2);
+ const historyText=JSON.stringify(history.body.history);
+ assert.ok(historyText.includes('History Fixture'));
+ assert.ok(historyText.includes('History Revised'));
+ assert.ok(historyText.includes('Before'));
+ assert.ok(historyText.includes('After'));
+ assert.ok(history.body.history.every(entry=>entry.actorId&&entry.actor&&entry.createdAt));
+ await assert.rejects(()=>pool.query("UPDATE business_line_events SET action='Tampered' WHERE business_line_id=$1",[record.id]),/append-only/i);
+ await assert.rejects(()=>pool.query('DELETE FROM business_line_events WHERE business_line_id=$1',[record.id]),/append-only/i);
+ assert.equal((await call('business-lines/'+record.id+'/history','POST',{action:'tamper'},superAdmin)).status,405);
+});
+
+test('Business Line archive and restore preserve identity and cannot bypass version checks',{skip:!enabled},async()=>{
+ const {superAdmin}=await businessActors(),record=await businessCreate('Archive Fixture','Keep this history');
+ assert.equal((await call('business-lines/'+record.id+'/archive','POST',{version:999},superAdmin)).status,409);
+ const archive=await call('business-lines/'+record.id+'/archive','POST',{version:record.version},superAdmin);
+ assert.equal(archive.status,200);
+ assert.ok(archive.body.record.archivedAt);
+ const hidden=await call(businessURL({q:'Archive Fixture'}),'GET',undefined,superAdmin);
+ assert.equal(hidden.body.total,0);
+ const listed=await call(businessURL({q:'Archive Fixture',archived:'only'}),'GET',undefined,superAdmin);
+ assert.equal(listed.body.total,1);
+ assert.equal(listed.body.records[0].id,record.id);
+ assert.equal((await call('business-lines/'+record.id,'PUT',{version:archive.body.record.version,remarks:'Bypass archive'},superAdmin)).status,409);
+ const restored=await call('business-lines/'+record.id+'/restore','POST',{version:archive.body.record.version},superAdmin);
+ assert.equal(restored.status,200);
+ assert.equal(restored.body.record.id,record.id);
+ assert.equal(restored.body.record.displayId,record.displayId);
+ assert.equal(restored.body.record.archivedAt,null);
+ assert.equal(restored.body.record.createdAt,record.createdAt);
+ assert.equal(restored.body.record.remarks,'Keep this history');
+});
+
+test('Business Lines cannot be inactivated, archived or legacy-renamed while dependent records exist',{skip:!enabled},async()=>{
+ const {superAdmin}=await businessActors(),record=await businessCreate('Dependent Fixture');
+ const user=(await pool.query('SELECT id FROM users WHERE email=$1',[superAdmin.email])).rows[0];
+ const dependency=(await pool.query("INSERT INTO records(id,module,scope_branch,scope_line,data,created_by,updated_by) VALUES(gen_random_uuid(),'branches','PUNE','STTS',$1,$2,$2) RETURNING id",[JSON.stringify({businessLineId:record.id,lines:record.name}),user.id])).rows[0];
+ try{
+  assert.equal((await call('business-lines/'+record.id,'PUT',{version:record.version,status:'Inactive'},superAdmin)).status,409);
+  assert.equal((await call('business-lines/'+record.id+'/archive','POST',{version:record.version},superAdmin)).status,409);
+  assert.equal((await call('business-lines/'+record.id,'PUT',{version:record.version,name:'Renamed Dependency'},superAdmin)).status,409);
+ }finally{await pool.query('DELETE FROM records WHERE id=$1',[dependency.id])}
+ const inactivate=await call('business-lines/'+record.id,'PUT',{version:record.version,status:'Inactive'},superAdmin);
+ assert.equal(inactivate.status,200);
+ assert.equal(inactivate.body.record.status,'Inactive');
+});
+
+test('Business Line list combines AND search, filters, pagination, counts and safe sorting',{skip:!enabled},async()=>{
+ const {superAdmin}=await businessActors();
+ for(let number=1;number<=28;number++)await businessCreate('Paging Fixture '+String(number).padStart(2,'0'),'Batch '+number);
+ let list=await call(businessURL({q:'  paging   fixture  ',pageSize:'25',page:'1',sort:'name',direction:'asc'}),'GET',undefined,superAdmin);
+ assert.equal(list.status,200);
+ assert.equal(list.body.total,28);
+ assert.equal(list.body.records.length,25);
+ assert.equal(list.body.totalPages,2);
+ const firstPageIds=list.body.records.map(record=>record.id);
+ list=await call(businessURL({q:'fixture paging',pageSize:'25',page:'2',sort:'name',direction:'asc'}),'GET',undefined,superAdmin);
+ assert.equal(list.body.total,28);
+ assert.equal(list.body.records.length,3);
+ assert.ok(list.body.records.every(record=>!firstPageIds.includes(record.id)));
+ assert.equal(list.body.records[0].name,'Paging Fixture 26');
+ const filters=JSON.stringify([{field:'name',operator:'contains',value:'02'}]);
+ list=await call(businessURL({q:'paging fixture',filters,status:'Active',sort:'name',direction:'desc'}),'GET',undefined,superAdmin);
+ assert.equal(list.status,200);
+ assert.equal(list.body.total,1);
+ assert.equal(list.body.records[0].name,'Paging Fixture 02');
+ const none=await call(businessURL({q:'paging missingword'}),'GET',undefined,superAdmin);
+ assert.equal(none.body.total,0);assert.equal(none.body.records.length,0);
+ for(const query of [{filters:JSON.stringify([{field:'__proto__',operator:'equals',value:'x'}])},{filters:JSON.stringify([{field:'constructor',operator:'equals',value:'x'}])},{sort:'name; DROP TABLE users;--'},{direction:'desc;SELECT 1'},{pageSize:'100000'},{page:'-1'},{filters:'not json'},{filters:JSON.stringify([{field:'password_hash',operator:'equals',value:'x'}])},{filters:JSON.stringify([{field:'name',operator:'execute',value:'x'}])}]){
+  assert.equal((await call(businessURL(query),'GET',undefined,superAdmin)).status,400,JSON.stringify(query));
+ }
+});
+
+test('Business Line exports respect modes, column allowlists, selected IDs, formula safety and audit',{skip:!enabled},async()=>{
+ const {superAdmin}=await businessActors();
+ const one=await businessCreate('Export Fixture One','=SUM(1,2)'),two=await businessCreate('Export Fixture Two','@danger');
+ const selected=await call('business-lines/export','POST',{mode:'selected',ids:[one.id,two.id],columns:['name','remarks'],query:{q:'does not match'}},superAdmin);
+ assert.equal(selected.status,200,JSON.stringify(selected.body));
+ assert.equal(selected.body.count,2);
+ assert.ok(selected.body.csv.includes('Export Fixture One'));
+ assert.ok(selected.body.csv.includes('Export Fixture Two'));
+ assert.ok(selected.body.csv.includes("'=SUM(1,2)"));
+ assert.ok(selected.body.csv.includes("'@danger"));
+ assert.equal(selected.body.csv.includes('password_hash'),false);
+ assert.ok(selected.body.filename.endsWith('.csv'));
+ assert.equal((await call('business-lines/export','POST',{mode:'selected',ids:[one.id],columns:['name','password_hash']},superAdmin)).status,400);
+ assert.equal((await call('business-lines/export','POST',{mode:'selected',ids:[one.id],columns:['name']},{...superAdmin,csrf:''})).status,403);
+ const filtered=await call('business-lines/export','POST',{mode:'my',columns:['name'],query:{q:'Export Fixture One'}},superAdmin);
+ assert.equal(filtered.status,200);assert.equal(filtered.body.count,1);
+ assert.ok(filtered.body.csv.includes('Export Fixture One'));
+ assert.equal(filtered.body.csv.includes('Export Fixture Two'),false);
+ const all=await call('business-lines/export','POST',{mode:'all',columns:['name'],query:{q:'does not match'}},superAdmin);
+ assert.equal(all.status,200);assert.ok(all.body.count>=2);
+ assert.ok(all.body.csv.includes('Export Fixture One'));
+ const history=await call('business-lines/'+one.id+'/history','GET',undefined,superAdmin);
+ assert.ok(history.body.history.length>=1);
+ const audit=await call('audit','GET',undefined,superAdmin);
+ assert.equal(audit.status,200);
+ assert.ok(audit.body.audit.some(entry=>/export/i.test(entry.action)));
+});
+
+test('Business Lines guard customer business-line fields independently of record visibility scope',{skip:!enabled},async()=>{
+ const {superAdmin}=await businessActors(),record=await businessCreate('GSA');
+ const data={name:'Cross Scope Customer',identity:'Organisation',category:'Corporate',line:'GSA',status:'Active',scopeBranch:'PUNE',scopeLine:'CAR'};
+ const created=await call('records/customers','POST',data,superAdmin);
+ assert.equal(created.status,200,JSON.stringify(created.body));
+ assert.equal((await call('business-lines/'+record.id,'PUT',{version:record.version,status:'Inactive'},superAdmin)).status,409);
+ assert.equal((await call('business-lines/'+record.id+'/archive','POST',{version:record.version},superAdmin)).status,409);
+ assert.equal((await call('records/customers/'+created.body.record.id,'DELETE',{version:created.body.record.version},superAdmin)).status,200);
+ const inactive=await call('business-lines/'+record.id,'PUT',{version:record.version,status:'Inactive'},superAdmin);
+ assert.equal(inactive.status,200,JSON.stringify(inactive.body));
+ assert.equal((await call('records/customers','POST',data,superAdmin)).status,409);
 });
