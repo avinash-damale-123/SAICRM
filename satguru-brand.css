@@ -73,3 +73,29 @@ input[type="checkbox"],input[type="radio"]{accent-color:#087b40}
 .mw-module-tab.mw-active-tab{border-bottom-color:#ed8528!important}
 .mw-dashboard-metric-inactive>strong,.mw-legend-inactive,.mw-chart-inactive{color:#bd650c}
 .mw-chart-inactive,.mw-donut-legend .mw-legend-inactive{background:#ed8528}
+
+/* Official Satguru Travel identity, supplied by the brand owner on 2026-10-19. */
+:root{--brand-green:#087b40;--brand-green-dark:#075b33;--brand-green-light:#e8f6ee;--brand-orange:#ed8528;--brand-orange-dark:#b9570b;--brand-orange-light:#fff2e4;--brand-forest:#123427}
+.brand{gap:9px}
+.brandmark{flex:0 0 83px;width:83px;height:48px;border-radius:8px;background:#fff!important;box-shadow:none!important;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:2px}
+.brandmark img{display:block;width:100%;height:100%;object-fit:contain}
+.brand-copy{min-width:0}
+.brand-copy strong{letter-spacing:.1px}
+.auth-brand{flex-direction:column;gap:4px}
+.auth-brand img{width:min(220px,80%);height:auto;object-fit:contain;display:block}
+.auth-brand small{border:0!important;padding:0!important;font-size:12px!important;letter-spacing:1.5px!important;color:#087b40!important;text-transform:uppercase;font-weight:800}
+.auth-card h1{margin-top:14px}
+.mw-workspace{--mw-green:#087b40}
+.mw-module-identity-icon,.mw-module-icon{background:var(--brand-green-light)!important;color:var(--brand-green)!important}
+.mw-module-identity h2,.mw-heading h1{color:#173e2c!important}
+.mw-module-tab.mw-active-tab{color:var(--brand-green)!important;border-bottom-color:var(--brand-orange)!important}
+.mw-add-record,.mw-btn.mw-primary{background:var(--brand-green)!important;border-color:var(--brand-green)!important;color:white!important}
+.mw-add-record:hover,.mw-btn.mw-primary:hover{background:var(--brand-green-dark)!important}
+.mw-workspace a,.mw-workspace .mw-link{color:var(--brand-green)}
+.mw-workspace input[type="checkbox"],.mw-workspace input[type="radio"]{accent-color:var(--brand-green)}
+.mw-workspace :focus-visible,.mw-dialog :focus-visible{outline-color:var(--brand-orange)!important}
+.mw-workspace .mw-active-tab,.mw-workspace .mw-selected{border-color:var(--brand-orange)}
+@media(max-width:850px){.brandmark{flex-basis:72px;width:72px;height:42px}}
+@media(max-width:600px){.auth-brand img{max-width:200px}.brandmark{flex-basis:64px;width:64px;height:39px}}
+/* Preserve an identifiable mark in the collapsed rail. */
+.sidebar.collapsed .brandmark,.sidebar.is-collapsed .brandmark,.sidebar[data-collapsed="true"] .brandmark{width:38px;height:38px;flex-basis:38px;padding:1px}
