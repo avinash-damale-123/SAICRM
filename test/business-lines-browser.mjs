@@ -328,7 +328,7 @@ try{
  await page.reload();await openBusiness();
  for(const selector of ['[data-mw="create"]','[data-mw="export"]','[data-mw="filter-toggle"]','.mw-settings-menu','[data-mw="dashboard"]','[data-mw="import"]'])assert.equal(await page.locator(selector+':visible').count(),0,selector+' should be denied');
  const historyRequests=requests.filter(request=>request.path.endsWith('/history')).length;
- await page.locator('.mw-record-link').first().click();await page.getByRole('heading',{name:'Basic information',exact:true}).waitFor();
+ await page.locator('.mw-record-link').first().click();await page.locator('.mw-bl-section summary').filter({hasText:'Basic Information'}).waitFor();
  assert.equal(requests.filter(request=>request.path.endsWith('/history')).length,historyRequests);
  assert.equal(await page.getByRole('button',{name:'Edit Business Line',exact:true}).count(),0);
  await page.locator('#mw-read-close').click();
