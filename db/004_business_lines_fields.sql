@@ -1,0 +1,14 @@
+BEGIN;
+SET LOCAL search_path TO public, pg_catalog;
+ALTER TABLE business_lines ADD COLUMN IF NOT EXISTS code text;
+ALTER TABLE business_lines ADD COLUMN IF NOT EXISTS description text NOT NULL DEFAULT '';
+ALTER TABLE business_lines ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+ALTER TABLE business_lines ADD COLUMN IF NOT EXISTS deleted_by uuid REFERENCES users(id);
+ALTER TABLE business_lines DROP CONSTRAINT IF EXISTS business_lines_name_check;
+ALTER TABLE business_lines ADD CONSTRAINT business_lines_name_length_v4 CHECK(length(name) BETWEEN 1 AND 150);
+ALTER TABLE business_lines ADD CONSTRAINT business_lines_code_format_v4 CHECK(code IS NULL OR (char_length(code) BETWEEN 1 AND 20 AND code ~ '^[A-Z0-9-]+$'));
+ALTER TABLE business_lines ADD CONSTRAINT business_lines_description_length_v4 CHECK(char_length(description) <= 500);
+CREATE UNIQUE INDEX IF NOT EXISTS business_lines_code_unique_v4 ON business_lines(code) WHERE code IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS business_lines_name_normalized_v4 ON business_lines(lower(regexp_replace(btrim(name), '[[:space:]]+', ' ', 'g')));
+INSERT INTO schema_migrations(version) VALUES(4) ON CONFLICT DO NOTHING;
+COMMIT;
