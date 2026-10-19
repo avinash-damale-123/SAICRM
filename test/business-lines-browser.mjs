@@ -92,6 +92,13 @@ try{
  await page.locator('#navigation [data-nav]').first().waitFor();
  await page.evaluate(()=>{window.__originalHeader=Object.fromEntries(['#notifBtn','#focusModeBtn','#logoutBtn','.top-avatar'].map(selector=>{const node=document.querySelector(selector);return [selector,{node,parent:node.parentNode}]}))});
  await openBusiness();
+ assert.equal(await page.locator('#sidebar .brandmark').count(),0,'No logo in the sidebar');
+ assert.equal((await page.locator('#sidebar .brand-copy').innerText()).trim(),'SCRM');
+ assert.equal(await page.locator('#sidebar .brand-copy small').count(),0);
+ assert.equal(await page.locator('#sidebar .profile-copy small').count(),0);
+ assert.equal(await page.locator('#sidebarSignOut').count(),1);
+ assert.equal(await page.locator('#menuBtn').evaluate(node=>!!node.closest('#sidebar .brand')),true,'Desktop toggle must be inside sidebar');
+ assert.equal(await page.locator('.topbar #menuBtn').count(),0);
  assert.equal(await page.locator('.mw-module-header #mw-search').count(),1);
  const headerLayout=await page.evaluate(()=>{
   const host=document.querySelector('.crm-module-host'),row=document.querySelector('.crm-business-module');
@@ -156,7 +163,9 @@ try{
    assert.ok(h<175,'Header must stay compact on '+width+'px laptop/desktop: '+h);
   }
 
-  await page.locator('#menuBtn').click();await noOverflow('alternate sidebar '+width);
+  const toggle = width < 768 ? '#mobileMenuBtn' : '#menuBtn';
+  assert.equal(await page.locator(toggle).isVisible(),true,'Accessible navigation toggle at '+width);
+  await page.locator(toggle).click();await noOverflow('alternate sidebar '+width);
   if(width<768){await page.locator('#closeNav').click();assert.equal(await page.locator('#sidebar').evaluate(node=>node.classList.contains('open')),false);assert.equal(await page.locator('#navBackdrop').evaluate(node=>node.hidden),true)}else await page.locator('#menuBtn').click();
   await noOverflow('restored sidebar '+width);
   await page.screenshot({animations:'disabled',path:'work/browser/business-lines-header-'+width+'.png',fullPage:true});
