@@ -27,7 +27,7 @@
 .auth-divider{display:flex;align-items:center;gap:12px;color:#83958a;font-size:12px;margin:18px 0}
 .auth-divider:before,.auth-divider:after{content:"";height:1px;background:#e4ebe6;flex:1}
 .google-button{width:100%;min-height:44px;display:flex;align-items:center;justify-content:center;gap:10px;border:1px solid #d6e0d9;border-radius:9px;background:white;color:#243a2e;font-size:14px;font-weight:600;cursor:pointer}
-.google-mark{font-size:22px;font-weight:750;color:#4285f4}
+.google-mark{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;flex:0 0 18px}.google-mark svg{display:block;width:18px;height:18px}
 .google-note{display:block;text-align:center;margin:7px 0}
 .auth-footer{border-top:1px solid #e6ede8;margin-top:20px;padding-top:16px;font-size:12px;text-align:center;color:#61746a}
 .auth-footer a{color:#08703d}
@@ -161,7 +161,8 @@ button:disabled{opacity:.55;cursor:not-allowed}
   font-weight: 650;
 }
 #authRoot .auth-panel .google-button:disabled {
-  opacity: .72;
+  opacity: 1;
+  color: #647368;
   border-color: #d4e1d9;
   background: #f5f7f5;
 }
