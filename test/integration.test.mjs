@@ -322,7 +322,7 @@ test('Business Line validation prevents field injection and duplicates including
  assert.ok(record.createdById);
  assert.ok(record.createdAt);
  assert.equal((await call('business-lines','POST',{name:'unique fixture',code:'FIXTURE',description:''},superAdmin)).status,409);
- const archived=await call('business-lines/'+record.id+'/archive','POST',{version:record.version},superAdmin);
+ const archived=await call('business-lines/'+record.id+'/archive','POST',{version:record.version,reason:'Archive approved'},superAdmin);
  assert.equal(archived.status,200);
  assert.equal((await call('business-lines','POST',{name:'UNIQUE FIXTURE',code:'FIXTURE',description:''},superAdmin)).status,409);
  assert.equal((await call('business-lines/'+record.id,'DELETE',{version:archived.body.record.version},superAdmin)).status,405);
@@ -360,8 +360,8 @@ test('Business Lines retain audited history and reject stale or immutable update
 
 test('Business Line archive and restore preserve identity and cannot bypass version checks',{skip:!enabled},async()=>{
  const {superAdmin}=await businessActors(),record=await businessCreate('Archive Fixture','Keep this history');
- assert.equal((await call('business-lines/'+record.id+'/archive','POST',{version:999},superAdmin)).status,409);
- const archive=await call('business-lines/'+record.id+'/archive','POST',{version:record.version},superAdmin);
+ assert.equal((await call('business-lines/'+record.id+'/archive','POST',{version:999,reason:'Archive approved'},superAdmin)).status,409);
+ const archive=await call('business-lines/'+record.id+'/archive','POST',{version:record.version,reason:'Archive approved'},superAdmin);
  assert.equal(archive.status,200);
  assert.ok(archive.body.record.archivedAt);
  const hidden=await call(businessURL({q:'Archive Fixture'}),'GET',undefined,superAdmin);
@@ -370,7 +370,7 @@ test('Business Line archive and restore preserve identity and cannot bypass vers
  assert.equal(listed.body.total,1);
  assert.equal(listed.body.records[0].id,record.id);
  assert.equal((await call('business-lines/'+record.id,'PUT',{version:archive.body.record.version,description:'Bypass archive'},superAdmin)).status,409);
- const restored=await call('business-lines/'+record.id+'/restore','POST',{version:archive.body.record.version},superAdmin);
+ const restored=await call('business-lines/'+record.id+'/restore','POST',{version:archive.body.record.version,reason:'Unarchive approved'},superAdmin);
  assert.equal(restored.status,200);
  assert.equal(restored.body.record.id,record.id);
  assert.equal(restored.body.record.displayId,record.displayId);
@@ -384,11 +384,11 @@ test('Business Lines cannot be inactivated, archived or legacy-renamed while dep
  const user=(await pool.query('SELECT id FROM users WHERE email=$1',[superAdmin.email])).rows[0];
  const dependency=(await pool.query("INSERT INTO records(id,module,scope_branch,scope_line,data,created_by,updated_by) VALUES(gen_random_uuid(),'branches','PUNE','STTS',$1,$2,$2) RETURNING id",[JSON.stringify({businessLineId:record.id,lines:record.name}),user.id])).rows[0];
  try{
-  assert.equal((await call('business-lines/'+record.id,'PUT',{version:record.version,status:'Inactive'},superAdmin)).status,409);
-  assert.equal((await call('business-lines/'+record.id+'/archive','POST',{version:record.version},superAdmin)).status,409);
+  assert.equal((await call('business-lines/'+record.id,'PUT',{version:record.version,status:'Inactive',reason:'Deactivated for testing'},superAdmin)).status,409);
+  assert.equal((await call('business-lines/'+record.id+'/archive','POST',{version:record.version,reason:'Archive approved'},superAdmin)).status,409);
   assert.equal((await call('business-lines/'+record.id,'PUT',{version:record.version,name:'Renamed Dependency'},superAdmin)).status,409);
  }finally{await pool.query('DELETE FROM records WHERE id=$1',[dependency.id])}
- const inactivate=await call('business-lines/'+record.id,'PUT',{version:record.version,status:'Inactive'},superAdmin);
+ const inactivate=await call('business-lines/'+record.id,'PUT',{version:record.version,status:'Inactive',reason:'Deactivated for testing'},superAdmin);
  assert.equal(inactivate.status,200);
  assert.equal(inactivate.body.record.status,'Inactive');
 });
@@ -452,10 +452,10 @@ test('Business Lines guard customer business-line fields independently of record
  const data={name:'Cross Scope Customer',identity:'Organisation',category:'Corporate',line:'GSA',status:'Active',scopeBranch:'PUNE',scopeLine:'CAR'};
  const created=await call('records/customers','POST',data,superAdmin);
  assert.equal(created.status,200,JSON.stringify(created.body));
- assert.equal((await call('business-lines/'+record.id,'PUT',{version:record.version,status:'Inactive'},superAdmin)).status,409);
- assert.equal((await call('business-lines/'+record.id+'/archive','POST',{version:record.version},superAdmin)).status,409);
+ assert.equal((await call('business-lines/'+record.id,'PUT',{version:record.version,status:'Inactive',reason:'Deactivated for testing'},superAdmin)).status,409);
+ assert.equal((await call('business-lines/'+record.id+'/archive','POST',{version:record.version,reason:'Archive approved'},superAdmin)).status,409);
  assert.equal((await call('records/customers/'+created.body.record.id,'DELETE',{version:created.body.record.version},superAdmin)).status,200);
- const inactive=await call('business-lines/'+record.id,'PUT',{version:record.version,status:'Inactive'},superAdmin);
+ const inactive=await call('business-lines/'+record.id,'PUT',{version:record.version,status:'Inactive',reason:'Deactivated for testing'},superAdmin);
  assert.equal(inactive.status,200,JSON.stringify(inactive.body));
  assert.equal((await call('records/customers','POST',data,superAdmin)).status,409);
 });
