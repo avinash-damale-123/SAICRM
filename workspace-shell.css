@@ -137,3 +137,6 @@ button:focus-visible,.crm-global-search:focus-within,.crm-crumb:focus-visible{ou
 /* Align edge-to-edge work bars with the existing mobile content padding. */
 @media(max-width:650px){.crm-module-workbar{margin-left:-14px!important;margin-right:-14px!important}}
 @media(max-width:359px){.crm-module-workbar{margin-left:-12px!important;margin-right:-12px!important}}
+
+/* Retain the signed-in profile avatar on mobile even though legacy CSS hides standalone avatars. */
+.crm-profile-trigger .top-avatar{display:grid!important;flex-shrink:0}
