@@ -20,8 +20,11 @@
  function can(module,action='read') {
   if(!user||user.status!=='approved'||!user.emailVerified)return false;
   if(module==='businesslines')return user.systemRole==='super_admin';
+  if(['home','overview','mywork','analytics','notifications','modules','settings'].includes(module))return action==='read';
   if(['employees','branches','audit','access'].includes(module))return user.role==='admin';
-  if(action==='read')return true;
+  if(['read','search','filter','dashboard'].includes(action))return true;
+  if(['export','settings'].includes(action))return ['admin','manager'].includes(user.role);
+  if(action==='import')return user.role==='admin';
   if(action==='delete')return ['admin','manager'].includes(user.role);
   return user.role!=='viewer';
  }
