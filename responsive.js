@@ -7,6 +7,7 @@
   const navigation = $('#navigation');
   const main = $('.main');
   const menu = $('#menuBtn');
+  const mobileMenu = $('#mobileMenuBtn');
   const backdrop = $('#navBackdrop');
   const overlay = $('#overlay');
   const mobile = matchMedia('(max-width: 767px)');
@@ -61,18 +62,35 @@
     root.classList.toggle('nav-collapsed', !mobile.matches && collapsed);
     sidebar.classList.toggle('open', mobile.matches && drawerOpen);
     backdrop.hidden = !mobile.matches || !drawerOpen;
-    menu.setAttribute('aria-expanded', String(mobile.matches ? drawerOpen : !collapsed));
-    const label = mobile.matches ? 'Open navigation' : collapsed ? 'Expand navigation' : 'Collapse navigation';
+    menu.setAttribute('aria-expanded', String(!collapsed));
+    const label = collapsed ? 'Expand navigation' : 'Collapse navigation';
     menu.setAttribute('aria-label', label); menu.title = label;
+    mobileMenu.setAttribute('aria-expanded', String(mobile.matches && drawerOpen));
+    mobileMenu.setAttribute('aria-label', drawerOpen ? 'Close navigation' : 'Open navigation');
+    mobileMenu.title = mobileMenu.getAttribute('aria-label');
     if (mobile.matches && drawerOpen) { sidebar.setAttribute('role', 'dialog'); sidebar.setAttribute('aria-modal', 'true'); }
     else { sidebar.removeAttribute('role'); sidebar.removeAttribute('aria-modal'); }
     setLock();
   }
-  function closeDrawer(restore = true) { drawerOpen = false; syncLayout(); if (restore && !modalOpen) menu.focus(); }
+  function closeDrawer(restore = true) {
+    drawerOpen = false;
+    syncLayout();
+    if (restore && !modalOpen) (mobile.matches ? mobileMenu : menu).focus();
+  }
   menu.innerHTML = icon('menu');
   menu.onclick = () => {
-    if (mobile.matches) { drawerOpen = !drawerOpen; syncLayout(); if (drawerOpen) $('#closeNav').focus(); }
-    else { prefs.collapsed = !root.classList.contains('nav-collapsed'); persist(); syncLayout(); }
+    if (mobile.matches) { closeDrawer(); return; }
+    prefs.collapsed = !root.classList.contains('nav-collapsed');
+    persist();
+    syncLayout();
+  };
+  mobileMenu.innerHTML = icon('menu');
+  mobileMenu.onclick = () => {
+    if (!mobile.matches) return;
+    drawerOpen = !drawerOpen;
+    syncLayout();
+    if (drawerOpen) $('#closeNav').focus();
+    else mobileMenu.focus();
   };
   $('#closeNav').innerHTML = icon('close'); $('#closeNav').onclick = () => closeDrawer();
   $('#closeModal').innerHTML = icon('close'); backdrop.onclick = () => closeDrawer();
@@ -211,7 +229,7 @@
     const open = !overlay.classList.contains('hidden'); if (open === modalOpen) return;
     modalOpen = open;
     if (open) { returnFocus = document.activeElement; setLock(); if (!overlay.contains(document.activeElement)) (overlay.querySelector('input, select, textarea') || $('#closeModal')).focus({ preventScroll: true }); $('#quickSearch')?.setAttribute('aria-label', 'Find a module'); }
-    else { setLock(); if (returnFocus?.isConnected && !returnFocus.closest('[inert]')) returnFocus.focus({ preventScroll: true }); else menu.focus({ preventScroll: true }); }
+    else { setLock(); if (returnFocus?.isConnected && !returnFocus.closest('[inert]')) returnFocus.focus({ preventScroll: true }); else (mobile.matches ? mobileMenu : menu).focus({ preventScroll: true }); }
   }).observe(overlay, { attributes: true, attributeFilter: ['class'] });
   enhanceNavigation(); enhanceContent(); syncLayout();
   new MutationObserver(enhanceContent).observe($('#content'), { childList: true });
