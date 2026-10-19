@@ -18,7 +18,7 @@ const fields=Object.freeze({
 const defaultColumns=Object.freeze(['displayId','name','status','owner','createdBy','createdAt','updatedBy','updatedAt']);
 const select=`SELECT b.*,o.name AS owner_name,o.display_id AS owner_display_id,c.name AS creator_name,c.display_id AS creator_display_id,u.name AS updater_name,u.display_id AS updater_display_id,a.display_id AS archive_display_id,d.display_id AS deleted_display_id
  FROM business_lines b JOIN users o ON o.id=b.owner_id JOIN users c ON c.id=b.created_by JOIN users u ON u.id=b.updated_by LEFT JOIN users a ON a.id=b.archived_by LEFT JOIN users d ON d.id=b.deleted_by`;
-const joins='FROM business_lines b JOIN users o ON o.id=b.owner_id JOIN users c ON c.id=b.created_by JOIN users u ON u.id=b.updated_by';
+const joins='FROM business_lines b JOIN users o ON o.id=b.owner_id JOIN users c ON c.id=b.created_by JOIN users u ON u.id=b.updated_by LEFT JOIN users a ON a.id=b.archived_by LEFT JOIN users d ON d.id=b.deleted_by';
 const limits=Object.freeze({selectedExport:250,maxExportRows:10000,maxExportResponseBytes:3*1024*1024});
 const requirePermission=(permissions,action)=>{if(permissions[action]!==true)fail(403,'You do not have permission for this Business Line action');};
 function requireQueryPermissions(permissions,options){
