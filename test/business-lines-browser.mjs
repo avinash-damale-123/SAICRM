@@ -93,6 +93,22 @@ try{
  await page.evaluate(()=>{window.__originalHeader=Object.fromEntries(['#notifBtn','#focusModeBtn','#logoutBtn','.top-avatar'].map(selector=>{const node=document.querySelector(selector);return [selector,{node,parent:node.parentNode}]}))});
  await openBusiness();
  assert.equal(await page.locator('.mw-module-header #mw-search').count(),1);
+ const headerLayout=await page.evaluate(()=>{
+  const host=document.querySelector('.crm-module-host'),row=document.querySelector('.crm-business-module');
+  const box=selector=>document.querySelector(selector).getBoundingClientRect();
+  return {direction:getComputedStyle(row).flexDirection,height:host.getBoundingClientRect().height,
+   identityY:box('.crm-business-module .mw-module-identity').y,
+   tabsY:box('.crm-business-module .mw-module-tabs').y,
+   actionsY:box('.crm-business-module .mw-header-actions').y,
+   tableY:box('.mw-home').y};
+ });
+ assert.equal(headerLayout.direction,'row','Business Lines must use horizontal flex direction');
+ assert.ok(headerLayout.height<140,'Business Lines toolbar is too tall: '+JSON.stringify(headerLayout));
+ assert.ok(Math.abs(headerLayout.identityY-headerLayout.tabsY)<24,'Title and Home/Dashboard tabs are disconnected: '+JSON.stringify(headerLayout));
+ assert.ok(Math.abs(headerLayout.tabsY-headerLayout.actionsY)<24,'Module actions are disconnected from tabs: '+JSON.stringify(headerLayout));
+ const homeActive=await page.locator('[data-mw="home"]').evaluate(el=>({bg:getComputedStyle(el).backgroundColor,color:getComputedStyle(el).color}));
+ assert.deepEqual(homeActive,{bg:'rgb(8, 123, 64)',color:'rgb(255, 255, 255)'},'Home selected state must be Satguru dark green');
+
  assert.ok((await page.locator('.crm-profile-trigger').innerText()).includes(user.name));
  await page.locator('#notifBtn').click();await page.locator('#crmNoticeMenu:not([hidden])').waitFor();
  assert.ok((await page.locator('#crmNoticeMenu').innerText()).includes('Notifications'));await page.locator('#notifBtn').click();
@@ -104,6 +120,9 @@ try{
  const headerControls=await page.locator('.mw-module-header').evaluate(node=>Array.from(node.querySelectorAll('[data-mw="export"],[data-mw="filter-toggle"],.mw-settings-menu,#notifBtn,#focusModeBtn,.mw-account-menu,[data-mw="create"]')).map(element=>element.dataset.mw||element.id||element.className));
  assert.equal(headerControls[0],'export');assert.equal(headerControls[1],'filter-toggle');
  await page.locator('[data-mw="dashboard"]').click();
+ const dashboardActive=await page.locator('[data-mw="dashboard"]').evaluate(el=>({bg:getComputedStyle(el).backgroundColor,color:getComputedStyle(el).color}));
+ assert.deepEqual(dashboardActive,{bg:'rgb(8, 123, 64)',color:'rgb(255, 255, 255)'},'Dashboard selected state must be Satguru dark green');
+
  assert.equal(await page.locator('.mw-table').isVisible(),false);
  const dashboard=page.locator('.mw-dashboard');
  assert.equal(await dashboard.isVisible(),true);
@@ -120,6 +139,11 @@ try{
  assert.equal(await page.locator('[data-mw="import"]').count(),0);
  for(const width of [320,360,768,1100,1440]){
   await page.setViewportSize({width,height:850});await noOverflow('list '+width);
+  if(width>=1100){
+   const h=await page.locator('.crm-module-host').evaluate(el=>el.getBoundingClientRect().height);
+   assert.ok(h<175,'Header must stay compact on '+width+'px laptop/desktop: '+h);
+  }
+
   await page.locator('#menuBtn').click();await noOverflow('alternate sidebar '+width);
   if(width<768){await page.locator('#closeNav').click();assert.equal(await page.locator('#sidebar').evaluate(node=>node.classList.contains('open')),false);assert.equal(await page.locator('#navBackdrop').evaluate(node=>node.hidden),true)}else await page.locator('#menuBtn').click();
   await noOverflow('restored sidebar '+width);
