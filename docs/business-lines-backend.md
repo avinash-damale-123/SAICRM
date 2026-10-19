@@ -70,3 +70,26 @@ Deactivation/archive are blocked when known legacy records reference the Busines
 This does not infer that legacy codes such as STTS stand for a newly created name. Legacy access codes remain independent until a separately reviewed data migration. Business Line mutations and known legacy record writes share a transaction advisory lock; legacy writes reject matching inactive/archived Business Lines, preventing a race with deactivation/archive. Future dependent modules must store UUID foreign keys and validate active/nonarchived references in the same transaction. These guards cannot enforce relationships in unimplemented future tables.
 
 Each create/edit/archive/restore writes a field-change event and a global audit record in the same transaction. Event history has an append-only database trigger. Read history currently returns the latest 200 events; deeper history pagination can be added before high-volume use.
+
+## Server-derived workspace permissions
+
+The list response's `permissions` object is the single capability contract for the reusable header and record actions:
+
+```json
+{
+  "read": true, "create": true, "edit": true, "archive": true,
+  "restore": true, "export": true, "history": true,
+  "search": true, "filter": true, "settings": true, "dashboard": true,
+  "import": false, "delete": false
+}
+```
+
+These values are derived centrally by `businessLinePermissions` in `server/resources.mjs` from the current database account. An approved, email-verified Super Admin receives the implemented capabilities above. Other accounts receive no capabilities and the Business Lines API rejects access. Public browser fields, posted permission objects, ordinary administrator roles and cached UI state cannot supply grants.
+
+Each implemented action endpoint checks the relevant capability in addition to the existing authenticated transaction, Origin and CSRF protections. Search and filter queries check their corresponding capabilities; Default/My View exports check the query capabilities they actually use. Unsupported import and permanent deletion remain unavailable with HTTP 405, even if request JSON claims permission.
+
+`settings` allows personal workspace presentation preferences such as visible columns; it does not grant organization configuration access. `dashboard` allows the module's existing authorized record counts, not fabricated reporting or access to other modules.
+
+The UI must hide unavailable controls, fail closed until server permissions are received, and check the same permissions before invoking handlers. Server enforcement remains authoritative for direct API requests. This release does not implement a configurable Role Matrix, Department/Hierarchy grants, or new user-type migrations. That future policy can narrow capabilities at the central derivation point without changing the response shape.
+
+Pure capability/security tests run with `node --test test/business-line-permissions.test.mjs`; they cover account approval/verification, forged browser grants, direct endpoint denial before database reads, and unsupported import/delete.
