@@ -76,7 +76,7 @@ try{
  });
  const waitReady=async()=>{await page.waitForFunction(()=>document.querySelector('.mw-results')?.getAttribute('aria-busy')==='false')};
  const openBusiness=async()=>{await page.locator('[data-nav="businesslines"]').waitFor({state:'attached'});await page.evaluate(()=>{if(!window.__originalHeader)window.__originalHeader=Object.fromEntries(['#notifBtn','#focusModeBtn','#logoutBtn','.top-avatar'].map(selector=>{const node=document.querySelector(selector);return [selector,{node,parent:node.parentNode}]}));document.querySelector('[data-nav="businesslines"]').click()});await waitReady()};
- const search=async value=>{await page.locator('#mw-search').fill(value);await page.locator('#mw-search').press('Enter');await waitReady()};
+ const search=async value=>{await page.locator('#crmSearchInput').fill(value);await page.locator('#crmSearchInput').press('Enter');await waitReady()};
  const refresh=async(wait=true)=>{
   const menu=page.locator('.mw-settings-menu');
   if(!(await menu.getAttribute('open')))await menu.locator('summary').click();
@@ -93,14 +93,14 @@ try{
  await page.evaluate(()=>{window.__originalHeader=Object.fromEntries(['#notifBtn','#focusModeBtn','#logoutBtn','.top-avatar'].map(selector=>{const node=document.querySelector(selector);return [selector,{node,parent:node.parentNode}]}))});
  await openBusiness();
  assert.equal(await page.locator('.mw-module-header #mw-search').count(),1);
- assert.ok((await page.locator('.mw-account-menu').innerText()).includes(user.name));
- await page.locator('#notifBtn').click();await page.locator('#overlay:not(.hidden)').waitFor();
- assert.equal(await page.locator('#modalTitle').innerText(),'Notifications');await page.locator('#closeModal').click();
+ assert.ok((await page.locator('.crm-profile-trigger').innerText()).includes(user.name));
+ await page.locator('#notifBtn').click();await page.locator('#crmNoticeMenu:not([hidden])').waitFor();
+ assert.ok((await page.locator('#crmNoticeMenu').innerText()).includes('Notifications'));await page.locator('#notifBtn').click();
  assert.equal(await page.locator('.mw-stats').count(),0);
  assert.equal(await page.locator('.mw-dashboard:visible').count(),0);
  assert.equal(await page.locator('#mw-filter-controls').isHidden(),true);
  await page.keyboard.press('Control+k');
- assert.equal(await page.locator('#mw-search').evaluate(node=>document.activeElement===node),true);
+ assert.equal(await page.locator('#crmSearchInput').evaluate(node=>document.activeElement===node),true);
  const headerControls=await page.locator('.mw-module-header').evaluate(node=>Array.from(node.querySelectorAll('[data-mw="export"],[data-mw="filter-toggle"],.mw-settings-menu,#notifBtn,#focusModeBtn,.mw-account-menu,[data-mw="create"]')).map(element=>element.dataset.mw||element.id||element.className));
  assert.equal(headerControls[0],'export');assert.equal(headerControls[1],'filter-toggle');
  await page.locator('[data-mw="dashboard"]').click();
@@ -160,8 +160,8 @@ try{
  await page.locator('[data-mw="clear-filters"]').click();await waitReady();
  // A delayed older search response must not replace the newer results.
  const slowRequest=page.waitForRequest(request=>request.url().includes('/business-lines?')&&new URL(request.url()).searchParams.get('q')==='Line Alpha');
- await page.locator('#mw-search').fill('Line Alpha');await page.locator('#mw-search').press('Enter');await slowRequest;
- await page.locator('#mw-search').fill('Line Bravo');await page.locator('#mw-search').press('Enter');await waitReady();
+ await page.locator('#crmSearchInput').fill('Line Alpha');await page.locator('#crmSearchInput').press('Enter');await slowRequest;
+ await page.locator('#crmSearchInput').fill('Line Bravo');await page.locator('#crmSearchInput').press('Enter');await waitReady();
  await page.waitForTimeout(1000);
  assert.equal(await page.locator('.mw-record-link').innerText(),'Line Bravo');
  await page.locator('.mw-record-link').click();
@@ -282,7 +282,7 @@ try{
  await page.waitForFunction(()=>document.querySelector('#toast')?.textContent.includes('Fixture audit unavailable'));
  assert.equal(await page.locator('.mw-module-header #mw-search').count(),1);
  assert.equal(await page.locator('.mw-table').isVisible(),true);
- await page.keyboard.press('Control+k');assert.equal(await page.locator('#mw-search').evaluate(node=>document.activeElement===node),true);
+ await page.keyboard.press('Control+k');assert.equal(await page.locator('#crmSearchInput').evaluate(node=>document.activeElement===node),true);
  // Initial load errors permit retry before capabilities have been fetched.
  failNext=true;await page.reload();await openBusiness();
  assert.ok((await page.locator('.mw-results').innerText()).includes('We couldn’t load these records'));
