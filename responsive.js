@@ -39,6 +39,8 @@
     bell: '<path d="M5 17h14l-2-3V9a5 5 0 0 0-10 0v5Zm5 3a2 2 0 0 0 4 0"/>',
     chevron: '<path d="m9 5 7 7-7 7"/>', down: '<path d="m6 9 6 6 6-6"/>',
     info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/>',
+    expand: '<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>',
+    restore: '<path d="M3 8h5V3m8 0v5h5M8 21v-5H3m13 5v-5h5"/>',
     close: '<path d="m6 6 12 12M6 18 18 6"/>', plus: '<path d="M12 4v16M4 12h16"/>',
     download: '<path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/>',
     email: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 6 9 7 9-7"/>',
@@ -74,6 +76,41 @@
   $('#closeModal').innerHTML = icon('close'); backdrop.onclick = () => closeDrawer();
   $('#globalSearchBtn').innerHTML = icon('search') + '<span>Find a module...</span><kbd>Ctrl K</kbd>';
   $('#notifBtn').innerHTML = icon('bell') + '<i></i>';
+  const focusMode = $('#focusModeBtn');
+  const focusSupported = typeof root.requestFullscreen === 'function' && document.fullscreenEnabled !== false;
+  function syncFocusMode() {
+    const active = Boolean(document.fullscreenElement);
+    const label = active ? 'Exit focus mode' : 'Enter focus mode';
+    focusMode.setAttribute('aria-pressed', String(active));
+    focusMode.setAttribute('aria-label', focusSupported ? label : 'Focus mode is not available in this browser');
+    focusMode.title = focusMode.getAttribute('aria-label');
+    focusMode.innerHTML = icon(active ? 'restore' : 'expand');
+  }
+  focusMode.disabled = !focusSupported;
+  focusMode.onclick = async () => {
+    focusMode.disabled = true;
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await root.requestFullscreen();
+    } catch {
+      const toast = $('#toast');
+      toast.textContent = 'Focus mode is not available in this browser.';
+      toast.classList.remove('hidden');
+      setTimeout(() => toast.classList.add('hidden'), 3000);
+    } finally {
+      focusMode.disabled = !focusSupported;
+      syncFocusMode();
+    }
+  };
+  document.addEventListener('fullscreenchange', () => {
+    syncFocusMode();
+    if (!document.fullscreenElement && !$('#app').hidden) focusMode.focus({ preventScroll: true });
+  });
+  // Keep the header and dialogs available in fullscreen, and leave it on sign-out.
+  new MutationObserver(() => {
+    if ($('#app').hidden && document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  }).observe($('#app'), { attributes: true, attributeFilter: ['hidden'] });
+  syncFocusMode();
   mobile.addEventListener('change', () => { drawerOpen = false; syncLayout(); }); narrow.addEventListener('change', syncLayout);
   navigation.addEventListener('scroll', () => { navScroll = navigation.scrollTop; }, { passive: true });
   const navObserver = new MutationObserver(enhanceNavigation);
