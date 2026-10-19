@@ -17,6 +17,7 @@ before(async()=>{
  await pool.query(await readFile(new URL('../db/002_google.sql',import.meta.url),'utf8'));
  await pool.query(await readFile(new URL('../db/003_business_lines.sql',import.meta.url),'utf8'));
  await pool.query(await readFile(new URL('../db/004_business_lines_fields.sql',import.meta.url),'utf8'));
+ await pool.query(await readFile(new URL('../db/005_user_master_display_id.sql',import.meta.url),'utf8'));
  // Applying migrations twice must preserve an initialized database.
  await pool.query(await readFile(new URL('../db/003_business_lines.sql',import.meta.url),'utf8'));
  await pool.query(await readFile(new URL('../db/004_business_lines_fields.sql',import.meta.url),'utf8'));
