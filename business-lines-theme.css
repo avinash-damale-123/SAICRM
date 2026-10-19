@@ -1,0 +1,66 @@
+/* SCRM Business Lines visual system – original design based on approved mockup.
+   Presentation only: permissions, persistence and server-provided counts remain authoritative. */
+:root{--mw-mockup-navy:#10253f;--mw-mockup-green:#008a53}
+body{background:#f4f7fb}
+.sidebar{background:linear-gradient(180deg,#0b203b 0%,#102845 100%)}
+.sidebar .nav-item.active{background:#1c406b}
+.content.mw-module-content{padding:18px 20px 26px;max-width:none}
+.topbar.mw-topbar{background:#fff;border-bottom:1px solid #e6eaf2;box-shadow:0 1px 3px #11243c09}
+.mw-module-header{--mw-green:#008653;font-size:12px;gap:10px}
+.mw-module-tab{transition:color .14s ease,background .14s ease}
+.mw-module-tab.mw-active-tab{color:#067a4a;background:#eaf8f1;border-color:#bce6d0}
+.mw-module-header .mw-btn{border-radius:7px;min-height:36px;padding-inline:12px}
+.mw-module-header .mw-add-record{background:linear-gradient(90deg,#00844f,#087a4d);box-shadow:0 2px 5px #0575471b}
+.mw-module-header .mw-search input{height:36px;border-radius:8px}
+.mw-workspace{--mw-green:#008653;--mw-border:#e1e8f1;--mw-ink:#152a46;--mw-muted:#718299}
+.mw-dashboard{padding-top:9px}
+.mw-dashboard-heading h2{font-size:18px;font-weight:750;color:#192f50}
+.mw-dashboard-heading p{font-size:12px}
+.mw-dashboard-metrics{gap:14px;margin:18px 0 16px}
+.mw-dashboard-metric{background:#fff;border:1px solid #e0e8f2;border-radius:10px;box-shadow:0 3px 12px #153b6110;padding:18px 20px;min-height:112px;position:relative}
+.mw-dashboard-metric::after{content:'';width:34px;height:34px;border-radius:10px;position:absolute;top:18px;right:17px;background:#eaf2ff}
+.mw-dashboard-metric-active::after{background:#e3f7ec}
+.mw-dashboard-metric-inactive::after{background:#fff1df}
+.mw-dashboard-metric-archived::after{background:#edf2f8}
+.mw-dashboard-metric>span{font-size:11px;color:#697d97;text-transform:none;letter-spacing:0}
+.mw-dashboard-metric>strong{font-size:29px;margin-top:11px;line-height:1.25}
+.mw-dashboard-metric-total>strong{color:#172a4b}
+.mw-dashboard-metric-active>strong{color:#009359}
+.mw-dashboard-metric-inactive>strong{color:#ea861e}
+.mw-dashboard-metric-archived>strong{color:#617b9b}
+.mw-dashboard-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:16px}
+.mw-dashboard-card{background:white;border:1px solid #e0e8f2;box-shadow:0 3px 12px #153b610d;border-radius:10px;min-width:0;padding:20px}
+.mw-dashboard-card h3{font-size:14px;margin:0;color:#162c4d;font-weight:750}
+.mw-dashboard-card p{color:#8290a6;font-size:11px;line-height:1.55;margin:5px 0 0}
+.mw-breakdown-body{display:flex;align-items:center;justify-content:space-around;gap:22px;padding:22px 0 10px;min-height:210px}
+.mw-donut{--active-share:0%;--inactive-share:0%;display:grid;place-items:center;width:min(190px,42%);aspect-ratio:1/1;flex:0 0 auto;border-radius:50%;position:relative;background:conic-gradient(#08975c 0 var(--active-share),#f6a122 var(--active-share) var(--inactive-share),#95a7bc var(--inactive-share) 100%)}
+.mw-donut::before{content:'';position:absolute;width:67%;height:67%;background:white;border-radius:50%;box-shadow:inset 0 0 0 1px #eef2f7}
+.mw-donut-center{position:relative;text-align:center;z-index:1}
+.mw-donut-center strong{display:block;font-size:28px;font-weight:800;color:#162d4f}
+.mw-donut-center span{color:#8392a8;font-size:11px}
+.mw-legend{flex:1;max-width:230px;display:grid;gap:16px}
+.mw-legend-row{display:flex;align-items:center;gap:9px;font-size:12px;color:#60728a}
+.mw-legend-row::before{content:'';width:10px;height:10px;border-radius:50%;background:#08975c;flex:none}
+.mw-legend-row.inactive::before{background:#f6a122}
+.mw-legend-row.archived::before{background:#95a7bc}
+.mw-legend-row strong{margin-left:auto;color:#24415e;font-size:12px}
+.mw-insights{display:grid;gap:12px;margin-top:18px}
+.mw-insight{display:flex;align-items:start;gap:12px;padding:12px;background:#f7f9fd;border:1px solid #edf1f6;border-radius:8px}
+.mw-insight-symbol{width:30px;height:30px;border-radius:8px;flex:none;display:grid;place-items:center;font-size:17px;color:#058952;background:#e3f7ec}
+.mw-insight:nth-child(2) .mw-insight-symbol{color:#c97c0b;background:#fff0dc}
+.mw-insight:nth-child(3) .mw-insight-symbol{color:#647a92;background:#e8edf5}
+.mw-insight strong{display:block;color:#28415d;font-size:12px}
+.mw-insight p{margin-top:3px}
+.mw-home>.mw-panel{border:1px solid #dfe7f1;border-radius:10px;box-shadow:0 4px 15px #122e4a0a}
+.mw-home .mw-results{min-height:280px}
+.mw-filter-controls{background:#f8fbfe}
+.mw-home .mw-table-wrap{max-height:calc(100dvh - 215px)}
+.mw-workspace table th{background:#f7faff;color:#61758f;font-size:11px}
+.mw-workspace table td{font-size:12px}
+.mw-workspace table tbody tr:nth-child(even){background:#fcfdff}
+.mw-workspace table tbody tr:hover{background:#f3f9ff}
+.mw-workspace .mw-footer{background:#fbfcff}
+@media(max-width:1100px){.mw-dashboard-grid{grid-template-columns:1fr}.mw-breakdown-body{justify-content:center}.mw-dashboard-card{padding:17px}}
+@media(max-width:760px){.content.mw-module-content{padding:10px 11px 20px}.mw-dashboard-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.mw-dashboard-card{padding:15px}.mw-dashboard-metric{padding:15px;min-height:98px}.mw-dashboard-metric>strong{font-size:25px}.mw-breakdown-body{min-height:175px}}
+@media(max-width:430px){.mw-dashboard-heading h2{font-size:17px}.mw-dashboard-metrics{gap:9px}.mw-dashboard-metric::after{width:25px;height:25px;top:13px;right:12px}.mw-breakdown-body{flex-direction:column;gap:15px}.mw-donut{width:174px}.mw-legend{width:100%;max-width:none;gap:12px}.mw-legend-row{padding:0 10px}}
+@media(prefers-reduced-motion:reduce){.mw-module-tab{transition:none}}
