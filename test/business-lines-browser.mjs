@@ -120,9 +120,12 @@ try{
  const headerControls=await page.locator('.mw-module-header').evaluate(node=>Array.from(node.querySelectorAll('[data-mw="export"],[data-mw="filter-toggle"],.mw-settings-menu,#notifBtn,#focusModeBtn,.mw-account-menu,[data-mw="create"]')).map(element=>element.dataset.mw||element.id||element.className));
  assert.equal(headerControls[0],'export');assert.equal(headerControls[1],'filter-toggle');
  await page.locator('[data-mw="dashboard"]').click();
- await page.locator('[data-mw="dashboard"].mw-active-tab').waitFor({state:'visible'});
- const dashboardActive=await page.locator('[data-mw="dashboard"]').evaluate(el=>({bg:getComputedStyle(el).backgroundColor,color:getComputedStyle(el).color}));
- assert.deepEqual(dashboardActive,{bg:'rgb(8, 123, 64)',color:'rgb(255, 255, 255)'},'Dashboard selected state must be Satguru dark green');
+ await page.waitForFunction(()=>{
+  const button=document.querySelector('.crm-business-module [data-mw="dashboard"]');
+  return button?.classList.contains('mw-active-tab') && document.querySelector('.mw-dashboard')?.hidden===false;
+ });
+ const dashboardActive=await page.locator('[data-mw="dashboard"]').evaluate(el=>({bg:getComputedStyle(el).backgroundColor,color:getComputedStyle(el).color,classes:el.className,aria:el.getAttribute('aria-current')}));
+ assert.deepEqual({bg:dashboardActive.bg,color:dashboardActive.color},{bg:'rgb(8, 123, 64)',color:'rgb(255, 255, 255)'},'Dashboard selected state must be Satguru dark green: '+JSON.stringify(dashboardActive));
 
  assert.equal(await page.locator('.mw-table').isVisible(),false);
  const dashboard=page.locator('.mw-dashboard');
