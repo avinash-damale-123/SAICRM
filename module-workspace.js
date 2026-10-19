@@ -33,6 +33,11 @@ function create(host,config) {
  add.setAttribute('aria-label','Add '+config.singular);
  add.innerHTML=icon('plus')+'<span class="mw-add-label">Add '+esc(config.singular)+'</span><span class="mw-add-short">Add</span>';
  moduleHeader.querySelector('.mw-header-actions').append(add);
+ // Show a disabled placeholder only to the Super Admin; secure import is not wired yet.
+ if(user.systemRole==='super_admin'){
+  const hint=document.createElement('button');hint.type='button';hint.className='mw-btn crm-disabled-import';hint.disabled=true;hint.textContent='↑ Import';hint.title='Secure Business Lines import is awaiting backend validation';
+  const actions=moduleHeader.querySelector('.mw-header-actions');actions.insertBefore(hint,actions.querySelector('[data-mw="filter-toggle"]'));
+ }
  // Global bell, fullscreen, profile and search remain in the persistent global header.
  // Only this module's local actions/tabs appear in the module work bar.
  moduleHeader.querySelector('.mw-header-account').remove();
