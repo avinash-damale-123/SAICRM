@@ -203,7 +203,7 @@ function create(host,config) {
  d.querySelector('#mw-cancel').onclick=()=>closeDialog();
  form.querySelectorAll('[data-counted],textarea[name="description"]').forEach(input=>input.oninput=()=>{const count=form.querySelector('[data-count-for="'+(input.dataset.counted||input.name)+'"]');if(count)count.textContent=input.value.length});
  if(config.key==='business-lines'){const code=form.elements.code;if(code)code.addEventListener('input',()=>{const p=code.selectionStart;code.value=code.value.toUpperCase();code.setSelectionRange(p,p)})}
- form.onsubmit=async e=>{e.preventDefault();if(dialogSaving||!permitted(editing?'edit':'create')||!form.reportValidity())return;const values=new FormData(form),error=d.querySelector('.mw-form-error');error.hidden=true;const body=Object.fromEntries(fields.filter(f=>f.type!=='readonly').map(f=>[f.key,String(values.get(f.key)||'').trim()]));if(editing)body.version=record.version;
+ form.onsubmit=async e=>{e.preventDefault();if(dialogSaving||!permitted(editing?'edit':'create'))return;if(!form.checkValidity()){if(config.key==='business-lines')form.querySelectorAll('.mw-bl-section details').forEach(section=>{section.open=true});form.reportValidity();return}const values=new FormData(form),error=d.querySelector('.mw-form-error');error.hidden=true;const body=Object.fromEntries(fields.filter(f=>f.type!=='readonly').map(f=>[f.key,String(values.get(f.key)||'').trim()]));if(editing)body.version=record.version;
  if(config.key==='business-lines'&&editing){
   const status=form.querySelector('[name="status"]')?.value||record.status;
   if(status!==record.status){const reason=form.querySelector('#mw-bl-status-reason')?.value.trim()||'';
