@@ -292,3 +292,17 @@ html.mw-modal-open{overflow:hidden}
 .mw-bl-status-reason textarea{display:block;width:100%;resize:vertical;min-height:60px;border:1px solid #a9c6b8;border-radius:5px;padding:8px 10px;color:#193b30}
 .mw-bl-status-reason small{font-size:11px;color:#536b5f}
 .mw-bl-dialog .mw-bl-field select{width:100%;border:1px solid #bfcfde;border-radius:5px;background:#fff;color:#182f43}
+
+/* Preserve approved left/right pairing and intentional empty partner cells. */
+@media(min-width:641px){
+.mw-bl-dialog .mw-bl-field-archivedById{grid-column:1}
+.mw-bl-dialog .mw-bl-field-isDeleted{grid-column:1}
+.mw-bl-dialog .mw-bl-field-deletedAt{grid-column:2}
+.mw-bl-dialog .mw-bl-field-deletedById{grid-column:1}
+.mw-bl-dialog .mw-bl-field-createdById{grid-column:1}
+.mw-bl-dialog .mw-bl-field-updatedBy{grid-column:1}
+.mw-bl-dialog .mw-bl-field-updatedAt{grid-column:2}
+.mw-bl-dialog .mw-bl-field-updatedById{grid-column:1}
+}
+.mw-bl-dialog .mw-bl-read .mw-bl-read-value{background:#fafcfb;border-color:#e0e9e5}
+.mw-bl-dialog .mw-bl-read .mw-bl-field>label{color:#536e62}
