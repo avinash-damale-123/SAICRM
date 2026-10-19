@@ -379,6 +379,37 @@ test('Business Line archive and restore preserve identity and cannot bypass vers
  assert.equal(restored.body.record.description,'Keep this history');
 });
 
+test('Business Lines use immutable User Master display IDs and reversible soft delete with mandatory reasons',{skip:!enabled},async()=>{
+ const {superAdmin}=await businessActors(),record=await businessCreate('Lifecycle Display Fixture','New description');
+ assert.match(record.ownerId,/^UID-\d{6,}$/);
+ assert.match(record.createdById,/^UID-\d{6,}$/);
+ assert.equal(record.code.startsWith('TEST-'),true);
+ assert.equal(record.isDeleted,false);
+ assert.equal((await call('business-lines/'+record.id+'/soft-delete','POST',{version:record.version},superAdmin)).status,400);
+ const deleted=await call('business-lines/'+record.id+'/soft-delete','POST',{version:record.version,reason:'Duplicate business line retired'},superAdmin);
+ assert.equal(deleted.status,200,JSON.stringify(deleted.body));
+ assert.equal(deleted.body.record.isDeleted,true);
+ assert.ok(deleted.body.record.deletedAt);
+ assert.match(deleted.body.record.deletedById,/^UID-\d{6,}$/);
+ const current=await call(businessURL({q:'Lifecycle Display Fixture'}),'GET',undefined,superAdmin);
+ assert.equal(current.body.total,0);
+ const deletedList=await call(businessURL({archived:'deleted',q:'Lifecycle Display Fixture'}),'GET',undefined,superAdmin);
+ assert.equal(deletedList.body.total,1);
+ assert.equal(deletedList.body.records[0].id,record.id);
+ const conflict=await call('business-lines','POST',{name:'A Different New Name',code:record.code},superAdmin);
+ assert.equal(conflict.status,409);
+ assert.equal((await call('business-lines/'+record.id+'/restore-deleted','POST',{version:deleted.body.record.version},superAdmin)).status,400);
+ const restored=await call('business-lines/'+record.id+'/restore-deleted','POST',{version:deleted.body.record.version,reason:'Restored after review'},superAdmin);
+ assert.equal(restored.status,200,JSON.stringify(restored.body));
+ assert.equal(restored.body.record.id,record.id);
+ assert.equal(restored.body.record.isDeleted,false);
+ assert.equal(restored.body.record.deletedAt,null);
+ const history=await call('business-lines/'+record.id+'/history','GET',undefined,superAdmin);
+ assert.ok(history.body.history.some(item=>item.action==='Soft Deleted'&&item.reason==='Duplicate business line retired'));
+ assert.ok(history.body.history.some(item=>item.action==='Restored Deleted'&&item.reason==='Restored after review'));
+ assert.ok(history.body.history.every(item=>/^UID-\d{6,}$/.test(item.actorId)));
+});
+
 test('Business Lines cannot be inactivated, archived or legacy-renamed while dependent records exist',{skip:!enabled},async()=>{
  const {superAdmin}=await businessActors(),record=await businessCreate('Dependent Fixture');
  const user=(await pool.query('SELECT id FROM users WHERE email=$1',[superAdmin.email])).rows[0];
