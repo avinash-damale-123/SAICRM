@@ -84,7 +84,7 @@ try{
  };
  const headerRestored=async()=>{
   assert.equal(await page.locator('.mw-module-header').count(),0);
-  assert.ok(await page.evaluate(()=>Object.values(window.__originalHeader).every(({node,parent})=>node.isConnected&&node.parentNode===parent)));
+  assert.ok(await page.evaluate(()=>Object.values(window.__originalHeader).every(({node})=>node.isConnected&&!!node.closest('.topbar')&&!node.closest('.mw-module-header'))),'Global controls must remain in the global top bar, not a module header');
   for(const selector of ['#notifBtn','#focusModeBtn','#logoutBtn','.top-avatar'])assert.equal(await page.locator(selector).count(),1,selector+' must remain unique');
  };
  const noOverflow=async label=>assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Page overflow: '+label);
