@@ -97,6 +97,7 @@
  async function checkSession(){if(app.hidden||!user)return;try{const current=await api('auth/me');if(!current.user||!current.user.emailVerified||current.user.status!=='approved'){user=null;csrf='';window.SCRM.user=null;document.querySelector('#overlay').classList.add('hidden');draw('Your session or access has ended. Sign in again.');return}if(current.user.role!==user.role||current.user.systemRole!==user.systemRole||JSON.stringify(current.user.scopes||[])!==JSON.stringify(user.scopes||[]))location.reload()}catch(error){fail(error)}}
  window.addEventListener('focus',checkSession);document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkSession()});setInterval(checkSession,60000);
  document.querySelector('#logoutBtn').onclick=async()=>{
+  if(window.SCRM.activeWorkspace&&!window.SCRM.activeWorkspace.canLeave())return;
   try{await api('auth/logout','POST',{csrf});location.replace('/')}catch(error){alert(error.message)}
  };
  draw('Checking session…');

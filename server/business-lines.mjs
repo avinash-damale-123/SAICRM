@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { businessLineResource } from './resources.mjs';
+import { businessLineResource, businessLinePermissions } from './resources.mjs';
 
 const fail=(status,message)=>{const error=new Error(message);error.status=status;throw error;};
 const uuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
@@ -19,7 +19,11 @@ const select=`SELECT b.*,o.name AS owner_name,c.name AS creator_name,u.name AS u
  FROM business_lines b JOIN users o ON o.id=b.owner_id JOIN users c ON c.id=b.created_by JOIN users u ON u.id=b.updated_by`;
 const joins='FROM business_lines b JOIN users o ON o.id=b.owner_id JOIN users c ON c.id=b.created_by JOIN users u ON u.id=b.updated_by';
 const limits=Object.freeze({selectedExport:250,maxExportRows:10000,maxExportResponseBytes:3*1024*1024});
-const permissions=Object.freeze({read:true,create:true,edit:true,archive:true,restore:true,export:true,history:true,import:false,delete:false});
+const requirePermission=(permissions,action)=>{if(permissions[action]!==true)fail(403,'You do not have permission for this Business Line action');};
+function requireQueryPermissions(permissions,options){
+ if(options.q.trim())requirePermission(permissions,'search');
+ if(options.filters.length||options.status!=='all'||options.archived!=='exclude')requirePermission(permissions,'filter');
+}
 export const businessLineColumns=Object.freeze(Object.entries(fields).map(([key,field])=>({key,label:field.label,type:field.date?'datetime':'text'})));
 const date=value=>value==null?null:(value instanceof Date?value.toISOString():new Date(value).toISOString());
 export function businessLineView(row){
@@ -157,10 +161,12 @@ export function businessLineCSV(records,columns=defaultColumns){
  if(!Array.isArray(columns)||!columns.length||columns.length>Object.keys(fields).length||new Set(columns).size!==columns.length||columns.some(key=>!own(fields,key)))fail(400,'Invalid export columns');
  return '\uFEFF'+[columns.map(key=>csvCell(fields[key].label)).join(','),...records.map(row=>columns.map(key=>csvCell(row[key])).join(','))].join('\r\n')+'\r\n';
 }
-async function exportRecords(client,user,body){
+async function exportRecords(client,user,body,permissions){
+ requirePermission(permissions,'export');
  onlyKeys(body,['mode','ids','columns','query']);
  if(!['selected','default','my','all'].includes(body.mode))fail(400,'Invalid export mode');
  const options=parameters(body.mode==='all'?{archived:'all'}:(body.query||{}));
+ if(['default','my'].includes(body.mode))requireQueryPermissions(permissions,options);
  const where=whereFor(options);
  let suffix=where.sql,params=where.params;
  if(body.mode==='selected'){
@@ -178,12 +184,15 @@ async function exportRecords(client,user,body){
  return result;
 }
 export async function businessLines({client,user,path,method,url,body}){
- if(user.system_role!=='super_admin'||!user.email_verified||user.status!=='approved')fail(403,'Super Admin access required');
+ const permissions=businessLinePermissions(user);
+ if(!permissions.read)fail(403,'Super Admin access required');
  if(path[0]!=='business-lines'||path.length>3)fail(404,'Not found');
  if(method!=='GET'&&path[1]!=='export')await client.query('SELECT pg_advisory_xact_lock(830151)');
  try{
   if(path.length===1&&method==='GET'){
+   requirePermission(permissions,'read');
    const options=parameters(Object.fromEntries(url.searchParams));
+   requireQueryPermissions(permissions,options);
    const where=whereFor(options);
    const total=Number((await client.query('SELECT count(*)::integer AS total '+joins+where.sql,where.params)).rows[0].total);
    const totalPages=Math.max(1,Math.ceil(total/options.pageSize));
@@ -195,8 +204,9 @@ export async function businessLines({client,user,path,method,url,body}){
     count(*) FILTER(WHERE archived_at IS NOT NULL)::integer AS archived FROM business_lines`)).rows[0];
    return {records:data.rows.map(businessLineView),total,page,pageSize:options.pageSize,totalPages,counts,owners:await owners(client),resource:{...businessLineResource,columns:businessLineColumns,limits},permissions};
   }
-  if(path.length===2&&path[1]==='export'&&method==='POST')return await exportRecords(client,user,body);
+  if(path.length===2&&path[1]==='export'&&method==='POST')return await exportRecords(client,user,body,permissions);
   if(path.length===1&&method==='POST'){
+   requirePermission(permissions,'create');
    onlyKeys(body,['name','remarks']);
    const name=businessName(body.name);
    const remarks=body.remarks===undefined?'':text(body.remarks,'Remarks',255);
@@ -206,13 +216,18 @@ export async function businessLines({client,user,path,method,url,body}){
    await event(client,user,id,'Created',null,created);
    return {record:created};
   }
-  if(path.length===2&&method==='GET')return {record:businessLineView(await record(client,path[1]))};
+  if(path.length===2&&method==='GET'){
+   requirePermission(permissions,'read');
+   return {record:businessLineView(await record(client,path[1]))};
+  }
   if(path.length===3&&path[2]==='history'&&method==='GET'){
+   requirePermission(permissions,'history');
    await record(client,path[1]);
    const rows=(await client.query('SELECT e.id,e.actor_id,u.name AS actor,e.action,e.changes,e.created_at FROM business_line_events e JOIN users u ON u.id=e.actor_id WHERE e.business_line_id=$1 ORDER BY e.id DESC LIMIT 200',[path[1]])).rows;
    return {history:rows.map(row=>({id:row.id,actorId:row.actor_id,actor:row.actor,action:row.action,changes:row.changes,createdAt:date(row.created_at)}))};
   }
   if((path.length===2&&method==='PUT')||(path.length===3&&['archive','restore'].includes(path[2])&&method==='POST')){
+   requirePermission(permissions,path.length===2?'edit':path[2]);
    onlyKeys(body,path.length===2?['name','status','remarks','ownerId','version']:['version']);
    version(body.version);
    const existing=await record(client,path[1],true),before=businessLineView(existing);

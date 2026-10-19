@@ -23,7 +23,9 @@ const user={id:'11111111-1111-4111-8111-111111111111',name:'UI Super Admin',emai
 const line=(number)=>({id:'20000000-0000-4000-8000-'+String(number).padStart(12,'0'),displayId:'BL-'+String(number).padStart(6,'0'),name:number===1?'Line Alpha':number===2?'Line Bravo':'Line '+String(number).padStart(2,'0'),remarks:'Fixture details '+number,status:number<=25?'Active':'Inactive',ownerId:user.id,owner:user.name,createdById:user.id,createdBy:user.name,createdAt:now,updatedById:user.id,updatedBy:user.name,updatedAt:now,version:1,archivedAt:null});
 const records=Array.from({length:30},(_,index)=>line(index+1));
 const requests=[],exports=[],errors=[];
-let nextId=31,failNext=false;
+const fullPermissions=Object.fromEntries(['read','create','edit','archive','restore','export','history','search','filter','settings','dashboard'].map(key=>[key,true]));
+let permissions={...fullPermissions,import:false,delete:false};
+let nextId=31,failNext=false,unauthorizedNext=false,delayNext=false,zeroCounts=false,auditFailure=false,auditDelay=false;
 function matching(query){
  const q=String(query.q||'').toLowerCase().trim().split(/\s+/).filter(Boolean),archive=query.archived||'exclude';
  let result=records.filter(record=>(archive==='all'||(archive==='only'?!!record.archivedAt:!record.archivedAt))&&(!query.status||query.status==='all'||record.status===query.status)&&q.every(word=>Object.values(record).some(value=>String(value).toLowerCase().includes(word))));
@@ -44,13 +46,16 @@ try{
   if(path==='auth/me')response={user,csrf:'ui-csrf'};
   else if(path==='auth/options')response={googleEnabled:false};
   else if(path.startsWith('records/'))response={records:[],next:null};
-  else if(path==='audit')response={audit:[]};
+  else if(path==='audit'){if(auditDelay){auditDelay=false;await new Promise(resolve=>setTimeout(resolve,600))}if(auditFailure){auditFailure=false;await route.fulfill({status:503,json:{error:'Fixture audit unavailable'}});return}response={audit:[]}}
   else if(path==='access')response={users:[],next:null};
   else if(path==='business-lines'&&method==='GET'){
    const query=Object.fromEntries(url.searchParams);
+   if(unauthorizedNext){unauthorizedNext=false;await route.fulfill({status:401,json:{error:'Your session has expired'}});return}
+   if(delayNext){delayNext=false;await new Promise(resolve=>setTimeout(resolve,600))}
    if(failNext){failNext=false;await route.fulfill({status:503,json:{error:'Fixture service temporarily unavailable'}});return}
    const result=matching(query),pageNumber=Number(query.page||1),pageSize=Number(query.pageSize||25);
-   response={records:result.slice((pageNumber-1)*pageSize,pageNumber*pageSize),total:result.length,page:pageNumber,pageSize,totalPages:Math.max(1,Math.ceil(result.length/pageSize)),counts:{total:records.length,active:records.filter(record=>!record.archivedAt&&record.status==='Active').length,inactive:records.filter(record=>!record.archivedAt&&record.status==='Inactive').length,archived:records.filter(record=>record.archivedAt).length},owners:[user]};
+   response={records:result.slice((pageNumber-1)*pageSize,pageNumber*pageSize),total:result.length,page:pageNumber,pageSize,totalPages:Math.max(1,Math.ceil(result.length/pageSize)),counts:{total:records.length,active:records.filter(record=>!record.archivedAt&&record.status==='Active').length,inactive:records.filter(record=>!record.archivedAt&&record.status==='Inactive').length,archived:records.filter(record=>record.archivedAt).length},owners:[user],permissions};
+   if(zeroCounts)response={...response,records:[],total:0,totalPages:1,counts:{total:0,active:0,inactive:0,archived:0}};
    if(query.q==='Line Alpha')await new Promise(resolve=>setTimeout(resolve,900));
   }else if(path==='business-lines'&&method==='POST'){
    if(body.name.startsWith('Slow '))await new Promise(resolve=>setTimeout(resolve,500));
@@ -69,19 +74,60 @@ try{
   }else response={message:'Request accepted'};
   await route.fulfill({status,json:response});
  });
- const waitReady=async()=>{await page.locator('.mw-results[aria-busy="false"]').waitFor()};
- const openBusiness=async()=>{await page.locator('[data-nav="businesslines"]').waitFor({state:'attached'});await page.evaluate(()=>document.querySelector('[data-nav="businesslines"]').click());await waitReady()};
+ const waitReady=async()=>{await page.waitForFunction(()=>document.querySelector('.mw-results')?.getAttribute('aria-busy')==='false')};
+ const openBusiness=async()=>{await page.locator('[data-nav="businesslines"]').waitFor({state:'attached'});await page.evaluate(()=>{if(!window.__originalHeader)window.__originalHeader=Object.fromEntries(['#notifBtn','#focusModeBtn','#logoutBtn','.top-avatar'].map(selector=>{const node=document.querySelector(selector);return [selector,{node,parent:node.parentNode}]}));document.querySelector('[data-nav="businesslines"]').click()});await waitReady()};
  const search=async value=>{await page.locator('#mw-search').fill(value);await page.locator('#mw-search').press('Enter');await waitReady()};
+ const refresh=async(wait=true)=>{
+  const menu=page.locator('.mw-settings-menu');
+  if(!(await menu.getAttribute('open')))await menu.locator('summary').click();
+  await menu.locator('[data-mw="refresh"]').click();if(wait)await waitReady();
+ };
+ const headerRestored=async()=>{
+  assert.equal(await page.locator('.mw-module-header').count(),0);
+  assert.ok(await page.evaluate(()=>Object.values(window.__originalHeader).every(({node,parent})=>node.isConnected&&node.parentNode===parent)));
+  for(const selector of ['#notifBtn','#focusModeBtn','#logoutBtn','.top-avatar'])assert.equal(await page.locator(selector).count(),1,selector+' must remain unique');
+ };
  const noOverflow=async label=>assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Page overflow: '+label);
  await page.goto('http://127.0.0.1:4174');
+ await page.locator('#navigation [data-nav]').first().waitFor();
+ await page.evaluate(()=>{window.__originalHeader=Object.fromEntries(['#notifBtn','#focusModeBtn','#logoutBtn','.top-avatar'].map(selector=>{const node=document.querySelector(selector);return [selector,{node,parent:node.parentNode}]}))});
  await openBusiness();
+ assert.equal(await page.locator('.mw-module-header #mw-search').count(),1);
+ assert.ok((await page.locator('.mw-account-menu').innerText()).includes(user.name));
+ await page.locator('#notifBtn').click();await page.locator('#overlay:not(.hidden)').waitFor();
+ assert.equal(await page.locator('#modalTitle').innerText(),'Notifications');await page.locator('#closeModal').click();
+ assert.equal(await page.locator('.mw-stats').count(),0);
+ assert.equal(await page.locator('.mw-dashboard:visible').count(),0);
+ assert.equal(await page.locator('#mw-filter-controls').isHidden(),true);
+ await page.keyboard.press('Control+k');
+ assert.equal(await page.locator('#mw-search').evaluate(node=>document.activeElement===node),true);
+ const headerControls=await page.locator('.mw-module-header').evaluate(node=>Array.from(node.querySelectorAll('[data-mw="export"],[data-mw="filter-toggle"],.mw-settings-menu,#notifBtn,#focusModeBtn,.mw-account-menu,[data-mw="create"]')).map(element=>element.dataset.mw||element.id||element.className));
+ assert.equal(headerControls[0],'export');assert.equal(headerControls[1],'filter-toggle');
+ await page.locator('[data-mw="dashboard"]').click();
+ assert.equal(await page.locator('.mw-table').isVisible(),false);
+ const dashboard=page.locator('.mw-dashboard');
+ assert.equal(await dashboard.isVisible(),true);
+ for(const [metric,count]of Object.entries({total:30,active:25,inactive:5,archived:0}))assert.equal(await dashboard.locator('.mw-dashboard-metric-'+metric+' > strong').innerText(),String(count));
+ assert.equal(await dashboard.locator('.mw-status-chart[role="img"]').count(),1);
+ await page.screenshot({animations:'disabled',path:'work/browser/header-dashboard-1440.jpg',type:'jpeg',quality:40});
+ await page.locator('[data-mw="home"]').click();
+ await page.screenshot({animations:'disabled',path:'work/browser/header-home-1440.jpg',type:'jpeg',quality:40});
+ await page.screenshot({animations:'disabled',path:'work/browser/header-home-crop.jpg',type:'jpeg',quality:30,clip:{x:0,y:0,width:1440,height:240}});
+ assert.equal(await page.locator('.mw-table').isVisible(),true);
  assert.equal(await page.locator('.mw-table tbody tr').count(),25);
  assert.match(await page.locator('.mw-range').innerText(),/1–25 of 30/);
  assert.equal(await page.locator('[data-mw="import"]').count(),0);
- for(const width of [320,360,768,1440]){
+ for(const width of [320,360,768,1100,1440]){
   await page.setViewportSize({width,height:850});await noOverflow('list '+width);
-  await page.screenshot({path:'work/browser/business-lines-'+width+'.png',fullPage:true});
+  await page.locator('#menuBtn').click();await noOverflow('alternate sidebar '+width);
+  if(width<768){await page.locator('#closeNav').click();assert.equal(await page.locator('#sidebar').evaluate(node=>node.classList.contains('open')),false);assert.equal(await page.locator('#navBackdrop').evaluate(node=>node.hidden),true)}else await page.locator('#menuBtn').click();
+  await noOverflow('restored sidebar '+width);
+  await page.screenshot({animations:'disabled',path:'work/browser/business-lines-header-'+width+'.png',fullPage:true});
+  if(width===320)await page.screenshot({animations:'disabled',path:'work/browser/header-home-320.jpg',type:'jpeg',quality:40});
  }
+ await page.setViewportSize({width:1440,height:900});
+ await page.locator('#focusModeBtn').click();assert.equal(await page.evaluate(()=>Boolean(document.fullscreenElement)),true);
+ await page.locator('#focusModeBtn').click();assert.equal(await page.evaluate(()=>Boolean(document.fullscreenElement)),false);
  await page.setViewportSize({width:1440,height:900});
  await page.locator('[data-select]').first().check();
  await page.getByRole('button',{name:'Next page',exact:true}).click();await waitReady();
@@ -95,6 +141,7 @@ try{
  assert.equal(exports.at(-1).mode,'selected');assert.equal(exports.at(-1).ids.length,2);assert.equal(Object.hasOwn(exports.at(-1),'columns'),false);
  await page.locator('[data-mw="clear-selection"]').click();
  assert.equal(await page.locator('.mw-selection').isHidden(),true);
+ await page.locator('[data-mw="filter-toggle"]').click();await page.locator('#mw-filter-controls').waitFor();
  await page.locator('#mw-status').selectOption('Inactive');await waitReady();
  await search('Line');
  assert.equal(await page.locator('.mw-table tbody tr').count(),5);
@@ -145,7 +192,9 @@ try{
  assert.equal(await page.locator('.mw-record-link').count(),0);
  await page.locator('#mw-archived').selectOption('exclude');await waitReady();
  assert.equal(await page.locator('.mw-record-link').innerText(),'Line Bravo Updated');
- await page.locator('[data-mw="columns"]').click();
+ await page.locator('.mw-settings-menu > summary').click();
+ assert.equal(await page.locator('.mw-settings-menu [data-mw]').first().getAttribute('data-mw'),'columns');
+ await page.locator('.mw-settings-menu [data-mw="columns"]').click();
  assert.equal(await page.locator('[data-column-check="name"]').isDisabled(),true);
  await page.locator('[data-column-check="owner"]').uncheck();await page.locator('[data-column-check="remarks"]').check();await page.locator('#mw-freeze').uncheck();
  await page.locator('#mw-columns-save').click();
@@ -161,7 +210,7 @@ try{
   assert.equal(Object.hasOwn(exports.at(-1),'columns'),mode==='my');
   if(mode==='my')assert.deepEqual(exports.at(-1).columns,prefs.columns);
  }
- failNext=true;await page.locator('[data-mw="refresh"]').click();await waitReady();
+ failNext=true;await refresh();
  assert.ok((await page.locator('.mw-results').innerText()).includes('We couldn’t load these records'));
  assert.equal((await page.locator('.mw-results').innerText()).includes('No business lines yet'),false);
  await page.locator('.mw-results [data-mw="refresh"]').click();await waitReady();
@@ -170,8 +219,15 @@ try{
  page.once('dialog',dialog=>dialog.dismiss());await page.evaluate(()=>document.querySelector('[data-nav="overview"]').click());
  assert.equal(await page.locator('dialog').isVisible(),true);
  assert.equal(await page.locator('#mw-record-form [name="name"]').inputValue(),'Unsaved Business');
+ assert.equal(await page.locator('.mw-module-header #mw-search').count(),1);
+ const logoutBefore=requests.filter(request=>request.path==='auth/logout').length;
+ page.once('dialog',dialog=>dialog.dismiss());await page.evaluate(()=>document.querySelector('#logoutBtn').click());
+ assert.equal(requests.filter(request=>request.path==='auth/logout').length,logoutBefore);
+ assert.equal(await page.locator('dialog').isVisible(),true);
+ assert.equal(await page.locator('.mw-module-header').count(),1);
  page.once('dialog',dialog=>dialog.accept());await page.evaluate(()=>document.querySelector('[data-nav="overview"]').click());
  await page.locator('dialog').waitFor({state:'detached'});assert.equal(await page.locator('.mw-workspace').count(),0);
+ await headerRestored();
  await openBusiness();
  await page.locator('[data-mw="create"]').click();await page.locator('#mw-record-form [name="name"]').fill('Slow Saved Business');
  const saving=page.waitForRequest(request=>request.method()==='POST'&&new URL(request.url()).pathname==='/api/business-lines');
@@ -188,6 +244,74 @@ try{
  await page.waitForTimeout(650);
  assert.equal(await page.locator('.mw-workspace').count(),0);
  assert.equal(await page.locator('dialog').count(),0);
+ await headerRestored();
+ // Repeated mounts preserve global controls and their fullscreen handler.
+ for(let repeat=0;repeat<2;repeat++){
+  await openBusiness();
+  for(const selector of ['#notifBtn','#focusModeBtn','#logoutBtn','.top-avatar'])assert.equal(await page.locator(selector).count(),1);
+  await page.evaluate(()=>document.querySelector('[data-nav="overview"]').click());await headerRestored();
+ }
+ await page.locator('#focusModeBtn').click();assert.equal(await page.evaluate(()=>Boolean(document.fullscreenElement)),true);
+ await page.locator('#focusModeBtn').click();
+ await openBusiness();
+ // A slower Audit fetch cannot overwrite a newer navigation decision.
+ auditDelay=true;
+ const pendingAudit=page.waitForRequest(request=>new URL(request.url()).pathname==='/api/audit');
+ await page.evaluate(()=>document.querySelector('[data-nav="audit"]').click());await pendingAudit;
+ await page.evaluate(()=>document.querySelector('[data-nav="overview"]').click());await page.waitForTimeout(700);await headerRestored();
+ await openBusiness();
+ // Late list/capability responses cannot recreate a departed module header.
+ delayNext=true;
+ const delayed=page.waitForRequest(request=>request.method()==='GET'&&new URL(request.url()).pathname==='/api/business-lines');
+ await refresh(false);await delayed;
+ await page.evaluate(()=>document.querySelector('[data-nav="overview"]').click());await page.waitForTimeout(700);await headerRestored();
+ await openBusiness();
+ // Failure is distinct from a successful response containing zero counts.
+ await page.locator('[data-mw="dashboard"]').click();failNext=true;await refresh();
+ assert.match(await page.locator('.mw-dashboard').innerText(),/unavailable|couldn.t|failed/i);
+ zeroCounts=true;await refresh();
+ assert.ok((await page.locator('.mw-dashboard').innerText()).includes('0'));
+ zeroCounts=false;await refresh();
+ assert.ok((await page.locator('.mw-dashboard').innerText()).includes(String(records.length)));
+ await page.locator('[data-mw="home"]').click();
+ // A failed navigation fetch preserves the current module and its header.
+ auditFailure=true;
+ const auditFailureResponse=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/audit');
+ await page.evaluate(()=>document.querySelector('[data-nav="audit"]').click());await auditFailureResponse;
+ await page.waitForFunction(()=>document.querySelector('#toast')?.textContent.includes('Fixture audit unavailable'));
+ assert.equal(await page.locator('.mw-module-header #mw-search').count(),1);
+ assert.equal(await page.locator('.mw-table').isVisible(),true);
+ await page.keyboard.press('Control+k');assert.equal(await page.locator('#mw-search').evaluate(node=>document.activeElement===node),true);
+ // Initial load errors permit retry before capabilities have been fetched.
+ failNext=true;await page.reload();await openBusiness();
+ assert.ok((await page.locator('.mw-results').innerText()).includes('We couldn’t load these records'));
+ await page.locator('.mw-results [data-mw="refresh"]').click();await waitReady();
+ assert.equal(await page.locator('.mw-table').isVisible(),true);
+ // Permission fixtures exercise the UI contract without changing backend policy.
+ permissions={read:true,history:false,search:true,create:false,edit:false,archive:false,restore:false,export:false,filter:false,settings:false,dashboard:false,import:false,delete:false};
+ await page.reload();await openBusiness();
+ for(const selector of ['[data-mw="create"]','[data-mw="export"]','[data-mw="filter-toggle"]','.mw-settings-menu','[data-mw="dashboard"]','[data-mw="import"]'])assert.equal(await page.locator(selector+':visible').count(),0,selector+' should be denied');
+ const historyRequests=requests.filter(request=>request.path.endsWith('/history')).length;
+ await page.locator('.mw-record-link').first().click();await page.getByRole('heading',{name:'Basic information',exact:true}).waitFor();
+ assert.equal(requests.filter(request=>request.path.endsWith('/history')).length,historyRequests);
+ assert.equal(await page.getByRole('button',{name:'Edit Business Line',exact:true}).count(),0);
+ await page.locator('#mw-read-close').click();
+ const beforeDenied=requests.filter(request=>request.method!=='GET').length;
+ for(const action of ['create','export','filters','columns','dashboard']){
+  await page.evaluate(action=>{const button=document.createElement('button');button.dataset.mw=action;button.textContent='Denied probe';document.querySelector('.mw-workspace').append(button);button.click();button.remove()},action);
+  assert.equal(await page.locator('dialog').count(),0,action+' must be guarded in handlers');
+ }
+ assert.equal(requests.filter(request=>request.method!=='GET').length,beforeDenied);
+ assert.equal(await page.locator('.mw-table').isVisible(),true);
+ assert.equal(await page.locator('.mw-dashboard:visible').count(),0);
+ permissions=undefined;await page.reload();await openBusiness();
+ assert.equal(await page.locator('[data-mw="create"]:visible').count(),0);
+ assert.equal(await page.locator('.mw-table:visible').count(),0);
+ assert.equal(await page.locator('#mw-search:visible').count(),0);
+ permissions={...fullPermissions,import:false,delete:false};await page.reload();await openBusiness();
+ unauthorizedNext=true;await refresh(false);
+ await page.locator('#authEmail').waitFor();
+ await headerRestored();
  assert.deepEqual(errors,[]);
- console.log('Business Lines browser checks passed: 4 viewports, selection/export, stale search, filters, create/read/edit, archive/restore, preferences, load errors and guarded navigation');
+ console.log('Business Lines browser checks passed: module header, Home/Dashboard, five responsive widths, sidebar/fullscreen, permissions, selection/export, search/filters, forms and lifecycle');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve))}
