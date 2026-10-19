@@ -218,12 +218,12 @@ try{
  await page.locator('#mw-save').click();await page.locator('dialog').waitFor({state:'detached'});await waitReady();
  assert.ok(records.some(record=>record.name==='New UI Business'));
  await page.locator('.mw-row-menu summary').click();await page.locator('.mw-row-menu [data-mw="archive"]').click();
- await page.locator('#mw-archive-confirm').click();await page.locator('dialog').waitFor({state:'detached'});await waitReady();
+ await page.locator('#mw-lifecycle-reason').fill('Reviewed and approved');await page.locator('#mw-archive-confirm').click();await page.locator('dialog').waitFor({state:'detached'});await waitReady();
  assert.equal(await page.locator('.mw-record-link').count(),0);
  await page.locator('#mw-archived').selectOption('only');await waitReady();
  assert.equal(await page.locator('.mw-record-link').innerText(),'Line Bravo Updated');
  await page.locator('.mw-row-menu summary').click();await page.locator('.mw-row-menu [data-mw="restore"]').click();
- await page.locator('#mw-archive-confirm').click();await page.locator('dialog').waitFor({state:'detached'});await waitReady();
+ await page.locator('#mw-lifecycle-reason').fill('Reviewed and approved');await page.locator('#mw-archive-confirm').click();await page.locator('dialog').waitFor({state:'detached'});await waitReady();
  assert.equal(await page.locator('.mw-record-link').count(),0);
  await page.locator('#mw-archived').selectOption('exclude');await waitReady();
  assert.equal(await page.locator('.mw-record-link').innerText(),'Line Bravo Updated');
