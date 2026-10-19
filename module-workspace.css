@@ -256,3 +256,7 @@ html.mw-modal-open{overflow:hidden}
 .mw-bl-read-description{min-height:76px;white-space:pre-wrap}
 .mw-bl-dialog .mw-form-error{margin:12px 0;color:#bd1f2d}
 @media(max-width:640px){.mw-bl-dialog{width:calc(100vw - 16px);max-height:calc(100dvh - 16px)}.mw-bl-dialog .mw-dialog-body{padding:12px}.mw-bl-grid{grid-template-columns:1fr;gap:13px}.mw-bl-full{grid-column:auto}.mw-bl-section-content{padding:13px}.mw-bl-dialog>header,.mw-bl-dialog>footer{padding:13px}}
+
+.mw-bl-reason{display:flex;flex-direction:column;gap:8px;color:#183e34;font-weight:650;margin:14px 0}
+.mw-bl-reason textarea{border:1px solid #c3d2dc;border-radius:7px;min-height:95px;padding:11px;resize:vertical;font-weight:400;color:#183349;background:#fff}
+.mw-bl-dialog .mw-danger{background:#c8323d;color:#fff;border-color:#c8323d}
