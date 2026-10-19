@@ -239,7 +239,7 @@ export async function businessLines({client,user,path,method,url,body}){
   }
   if((path.length===2&&method==='PUT')||(path.length===3&&['archive','restore','soft-delete','restore-deleted'].includes(path[2])&&method==='POST')){
    requirePermission(permissions,path.length===2?'edit':({'soft-delete':'softDelete','restore-deleted':'restoreDeleted'}[path[2]]||path[2]));
-   onlyKeys(body,path.length===2?['name','description','status','ownerId','version','reason']:['version','reason']);
+   onlyKeys(body,path.length===2?['name','code','description','status','ownerId','version','reason']:['version','reason']);
    version(body.version);
    const existing=await record(client,path[1],true),before=businessLineView(existing);
    if(existing.version!==body.version)fail(409,'This record changed. Refresh and try again.');
@@ -263,6 +263,7 @@ export async function businessLines({client,user,path,method,url,body}){
    }
    if(existing.archived_at||existing.deleted_at)fail(409,'Restore this Business Line before editing');
    const name=own(body,'name')?businessName(body.name):existing.name;
+   const code=own(body,'code')?(body.code===''&&!existing.code?null:businessCode(body.code)):existing.code;
    const description=own(body,'description')?text(body.description,'Business Line Description',500):existing.description;
    const status=own(body,'status')?body.status:existing.status;
    if(!['Active','Inactive'].includes(status))fail(400,'Invalid Business Line status');
@@ -278,8 +279,8 @@ export async function businessLines({client,user,path,method,url,body}){
    if(status==='Inactive'&&existing.status!=='Inactive'&&await dependencies(client,existing))fail(409,'Referenced Business Lines cannot be deactivated. Review dependent records first.');
    if(name!==existing.name&&await dependencies(client,existing,true))fail(409,'Legacy records reference this name. Migrate those references before renaming.');
    const reason=status!==existing.status?lifecycleReason(body.reason):null;
-   if(name===existing.name&&description===existing.description&&status===existing.status&&ownerTechnicalId===existing.owner_id)return {record:before};
-   await client.query('UPDATE business_lines SET name=$2,status=$3,description=$4,owner_id=$5,updated_by=$6,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,name,status,description,ownerTechnicalId,user.id]);
+   if(name===existing.name&&code===existing.code&&description===existing.description&&status===existing.status&&ownerTechnicalId===existing.owner_id)return {record:before};
+   await client.query('UPDATE business_lines SET name=$2,code=$3,status=$4,description=$5,owner_id=$6,updated_by=$7,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,name,code,status,description,ownerTechnicalId,user.id]);
    const after=businessLineView(await record(client,existing.id));
    await event(client,user,existing.id,status!==existing.status?(status==='Inactive'?'Deactivated':'Reactivated'):'Updated',before,after,reason);
    return {record:after};
