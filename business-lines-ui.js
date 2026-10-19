@@ -7,9 +7,8 @@ window.SCRMBusinessLines = {
    key:'business-lines',endpoint:'business-lines',title:'Business Lines',singular:'Business Line',
    description:'Manage the business lines that organize your enterprise.',import:false,api:window.SCRM.api,
    fields:[
-    {key:'code',label:'Business Line Code',type:'text',required:true,maxLength:20,views:['create']},
     {key:'name',label:'Business Line Name',type:'text',required:true,maxLength:150,full:false},
-    {key:'status',label:'Business Line Status',type:'select',options:['Active','Inactive'],default:'Active',views:['edit']},
+    {key:'code',label:'Business Line Code',type:'text',required:true,maxLength:20,views:['create']},
     {key:'owner',label:'Owner',type:'readonly'},
     {key:'description',label:'Business Line Description',type:'textarea',maxLength:500,full:true,views:['create','edit']}
    ],
