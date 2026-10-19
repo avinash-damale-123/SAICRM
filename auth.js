@@ -45,7 +45,7 @@
   document.querySelector('.profile').title=user.email;
   document.querySelector('.top-avatar').title=user.email;
   if(loaded){location.reload();return}
-  loaded=true;await script('/app.js');await window.SCRM.appReady;await script('/responsive.js');
+  loaded=true;await script('/app.js');await window.SCRM.appReady;await script('/responsive.js');await script('/workspace-shell.js?v=20261019-unified-v1');window.SCRMWorkspace.init();
  }
  const titles={login:'Sign in to SCRM',register:'Request CRM access',verify:'Verify your email',forgot:'Reset your password',reset:'Choose a new password',resetOtp:'Reset with email code'};
  function draw(message=''){
