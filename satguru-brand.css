@@ -1,4 +1,4 @@
-/* SCRM Satguru-inspired interim brand palette. Replace placeholder mark only when official asset supplied.
+/* Satguru Travel official green/orange brand palette.
    Core green #087B40, accent orange #ED8528, dark evergreen #123427. */
 :root{--brand-green:#087b40;--brand-green-dark:#076237;--brand-orange:#ed8528;--brand-orange-soft:#fff3e8;--brand-green-soft:#e9f6ee;--blue:#087b40;--navy:#123427;--bg:#f5f8f6;--ink:#243b32}
 body{background:var(--bg)}
@@ -49,7 +49,7 @@ body{background:var(--bg)}
 .mw-donut-legend .mw-legend-inactive,.mw-chart-inactive{background:var(--brand-orange)}
 .mw-dashboard-metric{border-color:#dce9df}
 .mw-dashboard-metric>strong{color:#1e4935}
-/* Current system still uses existing S monogram. Do not insert a guessed Satguru logo. */
+/* Original Satguru Travel logo is served from the static assets folder. */
 @media(max-width:600px){.sidebar{background:#123427}.mw-module-tab.mw-active-tab{border-bottom-color:var(--brand-orange)}}
 
 /* Global workspace corrections: no blue buttons, selected navigation, cards or links. */
@@ -99,3 +99,14 @@ input[type="checkbox"],input[type="radio"]{accent-color:#087b40}
 @media(max-width:600px){.auth-brand img{max-width:200px}.brandmark{flex-basis:64px;width:64px;height:39px}}
 /* Preserve an identifiable mark in the collapsed rail. */
 .sidebar.collapsed .brandmark,.sidebar.is-collapsed .brandmark,.sidebar[data-collapsed="true"] .brandmark{width:38px;height:38px;flex-basis:38px;padding:1px}
+
+/* Ensure official palette applies in every CRM workspace, including the collapsed sidebar. */
+:root{--blue:#087b40;--brand-green:#087b40;--brand-orange:#ed8528}
+.nav-item.active,.sidebar .nav-item[aria-current="page"]{background:#176647!important;box-shadow:inset 3px 0 #ed8528!important;color:#fff!important}
+.sidebar .nav-item:hover:not(.active){background:#1a553e;color:#fff}
+.mw-account-menu .top-avatar,.top-avatar,.avatar{background:#087b40!important;color:#fff}
+.mw-metric-glyph{background:#e8f6ee;color:#087b40}
+.mw-dashboard-metric-inactive .mw-metric-glyph{background:#fff2e4;color:#bd650c}
+.mw-workspace .mw-record-link,.mw-workspace .mw-link,.mw-workspace a{color:#087b40}
+.mw-workspace .mw-btn:focus-visible,.mw-workspace .mw-icon-btn:focus-visible,.nav-item:focus-visible{outline:2px solid #ed8528;outline-offset:2px}
+@media(min-width:768px){.nav-collapsed .brand{padding:0 10px}.nav-collapsed .brandmark{width:38px;height:38px;flex:0 0 38px;padding:1px;box-shadow:none!important}.nav-collapsed .brandmark img{object-fit:cover;object-position:center center}}
