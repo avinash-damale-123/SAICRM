@@ -16,8 +16,10 @@ before(async()=>{
  await pool.query(await readFile(new URL('../db/001_initial.sql',import.meta.url),'utf8'));
  await pool.query(await readFile(new URL('../db/002_google.sql',import.meta.url),'utf8'));
  await pool.query(await readFile(new URL('../db/003_business_lines.sql',import.meta.url),'utf8'));
- // Applying a migration twice must preserve an initialized database.
+ await pool.query(await readFile(new URL('../db/004_business_lines_fields.sql',import.meta.url),'utf8'));
+ // Applying migrations twice must preserve an initialized database.
  await pool.query(await readFile(new URL('../db/003_business_lines.sql',import.meta.url),'utf8'));
+ await pool.query(await readFile(new URL('../db/004_business_lines_fields.sql',import.meta.url),'utf8'));
  config=configuration({DATABASE_URL:process.env.TEST_DATABASE_URL,APP_ORIGIN:origin,SMTP_HOST:'smtp.gmail.com',SMTP_PORT:'587',SMTP_USER:'noreply@example.org',SMTP_PASSWORD:'test-only-app-password',EMAIL_FROM:'SCRM <test@example.org>',TOKEN_SECRET:'a'.repeat(64)});
  // Capture only the provider boundary in tests. Production uses authenticated SMTP and has no mock email/OTP path.
  handler=createHandler({pool,config,deliver:async message=>sent.push(message)});
@@ -271,9 +273,11 @@ async function businessActors(){
  }
  return {superAdmin:businessSuper,admin:businessOrdinary};
 }
-async function businessCreate(name,remarks=''){
+let businessSequence=0;
+async function businessCreate(name,description=''){
  const {superAdmin}=await businessActors();
- const result=await call('business-lines','POST',{name,remarks},superAdmin);
+ const code='TEST-'+String(++businessSequence).padStart(5,'0');
+ const result=await call('business-lines','POST',{name,code,description},superAdmin);
  assert.equal(result.status,200,JSON.stringify(result.body));
  assert.ok(result.body.record?.id);
  return result.body.record;
@@ -300,12 +304,12 @@ test('Business Lines require an approved Super Admin and enforce Origin and CSRF
 
 test('Business Line validation prevents field injection and duplicates including archived names',{skip:!enabled},async()=>{
  const {superAdmin}=await businessActors();
- for(const field of ['id','displayId','createdAt','createdById','updatedAt','updatedById','archivedAt','ownerId','status','systemRole']){
-  const result=await call('business-lines','POST',{name:'Injected Field',remarks:'', [field]:'injected'},superAdmin);
+ for(const field of ['remarks','id','displayId','createdAt','createdById','updatedAt','updatedById','archivedAt','ownerId','status','systemRole']){
+  const result=await call('business-lines','POST',{name:'Injected Field',code:'FIXTURE',description:'', [field]:'injected'},superAdmin);
   assert.equal(result.status,400,field+' must not be mass assignable on create');
  }
  for(const name of ['', '   ', 'x'.repeat(256)]){
-  assert.equal((await call('business-lines','POST',{name,remarks:''},superAdmin)).status,400);
+  assert.equal((await call('business-lines','POST',{name,code:'FIXTURE',description:''},superAdmin)).status,400);
  }
  const record=await businessCreate('  Unique Fixture  ','Original remarks');
  assert.equal(record.name,'Unique Fixture');
@@ -315,20 +319,20 @@ test('Business Line validation prevents field injection and duplicates including
  assert.ok(record.ownerId);
  assert.ok(record.createdById);
  assert.ok(record.createdAt);
- assert.equal((await call('business-lines','POST',{name:'unique fixture',remarks:''},superAdmin)).status,409);
+ assert.equal((await call('business-lines','POST',{name:'unique fixture',code:'FIXTURE',description:''},superAdmin)).status,409);
  const archived=await call('business-lines/'+record.id+'/archive','POST',{version:record.version},superAdmin);
  assert.equal(archived.status,200);
- assert.equal((await call('business-lines','POST',{name:'UNIQUE FIXTURE',remarks:''},superAdmin)).status,409);
+ assert.equal((await call('business-lines','POST',{name:'UNIQUE FIXTURE',code:'FIXTURE',description:''},superAdmin)).status,409);
  assert.equal((await call('business-lines/'+record.id,'DELETE',{version:archived.body.record.version},superAdmin)).status,405);
  assert.equal((await call('business-lines/import','POST',{records:[]},superAdmin)).status,405);
 });
 
 test('Business Lines retain audited history and reject stale or immutable updates',{skip:!enabled},async()=>{
  const {superAdmin}=await businessActors(),record=await businessCreate('History Fixture','Before');
- for(const field of ['createdAt','createdById','updatedAt','updatedById','displayId','archivedAt']){
+ for(const field of ['code','remarks','createdAt','createdById','updatedAt','updatedById','displayId','archivedAt']){
   assert.equal((await call('business-lines/'+record.id,'PUT',{version:record.version,[field]:'injected'},superAdmin)).status,400,field);
  }
- const first=await call('business-lines/'+record.id,'PUT',{version:record.version,name:'History Revised',remarks:'After'},superAdmin);
+ const first=await call('business-lines/'+record.id,'PUT',{version:record.version,name:'History Revised',description:'After'},superAdmin);
  assert.equal(first.status,200);
  const updated=first.body.record;
  assert.equal(updated.version,record.version+1);
@@ -363,14 +367,14 @@ test('Business Line archive and restore preserve identity and cannot bypass vers
  const listed=await call(businessURL({q:'Archive Fixture',archived:'only'}),'GET',undefined,superAdmin);
  assert.equal(listed.body.total,1);
  assert.equal(listed.body.records[0].id,record.id);
- assert.equal((await call('business-lines/'+record.id,'PUT',{version:archive.body.record.version,remarks:'Bypass archive'},superAdmin)).status,409);
+ assert.equal((await call('business-lines/'+record.id,'PUT',{version:archive.body.record.version,description:'Bypass archive'},superAdmin)).status,409);
  const restored=await call('business-lines/'+record.id+'/restore','POST',{version:archive.body.record.version},superAdmin);
  assert.equal(restored.status,200);
  assert.equal(restored.body.record.id,record.id);
  assert.equal(restored.body.record.displayId,record.displayId);
  assert.equal(restored.body.record.archivedAt,null);
  assert.equal(restored.body.record.createdAt,record.createdAt);
- assert.equal(restored.body.record.remarks,'Keep this history');
+ assert.equal(restored.body.record.description,'Keep this history');
 });
 
 test('Business Lines cannot be inactivated, archived or legacy-renamed while dependent records exist',{skip:!enabled},async()=>{
@@ -416,7 +420,7 @@ test('Business Line list combines AND search, filters, pagination, counts and sa
 test('Business Line exports respect modes, column allowlists, selected IDs, formula safety and audit',{skip:!enabled},async()=>{
  const {superAdmin}=await businessActors();
  const one=await businessCreate('Export Fixture One','=SUM(1,2)'),two=await businessCreate('Export Fixture Two','@danger');
- const selected=await call('business-lines/export','POST',{mode:'selected',ids:[one.id,two.id],columns:['name','remarks'],query:{q:'does not match'}},superAdmin);
+ const selected=await call('business-lines/export','POST',{mode:'selected',ids:[one.id,two.id],columns:['name','description'],query:{q:'does not match'}},superAdmin);
  assert.equal(selected.status,200,JSON.stringify(selected.body));
  assert.equal(selected.body.count,2);
  assert.ok(selected.body.csv.includes('Export Fixture One'));
