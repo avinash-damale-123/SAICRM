@@ -235,3 +235,20 @@
 
 /* Dedicated Business Lines record page uses the global shell, not the list toolbar. */
 .mw-module-header.scrm-workbar[hidden],.crm-business-module.scrm-workbar[hidden]{display:none!important}
+
+
+/* Permission-adaptive toolbar: no empty tab rail when only Records is allowed. */
+.scrm-workbar.scrm-bl-clean.scrm-no-tabs{grid-template-columns:minmax(230px,1fr) max-content!important}
+.scrm-bl-clean.scrm-no-tabs>.scrm-identity{grid-column:1!important}
+.scrm-bl-clean.scrm-no-tabs>.scrm-bl-primary{grid-column:2!important}
+.scrm-bl-clean.scrm-no-tabs>.scrm-tabs{display:none!important}
+.scrm-bl-clean.scrm-no-tabs>.scrm-search-slot{grid-column:1!important;grid-row:2!important}
+.scrm-bl-clean.scrm-no-tabs>.scrm-actions{grid-column:2!important;grid-row:2!important}
+@container scrm-main (max-width:920px){
+ .scrm-workbar.scrm-bl-clean.scrm-no-tabs{grid-template-columns:minmax(0,1fr) auto!important}
+ .scrm-bl-clean.scrm-no-tabs>.scrm-search-slot{grid-column:1/-1!important;grid-row:2!important}
+ .scrm-bl-clean.scrm-no-tabs>.scrm-actions{grid-column:1/-1!important;grid-row:3!important}
+}
+@container scrm-main (max-width:520px){
+ .scrm-bl-clean.scrm-no-tabs>.scrm-actions{grid-row:3!important}
+}
