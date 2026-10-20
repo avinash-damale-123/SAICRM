@@ -186,7 +186,749 @@ async function exportRecords(client,user,body,permissions){
  const pageMode=body.mode==='page';
  const pageOffset=(options.page-1)*options.pageSize;
  if(pageMode&&pageOffset>1000000)fail(400,'Page is too far into the results');
- const rows=(await client.query(select+suffix+orderFor(options)+(pageMode?' LIMIT 
+ const rows=(await client.query(select+suffix+orderFor(options)+(pageMode?' LIMIT  if(rows.length>10000)fail(400,'Export supports up to 10,000 records; narrow your filters');
+ if(body.mode==='selected'&&rows.length!==body.ids.length)fail(409,'Some selected records are no longer available');
+ const columns=['default','page'].includes(body.mode)?defaultColumns:(body.columns||defaultColumns);
+ const csv=businessLineCSV(rows.map(businessLineView),columns);
+ await client.query('INSERT INTO audit(actor,action,module,record_id) VALUES($1,$2,$3,$4)',[user.id,'Exported '+rows.length+' records ('+body.mode+')','business-lines','export']);
+ const result={csv,filename:'business-lines-'+body.mode+'-'+new Date().toISOString().slice(0,19).replaceAll(':','')+'Z.csv',count:rows.length};
+ if(Buffer.byteLength(JSON.stringify(result),'utf8')>limits.maxExportResponseBytes)fail(400,'Export is too large; narrow your filters or choose fewer columns');
+ return result;
+}
+export async function businessLines({client,user,path,method,url,body}){
+ const permissions=businessLinePermissions(user);
+ if(!permissions.read)fail(403,'Super Admin access required');
+ if(path[0]!=='business-lines'||path.length>3)fail(404,'Not found');
+ if(method!=='GET'&&path[1]!=='export')await client.query('SELECT pg_advisory_xact_lock(830151)');
+ try{
+  if(path.length===1&&method==='GET'){
+   requirePermission(permissions,'read');
+   const options=parameters(Object.fromEntries(url.searchParams));
+   requireQueryPermissions(permissions,options);
+   const where=whereFor(options);
+   const total=Number((await client.query('SELECT count(*)::integer AS total '+joins+where.sql,where.params)).rows[0].total);
+   const totalPages=Math.max(1,Math.ceil(total/options.pageSize));
+   const page=Math.min(options.page,totalPages);
+   const data=await client.query(select+where.sql+orderFor(options)+' LIMIT $'+(where.params.length+1)+' OFFSET $'+(where.params.length+2),[...where.params,options.pageSize,(page-1)*options.pageSize]);
+   const counts=(await client.query(`SELECT count(*) FILTER(WHERE deleted_at IS NULL)::integer AS total,
+    count(*) FILTER(WHERE deleted_at IS NULL AND archived_at IS NULL AND status='Active')::integer AS active,
+    count(*) FILTER(WHERE deleted_at IS NULL AND archived_at IS NULL AND status='Inactive')::integer AS inactive,
+    count(*) FILTER(WHERE deleted_at IS NULL AND archived_at IS NOT NULL)::integer AS archived FROM business_lines`)).rows[0];
+   return {records:data.rows.map(businessLineView),total,page,pageSize:options.pageSize,totalPages,counts,owners:await owners(client),resource:{...businessLineResource,columns:businessLineColumns,limits},permissions};
+  }
+  if(path.length===2&&path[1]==='export'&&method==='POST')return await exportRecords(client,user,body,permissions);
+  if(path.length===1&&method==='POST'){
+   requirePermission(permissions,'create');
+   onlyKeys(body,['name','code','description']);
+   const name=businessName(body.name);
+   const code=businessCode(body.code);
+   const description=body.description===undefined?'':text(body.description,'Business Line Description',500);
+   const id=randomUUID();
+   await client.query('INSERT INTO business_lines(id,name,code,description,owner_id,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$5,$5)',[id,name,code,description,user.id]);
+   const created=businessLineView(await record(client,id));
+   await event(client,user,id,'Created',null,created);
+   return {record:created};
+  }
+  if(path.length===2&&method==='GET'){
+   requirePermission(permissions,'read');
+   return {record:businessLineView(await record(client,path[1]))};
+  }
+  if(path.length===3&&path[2]==='history'&&method==='GET'){
+   requirePermission(permissions,'history');
+   await record(client,path[1]);
+   const rows=(await client.query('SELECT e.id,u.display_id AS actor_display_id,u.name AS actor,e.action,e.changes,e.reason,e.created_at FROM business_line_events e JOIN users u ON u.id=e.actor_id WHERE e.business_line_id=$1 ORDER BY e.id DESC LIMIT 200',[path[1]])).rows;
+   return {history:rows.map(row=>({id:row.id,actorId:row.actor_display_id,actor:row.actor,action:row.action,changes:row.changes,reason:row.reason,createdAt:date(row.created_at)}))};
+  }
+  if((path.length===2&&method==='PUT')||(path.length===3&&['archive','restore','soft-delete','restore-deleted'].includes(path[2])&&method==='POST')){
+   requirePermission(permissions,path.length===2?'edit':({'soft-delete':'softDelete','restore-deleted':'restoreDeleted'}[path[2]]||path[2]));
+   onlyKeys(body,path.length===2?['name','code','description','status','ownerId','version','reason']:['version','reason']);
+   version(body.version);
+   const existing=await record(client,path[1],true),before=businessLineView(existing);
+   if(existing.version!==body.version)fail(409,'This record changed. Refresh and try again.');
+   if(path.length===3){
+    const action=path[2],reason=lifecycleReason(body.reason),archive=action==='archive',unarchive=action==='restore',softDelete=action==='soft-delete',undelete=action==='restore-deleted';
+    if(softDelete||undelete){
+     if(softDelete&&existing.deleted_at)fail(409,'This Business Line is already deleted');
+     if(undelete&&!existing.deleted_at)fail(409,'This Business Line is not deleted');
+     if(softDelete&&await dependencies(client,existing))fail(409,'Referenced Business Lines cannot be deleted. Reassign linked records first.');
+     await client.query('UPDATE business_lines SET deleted_at=$2,deleted_by=$3,updated_by=$4,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,softDelete?new Date():null,softDelete?user.id:null,user.id]);
+    }else{
+     if(existing.deleted_at)fail(409,'Restore this deleted Business Line first');
+     if(archive&&existing.archived_at)fail(409,'This Business Line is already archived');
+     if(unarchive&&!existing.archived_at)fail(409,'This Business Line is not archived');
+     if(archive&&await dependencies(client,existing))fail(409,'Referenced Business Lines cannot be archived. Review dependent records first.');
+     await client.query('UPDATE business_lines SET archived_at=$2,archived_by=$3,updated_by=$4,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,archive?new Date():null,archive?user.id:null,user.id]);
+    }
+    const after=businessLineView(await record(client,existing.id));
+    await event(client,user,existing.id,softDelete?'Soft Deleted':undelete?'Restored Deleted':archive?'Archived':'Restored',before,after,reason);
+    return {record:after};
+   }
+   if(existing.archived_at||existing.deleted_at)fail(409,'Restore this Business Line before editing');
+   const name=own(body,'name')?businessName(body.name):existing.name;
+   const code=own(body,'code')?(body.code===''&&!existing.code?null:businessCode(body.code)):existing.code;
+   const description=own(body,'description')?text(body.description,'Business Line Description',500):existing.description;
+   const status=own(body,'status')?body.status:existing.status;
+   if(!['Active','Inactive'].includes(status))fail(400,'Invalid Business Line status');
+   const ownerId=own(body,'ownerId')?body.ownerId:existing.owner_id;
+   let ownerTechnicalId=existing.owner_id;
+   if(own(body,'ownerId')){
+    requirePermission(permissions,'reassignOwner');
+    if(typeof ownerId!=='string'||!/^UID-[0-9]{6,}$/.test(ownerId))fail(400,'Invalid Owner ID');
+    const matched=(await client.query("SELECT id FROM users WHERE display_id=$1 AND status='approved' AND email_verified=true FOR SHARE",[ownerId])).rows[0];
+    if(!matched)fail(400,'Owner must be an active, approved SCRM user');
+    ownerTechnicalId=matched.id;
+   }
+   if(status==='Inactive'&&existing.status!=='Inactive'&&await dependencies(client,existing))fail(409,'Referenced Business Lines cannot be deactivated. Review dependent records first.');
+   if(name!==existing.name&&await dependencies(client,existing,true))fail(409,'Legacy records reference this name. Migrate those references before renaming.');
+   const reason=status!==existing.status?lifecycleReason(body.reason):null;
+   if(name===existing.name&&code===existing.code&&description===existing.description&&status===existing.status&&ownerTechnicalId===existing.owner_id)return {record:before};
+   await client.query('UPDATE business_lines SET name=$2,code=$3,status=$4,description=$5,owner_id=$6,updated_by=$7,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,name,code,status,description,ownerTechnicalId,user.id]);
+   const after=businessLineView(await record(client,existing.id));
+   await event(client,user,existing.id,status!==existing.status?(status==='Inactive'?'Deactivated':'Reactivated'):'Updated',before,after,reason);
+   return {record:after};
+  }
+  fail(405,'Unsupported Business Line action');
+ }catch(error){
+  if(error.code==='23505')fail(409,'A Business Line with this name or code already exists, including archived records');
+  throw error;
+ }
+}
+
+/**
+ * Coordinate known legacy textual references with Business Line state changes.
+ * Unknown historic codes retain their old behaviour; they are never guessed.
+ */
+export async function validateBusinessLineReferences(client,module,data){
+ const names=[];
+ if(typeof data.scopeLine==='string'&&data.scopeLine.trim())names.push(data.scopeLine.trim().toLowerCase());
+ if(module==='customers'&&typeof data.line==='string'&&data.line.trim())names.push(data.line.trim().toLowerCase());
+ if(module==='branches'&&typeof data.lines==='string')
+  for(const part of data.lines.split(/[,;|]/u)){if(part.trim())names.push(part.trim().toLowerCase());}
+ if(!names.length)return;
+ await client.query('SELECT pg_advisory_xact_lock_shared(830151)');
+ const found=await client.query('SELECT status,archived_at,deleted_at FROM business_lines WHERE lower(name)=ANY($1::text[]) FOR SHARE',[names]);
+ if(found.rows.some(row=>row.status!=='Active'||row.archived_at||row.deleted_at))fail(409,'A referenced Business Line is inactive or archived');
+}
++(params.length+1)+' OFFSET 
+ if(rows.length>10000)fail(400,'Export supports up to 10,000 records; narrow your filters');
+ if(body.mode==='selected'&&rows.length!==body.ids.length)fail(409,'Some selected records are no longer available');
+ const columns=body.mode==='default'?defaultColumns:(body.columns||defaultColumns);
+ const csv=businessLineCSV(rows.map(businessLineView),columns);
+ await client.query('INSERT INTO audit(actor,action,module,record_id) VALUES($1,$2,$3,$4)',[user.id,'Exported '+rows.length+' records ('+body.mode+')','business-lines','export']);
+ const result={csv,filename:'business-lines-'+body.mode+'-'+new Date().toISOString().slice(0,19).replaceAll(':','')+'Z.csv',count:rows.length};
+ if(Buffer.byteLength(JSON.stringify(result),'utf8')>limits.maxExportResponseBytes)fail(400,'Export is too large; narrow your filters or choose fewer columns');
+ return result;
+}
+export async function businessLines({client,user,path,method,url,body}){
+ const permissions=businessLinePermissions(user);
+ if(!permissions.read)fail(403,'Super Admin access required');
+ if(path[0]!=='business-lines'||path.length>3)fail(404,'Not found');
+ if(method!=='GET'&&path[1]!=='export')await client.query('SELECT pg_advisory_xact_lock(830151)');
+ try{
+  if(path.length===1&&method==='GET'){
+   requirePermission(permissions,'read');
+   const options=parameters(Object.fromEntries(url.searchParams));
+   requireQueryPermissions(permissions,options);
+   const where=whereFor(options);
+   const total=Number((await client.query('SELECT count(*)::integer AS total '+joins+where.sql,where.params)).rows[0].total);
+   const totalPages=Math.max(1,Math.ceil(total/options.pageSize));
+   const page=Math.min(options.page,totalPages);
+   const data=await client.query(select+where.sql+orderFor(options)+' LIMIT $'+(where.params.length+1)+' OFFSET $'+(where.params.length+2),[...where.params,options.pageSize,(page-1)*options.pageSize]);
+   const counts=(await client.query(`SELECT count(*) FILTER(WHERE deleted_at IS NULL)::integer AS total,
+    count(*) FILTER(WHERE deleted_at IS NULL AND archived_at IS NULL AND status='Active')::integer AS active,
+    count(*) FILTER(WHERE deleted_at IS NULL AND archived_at IS NULL AND status='Inactive')::integer AS inactive,
+    count(*) FILTER(WHERE deleted_at IS NULL AND archived_at IS NOT NULL)::integer AS archived FROM business_lines`)).rows[0];
+   return {records:data.rows.map(businessLineView),total,page,pageSize:options.pageSize,totalPages,counts,owners:await owners(client),resource:{...businessLineResource,columns:businessLineColumns,limits},permissions};
+  }
+  if(path.length===2&&path[1]==='export'&&method==='POST')return await exportRecords(client,user,body,permissions);
+  if(path.length===1&&method==='POST'){
+   requirePermission(permissions,'create');
+   onlyKeys(body,['name','code','description']);
+   const name=businessName(body.name);
+   const code=businessCode(body.code);
+   const description=body.description===undefined?'':text(body.description,'Business Line Description',500);
+   const id=randomUUID();
+   await client.query('INSERT INTO business_lines(id,name,code,description,owner_id,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$5,$5)',[id,name,code,description,user.id]);
+   const created=businessLineView(await record(client,id));
+   await event(client,user,id,'Created',null,created);
+   return {record:created};
+  }
+  if(path.length===2&&method==='GET'){
+   requirePermission(permissions,'read');
+   return {record:businessLineView(await record(client,path[1]))};
+  }
+  if(path.length===3&&path[2]==='history'&&method==='GET'){
+   requirePermission(permissions,'history');
+   await record(client,path[1]);
+   const rows=(await client.query('SELECT e.id,u.display_id AS actor_display_id,u.name AS actor,e.action,e.changes,e.reason,e.created_at FROM business_line_events e JOIN users u ON u.id=e.actor_id WHERE e.business_line_id=$1 ORDER BY e.id DESC LIMIT 200',[path[1]])).rows;
+   return {history:rows.map(row=>({id:row.id,actorId:row.actor_display_id,actor:row.actor,action:row.action,changes:row.changes,reason:row.reason,createdAt:date(row.created_at)}))};
+  }
+  if((path.length===2&&method==='PUT')||(path.length===3&&['archive','restore','soft-delete','restore-deleted'].includes(path[2])&&method==='POST')){
+   requirePermission(permissions,path.length===2?'edit':({'soft-delete':'softDelete','restore-deleted':'restoreDeleted'}[path[2]]||path[2]));
+   onlyKeys(body,path.length===2?['name','code','description','status','ownerId','version','reason']:['version','reason']);
+   version(body.version);
+   const existing=await record(client,path[1],true),before=businessLineView(existing);
+   if(existing.version!==body.version)fail(409,'This record changed. Refresh and try again.');
+   if(path.length===3){
+    const action=path[2],reason=lifecycleReason(body.reason),archive=action==='archive',unarchive=action==='restore',softDelete=action==='soft-delete',undelete=action==='restore-deleted';
+    if(softDelete||undelete){
+     if(softDelete&&existing.deleted_at)fail(409,'This Business Line is already deleted');
+     if(undelete&&!existing.deleted_at)fail(409,'This Business Line is not deleted');
+     if(softDelete&&await dependencies(client,existing))fail(409,'Referenced Business Lines cannot be deleted. Reassign linked records first.');
+     await client.query('UPDATE business_lines SET deleted_at=$2,deleted_by=$3,updated_by=$4,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,softDelete?new Date():null,softDelete?user.id:null,user.id]);
+    }else{
+     if(existing.deleted_at)fail(409,'Restore this deleted Business Line first');
+     if(archive&&existing.archived_at)fail(409,'This Business Line is already archived');
+     if(unarchive&&!existing.archived_at)fail(409,'This Business Line is not archived');
+     if(archive&&await dependencies(client,existing))fail(409,'Referenced Business Lines cannot be archived. Review dependent records first.');
+     await client.query('UPDATE business_lines SET archived_at=$2,archived_by=$3,updated_by=$4,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,archive?new Date():null,archive?user.id:null,user.id]);
+    }
+    const after=businessLineView(await record(client,existing.id));
+    await event(client,user,existing.id,softDelete?'Soft Deleted':undelete?'Restored Deleted':archive?'Archived':'Restored',before,after,reason);
+    return {record:after};
+   }
+   if(existing.archived_at||existing.deleted_at)fail(409,'Restore this Business Line before editing');
+   const name=own(body,'name')?businessName(body.name):existing.name;
+   const code=own(body,'code')?(body.code===''&&!existing.code?null:businessCode(body.code)):existing.code;
+   const description=own(body,'description')?text(body.description,'Business Line Description',500):existing.description;
+   const status=own(body,'status')?body.status:existing.status;
+   if(!['Active','Inactive'].includes(status))fail(400,'Invalid Business Line status');
+   const ownerId=own(body,'ownerId')?body.ownerId:existing.owner_id;
+   let ownerTechnicalId=existing.owner_id;
+   if(own(body,'ownerId')){
+    requirePermission(permissions,'reassignOwner');
+    if(typeof ownerId!=='string'||!/^UID-[0-9]{6,}$/.test(ownerId))fail(400,'Invalid Owner ID');
+    const matched=(await client.query("SELECT id FROM users WHERE display_id=$1 AND status='approved' AND email_verified=true FOR SHARE",[ownerId])).rows[0];
+    if(!matched)fail(400,'Owner must be an active, approved SCRM user');
+    ownerTechnicalId=matched.id;
+   }
+   if(status==='Inactive'&&existing.status!=='Inactive'&&await dependencies(client,existing))fail(409,'Referenced Business Lines cannot be deactivated. Review dependent records first.');
+   if(name!==existing.name&&await dependencies(client,existing,true))fail(409,'Legacy records reference this name. Migrate those references before renaming.');
+   const reason=status!==existing.status?lifecycleReason(body.reason):null;
+   if(name===existing.name&&code===existing.code&&description===existing.description&&status===existing.status&&ownerTechnicalId===existing.owner_id)return {record:before};
+   await client.query('UPDATE business_lines SET name=$2,code=$3,status=$4,description=$5,owner_id=$6,updated_by=$7,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,name,code,status,description,ownerTechnicalId,user.id]);
+   const after=businessLineView(await record(client,existing.id));
+   await event(client,user,existing.id,status!==existing.status?(status==='Inactive'?'Deactivated':'Reactivated'):'Updated',before,after,reason);
+   return {record:after};
+  }
+  fail(405,'Unsupported Business Line action');
+ }catch(error){
+  if(error.code==='23505')fail(409,'A Business Line with this name or code already exists, including archived records');
+  throw error;
+ }
+}
+
+/**
+ * Coordinate known legacy textual references with Business Line state changes.
+ * Unknown historic codes retain their old behaviour; they are never guessed.
+ */
+export async function validateBusinessLineReferences(client,module,data){
+ const names=[];
+ if(typeof data.scopeLine==='string'&&data.scopeLine.trim())names.push(data.scopeLine.trim().toLowerCase());
+ if(module==='customers'&&typeof data.line==='string'&&data.line.trim())names.push(data.line.trim().toLowerCase());
+ if(module==='branches'&&typeof data.lines==='string')
+  for(const part of data.lines.split(/[,;|]/u)){if(part.trim())names.push(part.trim().toLowerCase());}
+ if(!names.length)return;
+ await client.query('SELECT pg_advisory_xact_lock_shared(830151)');
+ const found=await client.query('SELECT status,archived_at,deleted_at FROM business_lines WHERE lower(name)=ANY($1::text[]) FOR SHARE',[names]);
+ if(found.rows.some(row=>row.status!=='Active'||row.archived_at||row.deleted_at))fail(409,'A referenced Business Line is inactive or archived');
+}
++(params.length+2):' LIMIT 10001'),pageMode?[...params,options.pageSize,pageOffset]:params)).rows;
+ if(rows.length>10000)fail(400,'Export supports up to 10,000 records; narrow your filters');
+ if(body.mode==='selected'&&rows.length!==body.ids.length)fail(409,'Some selected records are no longer available');
+ const columns=body.mode==='default'?defaultColumns:(body.columns||defaultColumns);
+ const csv=businessLineCSV(rows.map(businessLineView),columns);
+ await client.query('INSERT INTO audit(actor,action,module,record_id) VALUES($1,$2,$3,$4)',[user.id,'Exported '+rows.length+' records ('+body.mode+')','business-lines','export']);
+ const result={csv,filename:'business-lines-'+body.mode+'-'+new Date().toISOString().slice(0,19).replaceAll(':','')+'Z.csv',count:rows.length};
+ if(Buffer.byteLength(JSON.stringify(result),'utf8')>limits.maxExportResponseBytes)fail(400,'Export is too large; narrow your filters or choose fewer columns');
+ return result;
+}
+export async function businessLines({client,user,path,method,url,body}){
+ const permissions=businessLinePermissions(user);
+ if(!permissions.read)fail(403,'Super Admin access required');
+ if(path[0]!=='business-lines'||path.length>3)fail(404,'Not found');
+ if(method!=='GET'&&path[1]!=='export')await client.query('SELECT pg_advisory_xact_lock(830151)');
+ try{
+  if(path.length===1&&method==='GET'){
+   requirePermission(permissions,'read');
+   const options=parameters(Object.fromEntries(url.searchParams));
+   requireQueryPermissions(permissions,options);
+   const where=whereFor(options);
+   const total=Number((await client.query('SELECT count(*)::integer AS total '+joins+where.sql,where.params)).rows[0].total);
+   const totalPages=Math.max(1,Math.ceil(total/options.pageSize));
+   const page=Math.min(options.page,totalPages);
+   const data=await client.query(select+where.sql+orderFor(options)+' LIMIT $'+(where.params.length+1)+' OFFSET $'+(where.params.length+2),[...where.params,options.pageSize,(page-1)*options.pageSize]);
+   const counts=(await client.query(`SELECT count(*) FILTER(WHERE deleted_at IS NULL)::integer AS total,
+    count(*) FILTER(WHERE deleted_at IS NULL AND archived_at IS NULL AND status='Active')::integer AS active,
+    count(*) FILTER(WHERE deleted_at IS NULL AND archived_at IS NULL AND status='Inactive')::integer AS inactive,
+    count(*) FILTER(WHERE deleted_at IS NULL AND archived_at IS NOT NULL)::integer AS archived FROM business_lines`)).rows[0];
+   return {records:data.rows.map(businessLineView),total,page,pageSize:options.pageSize,totalPages,counts,owners:await owners(client),resource:{...businessLineResource,columns:businessLineColumns,limits},permissions};
+  }
+  if(path.length===2&&path[1]==='export'&&method==='POST')return await exportRecords(client,user,body,permissions);
+  if(path.length===1&&method==='POST'){
+   requirePermission(permissions,'create');
+   onlyKeys(body,['name','code','description']);
+   const name=businessName(body.name);
+   const code=businessCode(body.code);
+   const description=body.description===undefined?'':text(body.description,'Business Line Description',500);
+   const id=randomUUID();
+   await client.query('INSERT INTO business_lines(id,name,code,description,owner_id,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$5,$5)',[id,name,code,description,user.id]);
+   const created=businessLineView(await record(client,id));
+   await event(client,user,id,'Created',null,created);
+   return {record:created};
+  }
+  if(path.length===2&&method==='GET'){
+   requirePermission(permissions,'read');
+   return {record:businessLineView(await record(client,path[1]))};
+  }
+  if(path.length===3&&path[2]==='history'&&method==='GET'){
+   requirePermission(permissions,'history');
+   await record(client,path[1]);
+   const rows=(await client.query('SELECT e.id,u.display_id AS actor_display_id,u.name AS actor,e.action,e.changes,e.reason,e.created_at FROM business_line_events e JOIN users u ON u.id=e.actor_id WHERE e.business_line_id=$1 ORDER BY e.id DESC LIMIT 200',[path[1]])).rows;
+   return {history:rows.map(row=>({id:row.id,actorId:row.actor_display_id,actor:row.actor,action:row.action,changes:row.changes,reason:row.reason,createdAt:date(row.created_at)}))};
+  }
+  if((path.length===2&&method==='PUT')||(path.length===3&&['archive','restore','soft-delete','restore-deleted'].includes(path[2])&&method==='POST')){
+   requirePermission(permissions,path.length===2?'edit':({'soft-delete':'softDelete','restore-deleted':'restoreDeleted'}[path[2]]||path[2]));
+   onlyKeys(body,path.length===2?['name','code','description','status','ownerId','version','reason']:['version','reason']);
+   version(body.version);
+   const existing=await record(client,path[1],true),before=businessLineView(existing);
+   if(existing.version!==body.version)fail(409,'This record changed. Refresh and try again.');
+   if(path.length===3){
+    const action=path[2],reason=lifecycleReason(body.reason),archive=action==='archive',unarchive=action==='restore',softDelete=action==='soft-delete',undelete=action==='restore-deleted';
+    if(softDelete||undelete){
+     if(softDelete&&existing.deleted_at)fail(409,'This Business Line is already deleted');
+     if(undelete&&!existing.deleted_at)fail(409,'This Business Line is not deleted');
+     if(softDelete&&await dependencies(client,existing))fail(409,'Referenced Business Lines cannot be deleted. Reassign linked records first.');
+     await client.query('UPDATE business_lines SET deleted_at=$2,deleted_by=$3,updated_by=$4,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,softDelete?new Date():null,softDelete?user.id:null,user.id]);
+    }else{
+     if(existing.deleted_at)fail(409,'Restore this deleted Business Line first');
+     if(archive&&existing.archived_at)fail(409,'This Business Line is already archived');
+     if(unarchive&&!existing.archived_at)fail(409,'This Business Line is not archived');
+     if(archive&&await dependencies(client,existing))fail(409,'Referenced Business Lines cannot be archived. Review dependent records first.');
+     await client.query('UPDATE business_lines SET archived_at=$2,archived_by=$3,updated_by=$4,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,archive?new Date():null,archive?user.id:null,user.id]);
+    }
+    const after=businessLineView(await record(client,existing.id));
+    await event(client,user,existing.id,softDelete?'Soft Deleted':undelete?'Restored Deleted':archive?'Archived':'Restored',before,after,reason);
+    return {record:after};
+   }
+   if(existing.archived_at||existing.deleted_at)fail(409,'Restore this Business Line before editing');
+   const name=own(body,'name')?businessName(body.name):existing.name;
+   const code=own(body,'code')?(body.code===''&&!existing.code?null:businessCode(body.code)):existing.code;
+   const description=own(body,'description')?text(body.description,'Business Line Description',500):existing.description;
+   const status=own(body,'status')?body.status:existing.status;
+   if(!['Active','Inactive'].includes(status))fail(400,'Invalid Business Line status');
+   const ownerId=own(body,'ownerId')?body.ownerId:existing.owner_id;
+   let ownerTechnicalId=existing.owner_id;
+   if(own(body,'ownerId')){
+    requirePermission(permissions,'reassignOwner');
+    if(typeof ownerId!=='string'||!/^UID-[0-9]{6,}$/.test(ownerId))fail(400,'Invalid Owner ID');
+    const matched=(await client.query("SELECT id FROM users WHERE display_id=$1 AND status='approved' AND email_verified=true FOR SHARE",[ownerId])).rows[0];
+    if(!matched)fail(400,'Owner must be an active, approved SCRM user');
+    ownerTechnicalId=matched.id;
+   }
+   if(status==='Inactive'&&existing.status!=='Inactive'&&await dependencies(client,existing))fail(409,'Referenced Business Lines cannot be deactivated. Review dependent records first.');
+   if(name!==existing.name&&await dependencies(client,existing,true))fail(409,'Legacy records reference this name. Migrate those references before renaming.');
+   const reason=status!==existing.status?lifecycleReason(body.reason):null;
+   if(name===existing.name&&code===existing.code&&description===existing.description&&status===existing.status&&ownerTechnicalId===existing.owner_id)return {record:before};
+   await client.query('UPDATE business_lines SET name=$2,code=$3,status=$4,description=$5,owner_id=$6,updated_by=$7,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,name,code,status,description,ownerTechnicalId,user.id]);
+   const after=businessLineView(await record(client,existing.id));
+   await event(client,user,existing.id,status!==existing.status?(status==='Inactive'?'Deactivated':'Reactivated'):'Updated',before,after,reason);
+   return {record:after};
+  }
+  fail(405,'Unsupported Business Line action');
+ }catch(error){
+  if(error.code==='23505')fail(409,'A Business Line with this name or code already exists, including archived records');
+  throw error;
+ }
+}
+
+/**
+ * Coordinate known legacy textual references with Business Line state changes.
+ * Unknown historic codes retain their old behaviour; they are never guessed.
+ */
+export async function validateBusinessLineReferences(client,module,data){
+ const names=[];
+ if(typeof data.scopeLine==='string'&&data.scopeLine.trim())names.push(data.scopeLine.trim().toLowerCase());
+ if(module==='customers'&&typeof data.line==='string'&&data.line.trim())names.push(data.line.trim().toLowerCase());
+ if(module==='branches'&&typeof data.lines==='string')
+  for(const part of data.lines.split(/[,;|]/u)){if(part.trim())names.push(part.trim().toLowerCase());}
+ if(!names.length)return;
+ await client.query('SELECT pg_advisory_xact_lock_shared(830151)');
+ const found=await client.query('SELECT status,archived_at,deleted_at FROM business_lines WHERE lower(name)=ANY($1::text[]) FOR SHARE',[names]);
+ if(found.rows.some(row=>row.status!=='Active'||row.archived_at||row.deleted_at))fail(409,'A referenced Business Line is inactive or archived');
+}
++(params.length+1)+' OFFSET  if(rows.length>10000)fail(400,'Export supports up to 10,000 records; narrow your filters');
+ if(body.mode==='selected'&&rows.length!==body.ids.length)fail(409,'Some selected records are no longer available');
+ const columns=['default','page'].includes(body.mode)?defaultColumns:(body.columns||defaultColumns);
+ const csv=businessLineCSV(rows.map(businessLineView),columns);
+ await client.query('INSERT INTO audit(actor,action,module,record_id) VALUES($1,$2,$3,$4)',[user.id,'Exported '+rows.length+' records ('+body.mode+')','business-lines','export']);
+ const result={csv,filename:'business-lines-'+body.mode+'-'+new Date().toISOString().slice(0,19).replaceAll(':','')+'Z.csv',count:rows.length};
+ if(Buffer.byteLength(JSON.stringify(result),'utf8')>limits.maxExportResponseBytes)fail(400,'Export is too large; narrow your filters or choose fewer columns');
+ return result;
+}
+export async function businessLines({client,user,path,method,url,body}){
+ const permissions=businessLinePermissions(user);
+ if(!permissions.read)fail(403,'Super Admin access required');
+ if(path[0]!=='business-lines'||path.length>3)fail(404,'Not found');
+ if(method!=='GET'&&path[1]!=='export')await client.query('SELECT pg_advisory_xact_lock(830151)');
+ try{
+  if(path.length===1&&method==='GET'){
+   requirePermission(permissions,'read');
+   const options=parameters(Object.fromEntries(url.searchParams));
+   requireQueryPermissions(permissions,options);
+   const where=whereFor(options);
+   const total=Number((await client.query('SELECT count(*)::integer AS total '+joins+where.sql,where.params)).rows[0].total);
+   const totalPages=Math.max(1,Math.ceil(total/options.pageSize));
+   const page=Math.min(options.page,totalPages);
+   const data=await client.query(select+where.sql+orderFor(options)+' LIMIT $'+(where.params.length+1)+' OFFSET $'+(where.params.length+2),[...where.params,options.pageSize,(page-1)*options.pageSize]);
+   const counts=(await client.query(`SELECT count(*) FILTER(WHERE deleted_at IS NULL)::integer AS total,
+    count(*) FILTER(WHERE deleted_at IS NULL AND archived_at IS NULL AND status='Active')::integer AS active,
+    count(*) FILTER(WHERE deleted_at IS NULL AND archived_at IS NULL AND status='Inactive')::integer AS inactive,
+    count(*) FILTER(WHERE deleted_at IS NULL AND archived_at IS NOT NULL)::integer AS archived FROM business_lines`)).rows[0];
+   return {records:data.rows.map(businessLineView),total,page,pageSize:options.pageSize,totalPages,counts,owners:await owners(client),resource:{...businessLineResource,columns:businessLineColumns,limits},permissions};
+  }
+  if(path.length===2&&path[1]==='export'&&method==='POST')return await exportRecords(client,user,body,permissions);
+  if(path.length===1&&method==='POST'){
+   requirePermission(permissions,'create');
+   onlyKeys(body,['name','code','description']);
+   const name=businessName(body.name);
+   const code=businessCode(body.code);
+   const description=body.description===undefined?'':text(body.description,'Business Line Description',500);
+   const id=randomUUID();
+   await client.query('INSERT INTO business_lines(id,name,code,description,owner_id,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$5,$5)',[id,name,code,description,user.id]);
+   const created=businessLineView(await record(client,id));
+   await event(client,user,id,'Created',null,created);
+   return {record:created};
+  }
+  if(path.length===2&&method==='GET'){
+   requirePermission(permissions,'read');
+   return {record:businessLineView(await record(client,path[1]))};
+  }
+  if(path.length===3&&path[2]==='history'&&method==='GET'){
+   requirePermission(permissions,'history');
+   await record(client,path[1]);
+   const rows=(await client.query('SELECT e.id,u.display_id AS actor_display_id,u.name AS actor,e.action,e.changes,e.reason,e.created_at FROM business_line_events e JOIN users u ON u.id=e.actor_id WHERE e.business_line_id=$1 ORDER BY e.id DESC LIMIT 200',[path[1]])).rows;
+   return {history:rows.map(row=>({id:row.id,actorId:row.actor_display_id,actor:row.actor,action:row.action,changes:row.changes,reason:row.reason,createdAt:date(row.created_at)}))};
+  }
+  if((path.length===2&&method==='PUT')||(path.length===3&&['archive','restore','soft-delete','restore-deleted'].includes(path[2])&&method==='POST')){
+   requirePermission(permissions,path.length===2?'edit':({'soft-delete':'softDelete','restore-deleted':'restoreDeleted'}[path[2]]||path[2]));
+   onlyKeys(body,path.length===2?['name','code','description','status','ownerId','version','reason']:['version','reason']);
+   version(body.version);
+   const existing=await record(client,path[1],true),before=businessLineView(existing);
+   if(existing.version!==body.version)fail(409,'This record changed. Refresh and try again.');
+   if(path.length===3){
+    const action=path[2],reason=lifecycleReason(body.reason),archive=action==='archive',unarchive=action==='restore',softDelete=action==='soft-delete',undelete=action==='restore-deleted';
+    if(softDelete||undelete){
+     if(softDelete&&existing.deleted_at)fail(409,'This Business Line is already deleted');
+     if(undelete&&!existing.deleted_at)fail(409,'This Business Line is not deleted');
+     if(softDelete&&await dependencies(client,existing))fail(409,'Referenced Business Lines cannot be deleted. Reassign linked records first.');
+     await client.query('UPDATE business_lines SET deleted_at=$2,deleted_by=$3,updated_by=$4,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,softDelete?new Date():null,softDelete?user.id:null,user.id]);
+    }else{
+     if(existing.deleted_at)fail(409,'Restore this deleted Business Line first');
+     if(archive&&existing.archived_at)fail(409,'This Business Line is already archived');
+     if(unarchive&&!existing.archived_at)fail(409,'This Business Line is not archived');
+     if(archive&&await dependencies(client,existing))fail(409,'Referenced Business Lines cannot be archived. Review dependent records first.');
+     await client.query('UPDATE business_lines SET archived_at=$2,archived_by=$3,updated_by=$4,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,archive?new Date():null,archive?user.id:null,user.id]);
+    }
+    const after=businessLineView(await record(client,existing.id));
+    await event(client,user,existing.id,softDelete?'Soft Deleted':undelete?'Restored Deleted':archive?'Archived':'Restored',before,after,reason);
+    return {record:after};
+   }
+   if(existing.archived_at||existing.deleted_at)fail(409,'Restore this Business Line before editing');
+   const name=own(body,'name')?businessName(body.name):existing.name;
+   const code=own(body,'code')?(body.code===''&&!existing.code?null:businessCode(body.code)):existing.code;
+   const description=own(body,'description')?text(body.description,'Business Line Description',500):existing.description;
+   const status=own(body,'status')?body.status:existing.status;
+   if(!['Active','Inactive'].includes(status))fail(400,'Invalid Business Line status');
+   const ownerId=own(body,'ownerId')?body.ownerId:existing.owner_id;
+   let ownerTechnicalId=existing.owner_id;
+   if(own(body,'ownerId')){
+    requirePermission(permissions,'reassignOwner');
+    if(typeof ownerId!=='string'||!/^UID-[0-9]{6,}$/.test(ownerId))fail(400,'Invalid Owner ID');
+    const matched=(await client.query("SELECT id FROM users WHERE display_id=$1 AND status='approved' AND email_verified=true FOR SHARE",[ownerId])).rows[0];
+    if(!matched)fail(400,'Owner must be an active, approved SCRM user');
+    ownerTechnicalId=matched.id;
+   }
+   if(status==='Inactive'&&existing.status!=='Inactive'&&await dependencies(client,existing))fail(409,'Referenced Business Lines cannot be deactivated. Review dependent records first.');
+   if(name!==existing.name&&await dependencies(client,existing,true))fail(409,'Legacy records reference this name. Migrate those references before renaming.');
+   const reason=status!==existing.status?lifecycleReason(body.reason):null;
+   if(name===existing.name&&code===existing.code&&description===existing.description&&status===existing.status&&ownerTechnicalId===existing.owner_id)return {record:before};
+   await client.query('UPDATE business_lines SET name=$2,code=$3,status=$4,description=$5,owner_id=$6,updated_by=$7,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,name,code,status,description,ownerTechnicalId,user.id]);
+   const after=businessLineView(await record(client,existing.id));
+   await event(client,user,existing.id,status!==existing.status?(status==='Inactive'?'Deactivated':'Reactivated'):'Updated',before,after,reason);
+   return {record:after};
+  }
+  fail(405,'Unsupported Business Line action');
+ }catch(error){
+  if(error.code==='23505')fail(409,'A Business Line with this name or code already exists, including archived records');
+  throw error;
+ }
+}
+
+/**
+ * Coordinate known legacy textual references with Business Line state changes.
+ * Unknown historic codes retain their old behaviour; they are never guessed.
+ */
+export async function validateBusinessLineReferences(client,module,data){
+ const names=[];
+ if(typeof data.scopeLine==='string'&&data.scopeLine.trim())names.push(data.scopeLine.trim().toLowerCase());
+ if(module==='customers'&&typeof data.line==='string'&&data.line.trim())names.push(data.line.trim().toLowerCase());
+ if(module==='branches'&&typeof data.lines==='string')
+  for(const part of data.lines.split(/[,;|]/u)){if(part.trim())names.push(part.trim().toLowerCase());}
+ if(!names.length)return;
+ await client.query('SELECT pg_advisory_xact_lock_shared(830151)');
+ const found=await client.query('SELECT status,archived_at,deleted_at FROM business_lines WHERE lower(name)=ANY($1::text[]) FOR SHARE',[names]);
+ if(found.rows.some(row=>row.status!=='Active'||row.archived_at||row.deleted_at))fail(409,'A referenced Business Line is inactive or archived');
+}
++(params.length+1)+' OFFSET 
+ if(rows.length>10000)fail(400,'Export supports up to 10,000 records; narrow your filters');
+ if(body.mode==='selected'&&rows.length!==body.ids.length)fail(409,'Some selected records are no longer available');
+ const columns=body.mode==='default'?defaultColumns:(body.columns||defaultColumns);
+ const csv=businessLineCSV(rows.map(businessLineView),columns);
+ await client.query('INSERT INTO audit(actor,action,module,record_id) VALUES($1,$2,$3,$4)',[user.id,'Exported '+rows.length+' records ('+body.mode+')','business-lines','export']);
+ const result={csv,filename:'business-lines-'+body.mode+'-'+new Date().toISOString().slice(0,19).replaceAll(':','')+'Z.csv',count:rows.length};
+ if(Buffer.byteLength(JSON.stringify(result),'utf8')>limits.maxExportResponseBytes)fail(400,'Export is too large; narrow your filters or choose fewer columns');
+ return result;
+}
+export async function businessLines({client,user,path,method,url,body}){
+ const permissions=businessLinePermissions(user);
+ if(!permissions.read)fail(403,'Super Admin access required');
+ if(path[0]!=='business-lines'||path.length>3)fail(404,'Not found');
+ if(method!=='GET'&&path[1]!=='export')await client.query('SELECT pg_advisory_xact_lock(830151)');
+ try{
+  if(path.length===1&&method==='GET'){
+   requirePermission(permissions,'read');
+   const options=parameters(Object.fromEntries(url.searchParams));
+   requireQueryPermissions(permissions,options);
+   const where=whereFor(options);
+   const total=Number((await client.query('SELECT count(*)::integer AS total '+joins+where.sql,where.params)).rows[0].total);
+   const totalPages=Math.max(1,Math.ceil(total/options.pageSize));
+   const page=Math.min(options.page,totalPages);
+   const data=await client.query(select+where.sql+orderFor(options)+' LIMIT $'+(where.params.length+1)+' OFFSET $'+(where.params.length+2),[...where.params,options.pageSize,(page-1)*options.pageSize]);
+   const counts=(await client.query(`SELECT count(*) FILTER(WHERE deleted_at IS NULL)::integer AS total,
+    count(*) FILTER(WHERE deleted_at IS NULL AND archived_at IS NULL AND status='Active')::integer AS active,
+    count(*) FILTER(WHERE deleted_at IS NULL AND archived_at IS NULL AND status='Inactive')::integer AS inactive,
+    count(*) FILTER(WHERE deleted_at IS NULL AND archived_at IS NOT NULL)::integer AS archived FROM business_lines`)).rows[0];
+   return {records:data.rows.map(businessLineView),total,page,pageSize:options.pageSize,totalPages,counts,owners:await owners(client),resource:{...businessLineResource,columns:businessLineColumns,limits},permissions};
+  }
+  if(path.length===2&&path[1]==='export'&&method==='POST')return await exportRecords(client,user,body,permissions);
+  if(path.length===1&&method==='POST'){
+   requirePermission(permissions,'create');
+   onlyKeys(body,['name','code','description']);
+   const name=businessName(body.name);
+   const code=businessCode(body.code);
+   const description=body.description===undefined?'':text(body.description,'Business Line Description',500);
+   const id=randomUUID();
+   await client.query('INSERT INTO business_lines(id,name,code,description,owner_id,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$5,$5)',[id,name,code,description,user.id]);
+   const created=businessLineView(await record(client,id));
+   await event(client,user,id,'Created',null,created);
+   return {record:created};
+  }
+  if(path.length===2&&method==='GET'){
+   requirePermission(permissions,'read');
+   return {record:businessLineView(await record(client,path[1]))};
+  }
+  if(path.length===3&&path[2]==='history'&&method==='GET'){
+   requirePermission(permissions,'history');
+   await record(client,path[1]);
+   const rows=(await client.query('SELECT e.id,u.display_id AS actor_display_id,u.name AS actor,e.action,e.changes,e.reason,e.created_at FROM business_line_events e JOIN users u ON u.id=e.actor_id WHERE e.business_line_id=$1 ORDER BY e.id DESC LIMIT 200',[path[1]])).rows;
+   return {history:rows.map(row=>({id:row.id,actorId:row.actor_display_id,actor:row.actor,action:row.action,changes:row.changes,reason:row.reason,createdAt:date(row.created_at)}))};
+  }
+  if((path.length===2&&method==='PUT')||(path.length===3&&['archive','restore','soft-delete','restore-deleted'].includes(path[2])&&method==='POST')){
+   requirePermission(permissions,path.length===2?'edit':({'soft-delete':'softDelete','restore-deleted':'restoreDeleted'}[path[2]]||path[2]));
+   onlyKeys(body,path.length===2?['name','code','description','status','ownerId','version','reason']:['version','reason']);
+   version(body.version);
+   const existing=await record(client,path[1],true),before=businessLineView(existing);
+   if(existing.version!==body.version)fail(409,'This record changed. Refresh and try again.');
+   if(path.length===3){
+    const action=path[2],reason=lifecycleReason(body.reason),archive=action==='archive',unarchive=action==='restore',softDelete=action==='soft-delete',undelete=action==='restore-deleted';
+    if(softDelete||undelete){
+     if(softDelete&&existing.deleted_at)fail(409,'This Business Line is already deleted');
+     if(undelete&&!existing.deleted_at)fail(409,'This Business Line is not deleted');
+     if(softDelete&&await dependencies(client,existing))fail(409,'Referenced Business Lines cannot be deleted. Reassign linked records first.');
+     await client.query('UPDATE business_lines SET deleted_at=$2,deleted_by=$3,updated_by=$4,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,softDelete?new Date():null,softDelete?user.id:null,user.id]);
+    }else{
+     if(existing.deleted_at)fail(409,'Restore this deleted Business Line first');
+     if(archive&&existing.archived_at)fail(409,'This Business Line is already archived');
+     if(unarchive&&!existing.archived_at)fail(409,'This Business Line is not archived');
+     if(archive&&await dependencies(client,existing))fail(409,'Referenced Business Lines cannot be archived. Review dependent records first.');
+     await client.query('UPDATE business_lines SET archived_at=$2,archived_by=$3,updated_by=$4,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,archive?new Date():null,archive?user.id:null,user.id]);
+    }
+    const after=businessLineView(await record(client,existing.id));
+    await event(client,user,existing.id,softDelete?'Soft Deleted':undelete?'Restored Deleted':archive?'Archived':'Restored',before,after,reason);
+    return {record:after};
+   }
+   if(existing.archived_at||existing.deleted_at)fail(409,'Restore this Business Line before editing');
+   const name=own(body,'name')?businessName(body.name):existing.name;
+   const code=own(body,'code')?(body.code===''&&!existing.code?null:businessCode(body.code)):existing.code;
+   const description=own(body,'description')?text(body.description,'Business Line Description',500):existing.description;
+   const status=own(body,'status')?body.status:existing.status;
+   if(!['Active','Inactive'].includes(status))fail(400,'Invalid Business Line status');
+   const ownerId=own(body,'ownerId')?body.ownerId:existing.owner_id;
+   let ownerTechnicalId=existing.owner_id;
+   if(own(body,'ownerId')){
+    requirePermission(permissions,'reassignOwner');
+    if(typeof ownerId!=='string'||!/^UID-[0-9]{6,}$/.test(ownerId))fail(400,'Invalid Owner ID');
+    const matched=(await client.query("SELECT id FROM users WHERE display_id=$1 AND status='approved' AND email_verified=true FOR SHARE",[ownerId])).rows[0];
+    if(!matched)fail(400,'Owner must be an active, approved SCRM user');
+    ownerTechnicalId=matched.id;
+   }
+   if(status==='Inactive'&&existing.status!=='Inactive'&&await dependencies(client,existing))fail(409,'Referenced Business Lines cannot be deactivated. Review dependent records first.');
+   if(name!==existing.name&&await dependencies(client,existing,true))fail(409,'Legacy records reference this name. Migrate those references before renaming.');
+   const reason=status!==existing.status?lifecycleReason(body.reason):null;
+   if(name===existing.name&&code===existing.code&&description===existing.description&&status===existing.status&&ownerTechnicalId===existing.owner_id)return {record:before};
+   await client.query('UPDATE business_lines SET name=$2,code=$3,status=$4,description=$5,owner_id=$6,updated_by=$7,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,name,code,status,description,ownerTechnicalId,user.id]);
+   const after=businessLineView(await record(client,existing.id));
+   await event(client,user,existing.id,status!==existing.status?(status==='Inactive'?'Deactivated':'Reactivated'):'Updated',before,after,reason);
+   return {record:after};
+  }
+  fail(405,'Unsupported Business Line action');
+ }catch(error){
+  if(error.code==='23505')fail(409,'A Business Line with this name or code already exists, including archived records');
+  throw error;
+ }
+}
+
+/**
+ * Coordinate known legacy textual references with Business Line state changes.
+ * Unknown historic codes retain their old behaviour; they are never guessed.
+ */
+export async function validateBusinessLineReferences(client,module,data){
+ const names=[];
+ if(typeof data.scopeLine==='string'&&data.scopeLine.trim())names.push(data.scopeLine.trim().toLowerCase());
+ if(module==='customers'&&typeof data.line==='string'&&data.line.trim())names.push(data.line.trim().toLowerCase());
+ if(module==='branches'&&typeof data.lines==='string')
+  for(const part of data.lines.split(/[,;|]/u)){if(part.trim())names.push(part.trim().toLowerCase());}
+ if(!names.length)return;
+ await client.query('SELECT pg_advisory_xact_lock_shared(830151)');
+ const found=await client.query('SELECT status,archived_at,deleted_at FROM business_lines WHERE lower(name)=ANY($1::text[]) FOR SHARE',[names]);
+ if(found.rows.some(row=>row.status!=='Active'||row.archived_at||row.deleted_at))fail(409,'A referenced Business Line is inactive or archived');
+}
++(params.length+2):' LIMIT 10001'),pageMode?[...params,options.pageSize,pageOffset]:params)).rows;
+ if(rows.length>10000)fail(400,'Export supports up to 10,000 records; narrow your filters');
+ if(body.mode==='selected'&&rows.length!==body.ids.length)fail(409,'Some selected records are no longer available');
+ const columns=body.mode==='default'?defaultColumns:(body.columns||defaultColumns);
+ const csv=businessLineCSV(rows.map(businessLineView),columns);
+ await client.query('INSERT INTO audit(actor,action,module,record_id) VALUES($1,$2,$3,$4)',[user.id,'Exported '+rows.length+' records ('+body.mode+')','business-lines','export']);
+ const result={csv,filename:'business-lines-'+body.mode+'-'+new Date().toISOString().slice(0,19).replaceAll(':','')+'Z.csv',count:rows.length};
+ if(Buffer.byteLength(JSON.stringify(result),'utf8')>limits.maxExportResponseBytes)fail(400,'Export is too large; narrow your filters or choose fewer columns');
+ return result;
+}
+export async function businessLines({client,user,path,method,url,body}){
+ const permissions=businessLinePermissions(user);
+ if(!permissions.read)fail(403,'Super Admin access required');
+ if(path[0]!=='business-lines'||path.length>3)fail(404,'Not found');
+ if(method!=='GET'&&path[1]!=='export')await client.query('SELECT pg_advisory_xact_lock(830151)');
+ try{
+  if(path.length===1&&method==='GET'){
+   requirePermission(permissions,'read');
+   const options=parameters(Object.fromEntries(url.searchParams));
+   requireQueryPermissions(permissions,options);
+   const where=whereFor(options);
+   const total=Number((await client.query('SELECT count(*)::integer AS total '+joins+where.sql,where.params)).rows[0].total);
+   const totalPages=Math.max(1,Math.ceil(total/options.pageSize));
+   const page=Math.min(options.page,totalPages);
+   const data=await client.query(select+where.sql+orderFor(options)+' LIMIT $'+(where.params.length+1)+' OFFSET $'+(where.params.length+2),[...where.params,options.pageSize,(page-1)*options.pageSize]);
+   const counts=(await client.query(`SELECT count(*) FILTER(WHERE deleted_at IS NULL)::integer AS total,
+    count(*) FILTER(WHERE deleted_at IS NULL AND archived_at IS NULL AND status='Active')::integer AS active,
+    count(*) FILTER(WHERE deleted_at IS NULL AND archived_at IS NULL AND status='Inactive')::integer AS inactive,
+    count(*) FILTER(WHERE deleted_at IS NULL AND archived_at IS NOT NULL)::integer AS archived FROM business_lines`)).rows[0];
+   return {records:data.rows.map(businessLineView),total,page,pageSize:options.pageSize,totalPages,counts,owners:await owners(client),resource:{...businessLineResource,columns:businessLineColumns,limits},permissions};
+  }
+  if(path.length===2&&path[1]==='export'&&method==='POST')return await exportRecords(client,user,body,permissions);
+  if(path.length===1&&method==='POST'){
+   requirePermission(permissions,'create');
+   onlyKeys(body,['name','code','description']);
+   const name=businessName(body.name);
+   const code=businessCode(body.code);
+   const description=body.description===undefined?'':text(body.description,'Business Line Description',500);
+   const id=randomUUID();
+   await client.query('INSERT INTO business_lines(id,name,code,description,owner_id,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$5,$5)',[id,name,code,description,user.id]);
+   const created=businessLineView(await record(client,id));
+   await event(client,user,id,'Created',null,created);
+   return {record:created};
+  }
+  if(path.length===2&&method==='GET'){
+   requirePermission(permissions,'read');
+   return {record:businessLineView(await record(client,path[1]))};
+  }
+  if(path.length===3&&path[2]==='history'&&method==='GET'){
+   requirePermission(permissions,'history');
+   await record(client,path[1]);
+   const rows=(await client.query('SELECT e.id,u.display_id AS actor_display_id,u.name AS actor,e.action,e.changes,e.reason,e.created_at FROM business_line_events e JOIN users u ON u.id=e.actor_id WHERE e.business_line_id=$1 ORDER BY e.id DESC LIMIT 200',[path[1]])).rows;
+   return {history:rows.map(row=>({id:row.id,actorId:row.actor_display_id,actor:row.actor,action:row.action,changes:row.changes,reason:row.reason,createdAt:date(row.created_at)}))};
+  }
+  if((path.length===2&&method==='PUT')||(path.length===3&&['archive','restore','soft-delete','restore-deleted'].includes(path[2])&&method==='POST')){
+   requirePermission(permissions,path.length===2?'edit':({'soft-delete':'softDelete','restore-deleted':'restoreDeleted'}[path[2]]||path[2]));
+   onlyKeys(body,path.length===2?['name','code','description','status','ownerId','version','reason']:['version','reason']);
+   version(body.version);
+   const existing=await record(client,path[1],true),before=businessLineView(existing);
+   if(existing.version!==body.version)fail(409,'This record changed. Refresh and try again.');
+   if(path.length===3){
+    const action=path[2],reason=lifecycleReason(body.reason),archive=action==='archive',unarchive=action==='restore',softDelete=action==='soft-delete',undelete=action==='restore-deleted';
+    if(softDelete||undelete){
+     if(softDelete&&existing.deleted_at)fail(409,'This Business Line is already deleted');
+     if(undelete&&!existing.deleted_at)fail(409,'This Business Line is not deleted');
+     if(softDelete&&await dependencies(client,existing))fail(409,'Referenced Business Lines cannot be deleted. Reassign linked records first.');
+     await client.query('UPDATE business_lines SET deleted_at=$2,deleted_by=$3,updated_by=$4,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,softDelete?new Date():null,softDelete?user.id:null,user.id]);
+    }else{
+     if(existing.deleted_at)fail(409,'Restore this deleted Business Line first');
+     if(archive&&existing.archived_at)fail(409,'This Business Line is already archived');
+     if(unarchive&&!existing.archived_at)fail(409,'This Business Line is not archived');
+     if(archive&&await dependencies(client,existing))fail(409,'Referenced Business Lines cannot be archived. Review dependent records first.');
+     await client.query('UPDATE business_lines SET archived_at=$2,archived_by=$3,updated_by=$4,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,archive?new Date():null,archive?user.id:null,user.id]);
+    }
+    const after=businessLineView(await record(client,existing.id));
+    await event(client,user,existing.id,softDelete?'Soft Deleted':undelete?'Restored Deleted':archive?'Archived':'Restored',before,after,reason);
+    return {record:after};
+   }
+   if(existing.archived_at||existing.deleted_at)fail(409,'Restore this Business Line before editing');
+   const name=own(body,'name')?businessName(body.name):existing.name;
+   const code=own(body,'code')?(body.code===''&&!existing.code?null:businessCode(body.code)):existing.code;
+   const description=own(body,'description')?text(body.description,'Business Line Description',500):existing.description;
+   const status=own(body,'status')?body.status:existing.status;
+   if(!['Active','Inactive'].includes(status))fail(400,'Invalid Business Line status');
+   const ownerId=own(body,'ownerId')?body.ownerId:existing.owner_id;
+   let ownerTechnicalId=existing.owner_id;
+   if(own(body,'ownerId')){
+    requirePermission(permissions,'reassignOwner');
+    if(typeof ownerId!=='string'||!/^UID-[0-9]{6,}$/.test(ownerId))fail(400,'Invalid Owner ID');
+    const matched=(await client.query("SELECT id FROM users WHERE display_id=$1 AND status='approved' AND email_verified=true FOR SHARE",[ownerId])).rows[0];
+    if(!matched)fail(400,'Owner must be an active, approved SCRM user');
+    ownerTechnicalId=matched.id;
+   }
+   if(status==='Inactive'&&existing.status!=='Inactive'&&await dependencies(client,existing))fail(409,'Referenced Business Lines cannot be deactivated. Review dependent records first.');
+   if(name!==existing.name&&await dependencies(client,existing,true))fail(409,'Legacy records reference this name. Migrate those references before renaming.');
+   const reason=status!==existing.status?lifecycleReason(body.reason):null;
+   if(name===existing.name&&code===existing.code&&description===existing.description&&status===existing.status&&ownerTechnicalId===existing.owner_id)return {record:before};
+   await client.query('UPDATE business_lines SET name=$2,code=$3,status=$4,description=$5,owner_id=$6,updated_by=$7,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,name,code,status,description,ownerTechnicalId,user.id]);
+   const after=businessLineView(await record(client,existing.id));
+   await event(client,user,existing.id,status!==existing.status?(status==='Inactive'?'Deactivated':'Reactivated'):'Updated',before,after,reason);
+   return {record:after};
+  }
+  fail(405,'Unsupported Business Line action');
+ }catch(error){
+  if(error.code==='23505')fail(409,'A Business Line with this name or code already exists, including archived records');
+  throw error;
+ }
+}
+
+/**
+ * Coordinate known legacy textual references with Business Line state changes.
+ * Unknown historic codes retain their old behaviour; they are never guessed.
+ */
+export async function validateBusinessLineReferences(client,module,data){
+ const names=[];
+ if(typeof data.scopeLine==='string'&&data.scopeLine.trim())names.push(data.scopeLine.trim().toLowerCase());
+ if(module==='customers'&&typeof data.line==='string'&&data.line.trim())names.push(data.line.trim().toLowerCase());
+ if(module==='branches'&&typeof data.lines==='string')
+  for(const part of data.lines.split(/[,;|]/u)){if(part.trim())names.push(part.trim().toLowerCase());}
+ if(!names.length)return;
+ await client.query('SELECT pg_advisory_xact_lock_shared(830151)');
+ const found=await client.query('SELECT status,archived_at,deleted_at FROM business_lines WHERE lower(name)=ANY($1::text[]) FOR SHARE',[names]);
+ if(found.rows.some(row=>row.status!=='Active'||row.archived_at||row.deleted_at))fail(409,'A referenced Business Line is inactive or archived');
+}
++(params.length+2):' LIMIT 10001'),pageMode?[...params,options.pageSize,pageOffset]:params)).rows;
  if(rows.length>10000)fail(400,'Export supports up to 10,000 records; narrow your filters');
  if(body.mode==='selected'&&rows.length!==body.ids.length)fail(409,'Some selected records are no longer available');
  const columns=['default','page'].includes(body.mode)?defaultColumns:(body.columns||defaultColumns);
