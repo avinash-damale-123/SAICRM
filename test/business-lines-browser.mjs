@@ -78,9 +78,10 @@ try{
  const openBusiness=async()=>{await page.locator('[data-nav="businesslines"]').waitFor({state:'attached'});await page.evaluate(()=>{if(!window.__originalHeader)window.__originalHeader=Object.fromEntries(['#notifBtn','#focusModeBtn','#logoutBtn','.top-avatar'].map(selector=>{const node=document.querySelector(selector);return [selector,{node,parent:node.parentNode}]}));document.querySelector('[data-nav="businesslines"]').click()});await waitReady()};
  const search=async value=>{await page.locator('#crmSearchInput').fill(value);await page.locator('#crmSearchInput').press('Enter');await waitReady()};
  const refresh=async(wait=true)=>{
-  const menu=page.locator('.mw-settings-menu');
-  if(!(await menu.getAttribute('open')))await menu.locator('summary').click();
-  await menu.locator('[data-mw="refresh"]').click();if(wait)await waitReady();
+  // Manual Refresh was removed from Customize; a new search re-requests the list.
+  await page.locator('#crmSearchInput').fill('');
+  await page.locator('#crmSearchInput').press('Enter');
+  if(wait)await waitReady();
  };
  const headerRestored=async()=>{
   assert.equal(await page.locator('.mw-module-header').count(),0);
