@@ -400,13 +400,39 @@ function create(host,config) {
  d.querySelector('#mw-archive-cancel').onclick=()=>closeDialog();d.querySelector('#mw-archive-confirm').onclick=async()=>{if(!permitted(action))return;dialogSaving=true;d.querySelector('#mw-archive-confirm').disabled=true;try{await api(config.endpoint+'/'+encodeURIComponent(record.id)+'/'+action,'POST',{version:record.version});if(dead||dialog!==d)return;dialogSaving=false;closeDialog(true);announce(config.singular+' '+(restore?'restored.':'archived.'));load()}catch(e){if(dead||dialog!==d)return;dialogSaving=false;const err=d.querySelector('.mw-form-error');err.textContent=e.message;err.hidden=false;d.querySelector('#mw-archive-confirm').disabled=false}}
  }
  function columnsDialog(){if(dead||!permitted('settings'))return;
- let order=[...prefs.columns,...allColumns.filter(c=>!prefs.columns.includes(c.key)).map(c=>c.key)],enabled=new Set(prefs.columns);
- const d=openDialog('Columns & My View','<p class="mw-muted">Choose visible columns and their order. ID and Name remain visible. Your preferences apply only to your account on this browser.</p><div id="mw-column-options"></div><label class="mw-checkbox-label"><input id="mw-freeze" type="checkbox" '+(prefs.freeze?'checked':'')+'> Freeze ID and Name on wider screens</label>','<button class="mw-btn" type="button" id="mw-columns-reset">Reset default</button><button class="mw-btn mw-primary" type="button" id="mw-columns-save">Save My View</button>');if(!d)return;
- function draw(){d.querySelector('#mw-column-options').innerHTML=order.map((k,i)=>{const c=allColumns.find(c=>c.key===k);return '<div class="mw-column-option"><label><input type="checkbox" data-column-check="'+k+'" '+(enabled.has(k)?'checked':'')+' '+(c.locked?'disabled':'')+'>'+esc(c.label)+(c.locked?' <small>Required</small>':'')+'</label><div><button type="button" data-column-move="'+k+'" data-step="-1" aria-label="Move '+esc(c.label)+' up" '+(c.locked||i<=2?'disabled':'')+'>↑</button><button type="button" data-column-move="'+k+'" data-step="1" aria-label="Move '+esc(c.label)+' down" '+(c.locked||i===order.length-1?'disabled':'')+'>↓</button></div></div>'}).join('')}
- draw();d.querySelector('#mw-column-options').onchange=e=>{const k=e.target.dataset.columnCheck;if(k)e.target.checked?enabled.add(k):enabled.delete(k)};
- d.querySelector('#mw-column-options').onclick=e=>{const b=e.target.closest('[data-column-move]');if(!b)return;const i=order.indexOf(b.dataset.columnMove),j=i+Number(b.dataset.step);if(i<2||j<2||j>=order.length)return;[order[i],order[j]]=[order[j],order[i]];draw()};
- d.querySelector('#mw-columns-reset').onclick=()=>{order=[...defaults,...allColumns.filter(c=>!defaults.includes(c.key)).map(c=>c.key)];enabled=new Set(defaults);d.querySelector('#mw-freeze').checked=true;draw()};
- d.querySelector('#mw-columns-save').onclick=()=>{prefs.columns=order.filter(k=>enabled.has(k));prefs.freeze=d.querySelector('#mw-freeze').checked;savePrefs();closeDialog(true);render();announce('My View saved.')}
+ const keys=allColumns.map(c=>c.key),required=allColumns.filter(c=>c.locked).map(c=>c.key);
+ let order=[...prefs.columns,...keys.filter(k=>!prefs.columns.includes(k))],enabled=new Set(prefs.columns),view='my',term='';
+ const d=openDialog('Column Selection','<p class="mw-muted">Choose a view or customize your own. Required identity columns cannot be hidden.</p><div class="mw-column-presets" role="group" aria-label="Select table view"><button type="button" id="mw-view-default" class="mw-btn">Default View</button><button type="button" id="mw-view-my" class="mw-btn">My View</button><button type="button" id="mw-view-all" class="mw-btn">All Columns</button></div><label class="mw-field">Search columns<input type="search" id="mw-column-search" placeholder="Find a column..."></label><div class="mw-column-quick"><button type="button" id="mw-column-select-all" class="mw-btn">Select all permitted</button><button type="button" id="mw-column-clear" class="mw-btn">Clear optional</button></div><div id="mw-column-options"></div><label class="mw-checkbox-label"><input id="mw-freeze" type="checkbox" '+(prefs.freeze?'checked':'')+'> Freeze identity columns on wider screens</label>','<button class="mw-btn" type="button" id="mw-columns-reset">Reset default</button><button class="mw-btn mw-primary" type="button" id="mw-columns-save">Save My View</button>',true);if(!d)return;
+ const group=c=>config.key==='business-lines'?(['name','displayId','code','status','description'].includes(c.key)?'Basic Information':['owner','ownerId'].includes(c.key)?'Ownership Details':['createdBy','createdAt','createdById','updatedBy','updatedAt','updatedById'].includes(c.key)?'Record Information':'Lifecycle Information'):(c.system?'Record Information':'Basic Information');
+ const groups=[...new Set(allColumns.map(group))];
+ function draw(){
+  const matched=order.filter(k=>allColumns.some(c=>c.key===k&&(c.label.toLowerCase().includes(term)||k.toLowerCase().includes(term))));
+  d.querySelectorAll('.mw-column-presets button').forEach(b=>b.classList.toggle('mw-primary',b.id==='mw-view-'+(view==='default'?'default':view==='all'?'all':'my')));
+  d.querySelector('#mw-column-options').innerHTML=groups.map(g=>{
+   const items=matched.filter(k=>group(allColumns.find(c=>c.key===k))===g);
+   if(!items.length)return '';
+   return '<section class="mw-column-group"><h3>'+esc(g)+'</h3>'+items.map(k=>{
+    const i=order.indexOf(k),c=allColumns.find(c=>c.key===k);
+    return '<div class="mw-column-option" draggable="'+(!c.locked)+'" data-column-row="'+esc(k)+'"><label><input type="checkbox" data-column-check="'+esc(k)+'" '+(enabled.has(k)?'checked':'')+' '+(c.locked?'disabled':'')+'>'+esc(c.label)+(c.locked?' <small>Required</small>':'')+'</label><div><button type="button" data-column-move="'+esc(k)+'" data-step="-1" aria-label="Move '+esc(c.label)+' up" '+(c.locked||i<=0?'disabled':'')+'>↑</button><button type="button" data-column-move="'+esc(k)+'" data-step="1" aria-label="Move '+esc(c.label)+' down" '+(c.locked||i===order.length-1?'disabled':'')+'>↓</button></div></div>';
+   }).join('')+'</section>';
+  }).join('');
+ }
+ const changeView=next=>{view=next;enabled=new Set([...required,...(next==='all'?keys:next==='default'?defaults:prefs.columns)]);draw()};
+ d.querySelector('#mw-view-default').onclick=()=>changeView('default');
+ d.querySelector('#mw-view-my').onclick=()=>changeView('my');
+ d.querySelector('#mw-view-all').onclick=()=>changeView('all');
+ d.querySelector('#mw-column-search').oninput=e=>{term=e.target.value.toLowerCase().trim();draw()};
+ d.querySelector('#mw-column-select-all').onclick=()=>{view='my';enabled=new Set(keys);draw()};
+ d.querySelector('#mw-column-clear').onclick=()=>{view='my';enabled=new Set(required);draw()};
+ d.querySelector('#mw-column-options').onchange=e=>{const k=e.target.dataset.columnCheck;if(k){view='my';e.target.checked?enabled.add(k):enabled.delete(k);draw()}};
+ d.querySelector('#mw-column-options').onclick=e=>{const b=e.target.closest('[data-column-move]');if(!b)return;const i=order.indexOf(b.dataset.columnMove),j=i+Number(b.dataset.step);if(i<0||j<0||j>=order.length||allColumns.find(c=>c.key===order[i])?.locked)return;[order[i],order[j]]=[order[j],order[i]];view='my';draw()};
+ let dragged='';
+ d.querySelector('#mw-column-options').addEventListener('dragstart',e=>{dragged=e.target.closest('[data-column-row]')?.dataset.columnRow||''});
+ d.querySelector('#mw-column-options').addEventListener('dragover',e=>{if(e.target.closest('[data-column-row]'))e.preventDefault()});
+ d.querySelector('#mw-column-options').addEventListener('drop',e=>{e.preventDefault();const destination=e.target.closest('[data-column-row]')?.dataset.columnRow;if(!dragged||!destination||dragged===destination)return;const i=order.indexOf(dragged),j=order.indexOf(destination);if(i<0||j<0)return;order.splice(i,1);order.splice(j,0,dragged);view='my';draw()});
+ d.querySelector('#mw-columns-reset').onclick=()=>{order=[...defaults,...keys.filter(k=>!defaults.includes(k))];changeView('default');d.querySelector('#mw-freeze').checked=true};
+ d.querySelector('#mw-columns-save').onclick=()=>{prefs.columns=order.filter(k=>enabled.has(k));prefs.freeze=d.querySelector('#mw-freeze').checked;savePrefs();closeDialog(true);render();announce('My View saved.')};
+ draw();
  }
  function filterDialog(){if(dead||!permitted('filter'))return;
  let filters=state.filters.map(f=>({...f}));
