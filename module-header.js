@@ -96,6 +96,13 @@ function decorate(row,page,label) {
  });
  if(label==='Business Lines'){
   row.classList.add('scrm-bl-clean');
+  // Standard Records action order: Filter, Import, Export, Settings.
+  const filter=actions.querySelector('[data-mw="filter-toggle"]');
+  const importer=actions.querySelector('[data-mw="import"]');
+  const exporter=actions.querySelector('[data-mw="export"]');
+  const settings=actions.querySelector('.mw-settings-menu');
+  for(const node of [filter,importer,exporter,settings])if(node)actions.append(node);
+
   const home=tabs.querySelector('[data-mw="home"]');
   if(home)tabs.prepend(home);
   const add=actions.querySelector('[data-mw="create"]');
