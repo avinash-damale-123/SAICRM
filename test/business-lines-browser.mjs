@@ -226,6 +226,13 @@ try{
  for(const width of [320,360,768,1440]){await page.setViewportSize({width,height:850});await noOverflow('read '+width)}
  await page.locator('#bl-edit').click();
  assert.equal(await page.locator('#mw-bl-page-form [name="name"]').inputValue(),'Line Bravo');
+ assert.equal(await page.locator('.mw-bl-detail-page .mw-bl-field').count(),19,'Inline Edit retains all nineteen fields');
+ const updatesBefore=requests.filter(request=>request.method==='PUT'&&request.path.startsWith('business-lines/')).length;
+ await page.locator('#mw-bl-page-form [name="status"]').selectOption('Inactive');
+ assert.equal(await page.locator('#mw-bl-page-reason').isVisible(),true);
+ await page.locator('#bl-save').click();
+ assert.equal(requests.filter(request=>request.method==='PUT'&&request.path.startsWith('business-lines/')).length,updatesBefore,'Status must not update without mandatory reason');
+ await page.locator('#mw-bl-page-form [name="status"]').selectOption('Active');
  await page.locator('#mw-bl-page-form [name="name"]').fill('Line Bravo Updated');
  await page.locator('#mw-bl-page-form [name="description"]').fill('Saved UI context');
  await page.locator('#bl-save').click();await page.locator('#mw-bl-page-form').waitFor({state:'detached'});await waitReady();
@@ -350,6 +357,7 @@ try{
  // Permission fixtures exercise the UI contract without changing backend policy.
  permissions={read:true,history:false,search:true,create:false,edit:false,archive:false,restore:false,export:false,filter:false,settings:false,dashboard:false,import:false,delete:false};
  await page.reload();await openBusiness();
+ assert.equal(await page.locator('.scrm-bl-clean.scrm-no-tabs').count(),1,'Restricted view must reclaim tab bar space');
  for(const selector of ['[data-mw="create"]','[data-mw="export"]','[data-mw="filter-toggle"]','.mw-settings-menu','[data-mw="dashboard"]','[data-mw="import"]'])assert.equal(await page.locator(selector+':visible').count(),0,selector+' should be denied');
  const historyRequests=requests.filter(request=>request.path.endsWith('/history')).length;
  await page.locator('.mw-record-link').first().click();await page.locator('.mw-bl-section summary').filter({hasText:'Basic Information'}).waitFor();
