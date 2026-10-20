@@ -203,6 +203,15 @@ try{
  assert.equal(await page.locator('.mw-record-link').innerText(),'Line Bravo');
  assert.ok((await page.locator('.mw-query-summary').innerText()).includes('Bravo'));
  await page.locator('[data-mw="clear-filters"]').click();await waitReady();
+ // Dedicated record navigation must traverse the server-paginated filtered list.
+ await page.locator('.mw-record-link').last().click();
+ await page.locator('.mw-bl-detail-heading h2').waitFor();
+ const edgeName=await page.locator('.mw-bl-detail-heading h2').innerText();
+ await page.locator('[data-bl-next]').click();
+ await page.waitForFunction(previous=>document.querySelector('.mw-bl-detail-heading h2')?.textContent!==previous,edgeName);
+ assert.equal(await page.locator('.mw-bl-detail-page').count(),1);
+ await page.locator('#bl-back').click();await waitReady();
+ assert.equal(await page.locator('.mw-table tbody tr').count(),5,'Previous/Next should move to the adjacent results page');
  // A delayed older search response must not replace the newer results.
  const slowRequest=page.waitForRequest(request=>request.url().includes('/business-lines?')&&new URL(request.url()).searchParams.get('q')==='Line Alpha');
  await page.locator('#crmSearchInput').fill('Line Alpha');await page.locator('#crmSearchInput').press('Enter');await slowRequest;
