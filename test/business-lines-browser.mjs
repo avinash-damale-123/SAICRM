@@ -78,9 +78,11 @@ try{
  const openBusiness=async()=>{await page.locator('[data-nav="businesslines"]').waitFor({state:'attached'});await page.evaluate(()=>{if(!window.__originalHeader)window.__originalHeader=Object.fromEntries(['#notifBtn','#focusModeBtn','#logoutBtn','.top-avatar'].map(selector=>{const node=document.querySelector(selector);return [selector,{node,parent:node.parentNode}]}));document.querySelector('[data-nav="businesslines"]').click()});await waitReady()};
  const search=async value=>{await page.locator('#crmSearchInput').fill(value);await page.locator('#crmSearchInput').press('Enter');await waitReady()};
  const refresh=async(wait=true)=>{
-  // Manual Refresh was removed from Customize; a new search re-requests the list.
-  await page.locator('#crmSearchInput').fill('Line');
-  await page.locator('#crmSearchInput').press('Enter');
+  // Exercise internal data reloading without reinstating the removed toolbar button.
+  await page.evaluate(()=>{
+   const button=document.createElement('button');button.type='button';button.dataset.mw='refresh';
+   document.querySelector('.mw-workspace').append(button);button.click();button.remove();
+  });
   if(wait)await waitReady();
  };
  const headerRestored=async()=>{
