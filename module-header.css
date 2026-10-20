@@ -232,3 +232,6 @@
  .scrm-bl-clean>.scrm-actions{grid-column:1 / -1!important;grid-row:4!important;justify-content:flex-start!important;justify-self:stretch!important}
  .scrm-bl-clean .scrm-actions>.scrm-action,.scrm-bl-clean .scrm-actions>details>.scrm-action{flex-direction:row!important;min-height:34px!important;height:34px!important;padding:6px 10px!important}
 }
+
+/* Dedicated Business Lines record page uses the global shell, not the list toolbar. */
+.mw-module-header.scrm-workbar[hidden],.crm-business-module.scrm-workbar[hidden]{display:none!important}
