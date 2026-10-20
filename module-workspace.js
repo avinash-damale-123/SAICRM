@@ -72,6 +72,7 @@ function create(host,config) {
  if(state.view==='dashboard'&&!permitted('dashboard'))state.view='home';
  find('.mw-home').hidden=state.view!=='home';find('.mw-dashboard').hidden=state.view!=='dashboard';
  moduleHeader?.querySelectorAll('.mw-module-tab').forEach(tab=>{const active=tab.dataset.mw===state.view;tab.classList.toggle('mw-active-tab',active);if(active)tab.setAttribute('aria-current','page');else tab.removeAttribute('aria-current');tab.hidden=tab.dataset.mw==='dashboard'&&!permitted('dashboard')});
+ if(config.key==='business-lines'&&moduleHeader){const single=state.permissionsKnown&&!permitted('dashboard');moduleHeader.classList.toggle('scrm-no-tabs',single);const tabs=moduleHeader.querySelector('.mw-module-tabs');if(tabs)tabs.hidden=single;}
  const controlPermission={create:'create',export:'export',import:'import','filter-toggle':'filter',columns:'settings',refresh:'read'};
  moduleHeader?.querySelectorAll('[data-mw]').forEach(control=>{const permission=controlPermission[control.dataset.mw];if(permission){control.hidden=!permitted(permission)||(control.dataset.mw==='import'&&(!config.import||typeof config.onImport!=='function'));control.disabled=state.loading&&control.dataset.mw==='export'}});
  const search=find('#mw-search');if(search){search.disabled=!permitted('search');search.closest('.mw-search').hidden=!permitted('search')}
