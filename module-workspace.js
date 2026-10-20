@@ -264,19 +264,45 @@ function create(host,config) {
   if(!blDetail)return;
   blRecord=record;blRecordMode=mode;blDraft=null;
   const editing=mode==='edit'&&permitted('edit')&&!record.archivedAt&&!record.deletedAt;
-  const order=state.records.findIndex(r=>r.id===record.id),previous=order>0?state.records[order-1]:null,next=order>=0&&order<state.records.length-1?state.records[order+1]:null;
+  const order=state.records.findIndex(r=>r.id===record.id),previous=order>0?state.records[order-1]:null,next=order>=0&&order<state.records.length-1?state.records[order+1]:null,hasPrevious=!!previous||order===0&&state.page>1,hasNext=!!next||order===state.records.length-1&&state.page<state.totalPages;
   const status=record.archivedAt?'Archived':record.status;
   const sectionNavigation='<nav class="mw-bl-detail-index" aria-label="Jump to section"><span>Sections</span>'+blGroups.map((g,i)=>'<button type="button" data-bl-jump="'+i+'">'+esc(g.name)+'</button>').join('')+'</nav>';
   blDetail.innerHTML='<div class="mw-bl-detail-breadcrumb"><button type="button" id="bl-back">'+esc(config.title)+'</button><span>›</span><span>'+esc(record.displayId||record.name)+'</span></div>'
    +'<header class="mw-bl-detail-heading"><div><h2>'+esc(record.name)+'</h2><div class="mw-bl-detail-meta"><span>'+esc(record.displayId||'')+'</span><span class="mw-status '+(status==='Active'?'mw-active':'mw-inactive')+'">'+esc(status)+'</span>'+(editing?'<span class="mw-bl-edit-tag">Editing</span>':'')+'</div></div>'
-   +'<div class="mw-bl-detail-actions"><button type="button" class="mw-btn" data-bl-prev'+(!previous?' disabled':'')+'>‹ Previous</button><button type="button" class="mw-btn" data-bl-next'+(!next?' disabled':'')+'>Next ›</button>'+(!editing&&permitted('edit')&&!record.archivedAt&&!record.deletedAt?'<button type="button" class="mw-btn mw-primary" id="bl-edit">Edit</button>':'')+'</div></header>'
+   +'<div class="mw-bl-detail-actions"><button type="button" class="mw-btn" data-bl-prev'+(!hasPrevious?' disabled':'')+'>‹ Previous</button><button type="button" class="mw-btn" data-bl-next'+(!hasNext?' disabled':'')+'>Next ›</button>'+(!editing&&permitted('edit')&&!record.archivedAt&&!record.deletedAt?'<button type="button" class="mw-btn mw-primary" id="bl-edit">Edit</button>':'')+'</div></header>'
    +'<div class="mw-bl-detail-tools"><span>Details</span><button type="button" data-bl-expand="1">Expand all</button><button type="button" data-bl-expand="0">Collapse all</button></div>'
    +'<div class="mw-bl-detail-layout">'+sectionNavigation+'<div class="mw-bl-detail-content">'+(editing?'<form id="mw-bl-page-form" class="mw-bl-form">'+blFormSections(record,'edit')+'<div class="mw-bl-status-reason" hidden><label for="mw-bl-page-reason">Reason for status change <span class="mw-required">*</span></label><textarea id="mw-bl-page-reason" maxlength="500" rows="2"></textarea></div><p class="mw-form-error" role="alert" hidden></p></form>':'<div class="mw-bl-read">'+blFormSections(record,'read')+'</div>')+(permitted('history')?'<section class="mw-bl-section"><details><summary>Audit History <span class="mw-bl-chevron">⌄</span></summary><div class="mw-bl-section-content mw-history">'+(history.length?history.map(h=>'<article><strong>'+esc(h.action)+'</strong> · '+esc(date(h.createdAt))+' · '+esc(h.actor||'System')+(h.reason?' · '+esc(h.reason):'')+'</article>').join(''):'<p>No history available.</p>')+'</div></details></section>':'')+'</div></div>'
    +(editing?'<footer class="mw-bl-page-save"><span>* Required fields</span><div><button type="button" class="mw-btn" id="bl-cancel">Cancel</button><button type="submit" form="mw-bl-page-form" class="mw-btn mw-primary" id="bl-save">Save Changes</button></div></footer>':'');
   const page=blDetail,detailSections=[...page.querySelectorAll('.mw-bl-detail-content .mw-bl-section')];
+  const sectionKey='scrm:bl-sections:'+user.id;
+  let savedSections={};try{savedSections=JSON.parse(localStorage.getItem(sectionKey)||'{}')||{}}catch{}
+  detailSections.slice(0,blGroups.length).forEach((section,index)=>{
+   const details=section.querySelector('details'),name=blGroups[index].name;
+   if(typeof savedSections[name]==='boolean')details.open=savedSections[name];
+   details.addEventListener('toggle',()=>{if(blDetail!==page)return;try{
+    const all=Object.fromEntries(detailSections.slice(0,blGroups.length).map((item,i)=>[blGroups[i].name,item.querySelector('details').open]));
+    localStorage.setItem(sectionKey,JSON.stringify(all));
+   }catch{}});
+  });
   page.querySelector('#bl-back').onclick=()=>closeBlRecord();
-  page.querySelector('[data-bl-prev]').onclick=()=>previous&&openBlRecord(previous.id);
-  page.querySelector('[data-bl-next]').onclick=()=>next&&openBlRecord(next.id);
+  const navigate=async direction=>{
+   const adjacent=direction<0?previous:next;
+   if(adjacent){openBlRecord(adjacent.id);return}
+   const newPage=state.page+(direction<0?-1:1);
+   if(newPage<1||newPage>state.totalPages||!leaveBlAllowed())return;
+   const searchParams=new URLSearchParams(params());searchParams.set('page',String(newPage));
+   const prevPage=state.page,prevRecords=state.records;
+   try{
+    const result=await api(config.endpoint+'?'+searchParams.toString());
+    if(dead||blDetail!==page||result.permissions?.read!==true||!result.records?.length)return;
+    const nextRecord=direction<0?result.records[result.records.length-1]:result.records[0];
+    state.page=newPage;state.records=result.records;
+    await openBlRecord(nextRecord.id);
+    render();
+   }catch(e){state.page=prevPage;state.records=prevRecords;announce('Unable to load adjacent records: '+e.message)}
+  };
+  page.querySelector('[data-bl-prev]').onclick=()=>navigate(-1);
+  page.querySelector('[data-bl-next]').onclick=()=>navigate(1);
   page.querySelector('#bl-edit')?.addEventListener('click',()=>renderBlRecordPage(record,'edit',history));
   page.querySelector('#bl-cancel')?.addEventListener('click',()=>{if(leaveBlAllowed())renderBlRecordPage(record,'read',history)});
   page.querySelectorAll('[data-bl-expand]').forEach(b=>b.onclick=()=>detailSections.forEach(section=>{section.querySelector('details').open=b.dataset.blExpand==='1'}));
