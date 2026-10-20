@@ -10,7 +10,7 @@ function create(host,config) {
  let prefs={columns:defaults,freeze:true,pageSize:25};
  try{const p=JSON.parse(localStorage.getItem(storageKey));if(p&&Array.isArray(p.columns)){prefs.columns=[...new Set([...allColumns.filter(c=>c.locked).map(c=>c.key),...p.columns.filter(k=>allColumns.some(c=>c.key===k&&!c.locked))])];prefs.freeze=p.freeze!==false;if([25,50,75,100].includes(p.pageSize))prefs.pageSize=p.pageSize}}catch{}
  const state={q:'',status:'all',archived:'exclude',filters:[],sort:'updatedAt',direction:'desc',page:1,pageSize:prefs.pageSize,records:[],total:0,totalPages:1,counts:null,owners:[],limits:{selectedExport:250},selected:new Set(),loading:true,error:'',message:'',view:'home',filtersOpen:false,permissions:{},permissionsKnown:false};
- let dead=false,sequence=0,timer=null,dialog=null,dialogDirty=null,dialogSaving=false,previousFocus=null,moduleHeader=null,headerRestore=null;
+ let dead=false,sequence=0,timer=null,dialog=null,dialogDirty=null,dialogSaving=false,previousFocus=null,moduleHeader=null,headerRestore=null,blDetail=null,blDraft=null,blBusy=false,blRecord=null,blRecordMode='read';
  const find=selector=>host.querySelector(selector)||moduleHeader?.querySelector(selector);
  const permitted=action=>state.permissions[action]===true;
  const visibleColumns=()=>prefs.columns.map(k=>allColumns.find(c=>c.key===k)).filter(Boolean);
@@ -72,6 +72,7 @@ function create(host,config) {
  if(state.view==='dashboard'&&!permitted('dashboard'))state.view='home';
  find('.mw-home').hidden=state.view!=='home';find('.mw-dashboard').hidden=state.view!=='dashboard';
  moduleHeader?.querySelectorAll('.mw-module-tab').forEach(tab=>{const active=tab.dataset.mw===state.view;tab.classList.toggle('mw-active-tab',active);if(active)tab.setAttribute('aria-current','page');else tab.removeAttribute('aria-current');tab.hidden=tab.dataset.mw==='dashboard'&&!permitted('dashboard')});
+ if(config.key==='business-lines'&&moduleHeader){const single=state.permissionsKnown&&!permitted('dashboard');moduleHeader.classList.toggle('scrm-no-tabs',single);const tabs=moduleHeader.querySelector('.mw-module-tabs');if(tabs)tabs.hidden=single;}
  const controlPermission={create:'create',export:'export',import:'import','filter-toggle':'filter',columns:'settings',refresh:'read'};
  moduleHeader?.querySelectorAll('[data-mw]').forEach(control=>{const permission=controlPermission[control.dataset.mw];if(permission){control.hidden=!permitted(permission)||(control.dataset.mw==='import'&&(!config.import||typeof config.onImport!=='function'));control.disabled=state.loading&&control.dataset.mw==='export'}});
  const search=find('#mw-search');if(search){search.disabled=!permitted('search');search.closest('.mw-search').hidden=!permitted('search')}
@@ -119,7 +120,7 @@ function create(host,config) {
  async function load(){if(dead)return;const current=++sequence;state.loading=true;state.error='';render();try{const data=await api(config.endpoint+'?'+params());if(dead||current!==sequence)return;state.records=data.records||[];state.total=Number(data.total)||0;state.totalPages=Math.max(1,Number(data.totalPages)||Math.ceil(state.total/state.pageSize));state.counts=data.counts;state.owners=data.owners||[];state.permissions=Object.fromEntries(Object.entries(data.permissions||{}).map(([key,value])=>[key,value===true]));state.permissionsKnown=true;if(!permitted('read')){state.records=[];state.total=0;state.counts=null;state.loading=false;state.error='You do not have access to this module.';render();return}state.limits={selectedExport:250,...data.resource?.limits};if(state.page>state.totalPages){state.page=state.totalPages;return load()}state.loading=false;render()}catch(e){if(dead||current!==sequence)return;state.loading=false;state.error=e.message||'Please try again.';render()}}
  function rowFor(button){const id=button.dataset.record||button.closest('tr')?.querySelector('[data-record-id]')?.dataset.recordId;return state.records.find(r=>r.id===id)}
  async function click(event){const b=event.target.closest('[data-mw]');if(dead||!b||(!host.contains(b)&&!moduleHeader?.contains(b)))return;const action=b.dataset.mw;const access={create:'create',read:'read',edit:'edit',archive:'archive',restore:'restore',filters:'filter','filter-toggle':'filter',columns:'settings',refresh:'read',export:'export','export-selected':'export',dashboard:'dashboard',home:'read',import:'import','clear-filters':'filter','remove-filter':'filter',sort:'read',page:'read','clear-selection':'read'};if(access[action]&&!permitted(access[action])&&!(action==='refresh'&&state.error&&!state.permissionsKnown)){announce('You do not have permission to perform this action.');return}moduleHeader?.querySelectorAll('.mw-settings-menu[open]').forEach(menu=>menu.open=false);
- if(action==='home'||action==='dashboard'){state.view=action;renderViews();stats();}
+ if(action==='home'||action==='dashboard'){if(blDetail&&!closeBlRecord())return;state.view=action;renderViews();stats();}
  else if(action==='filter-toggle'){state.view='home';state.filtersOpen=!state.filtersOpen;renderViews();}
  else if(action==='import'){if(config.import&&typeof config.onImport==='function')config.onImport();}
  else if(action==='refresh'){clearTimeout(timer);load()}
@@ -165,7 +166,7 @@ function create(host,config) {
   const limit={name:150,code:20,description:500}[key];
   const attrs=editable?(' name="'+esc(key)+'"'+(required?' required':'')+(limit?' maxlength="'+limit+'"':'')):' readonly aria-readonly="true"';
   let control=key==='status'&&editable?'<select name="status" aria-label="Business Line Status"><option value="Active"'+(shown==='Active'?' selected':'')+'>Active</option><option value="Inactive"'+(shown==='Inactive'?' selected':'')+'>Inactive</option></select>':full?'<textarea rows="2"'+attrs+'>'+esc(shown)+'</textarea>':'<input type="text"'+attrs+' value="'+esc(shown)+'"'+(editable?' autocomplete="off"':'')+'>';
-  if(mode==='read')control='<div class="mw-bl-read-value'+(full?' mw-bl-read-description':'')+'">'+esc(value)+'</div>';
+  if(mode==='read'||mode==='edit'&&!editable)control='<div class="mw-bl-read-value'+(full?' mw-bl-read-description':'')+'" aria-readonly="true">'+esc(value)+'</div>';
   const hint=editable&&key==='status'?'<small class="mw-bl-hint">Changing status requires a reason and may be blocked when records depend on this line.</small>':editable&&key==='code'?'<small class="mw-bl-hint">Uppercase letters, digits and hyphens; maximum 20 characters.</small>':editable&&key==='description'?'<small class="mw-bl-hint">Maximum 500 characters. <span data-count-for="description">'+shown.length+'</span> / 500</small>':'';
   return '<div class="mw-bl-field mw-bl-field-'+esc(key)+(full?' mw-bl-full':'')+'"><label>'+esc(label)+(required?' <span class="mw-required">*</span>':'')+'</label>'+control+hint+'</div>';
  }
@@ -189,6 +190,7 @@ function create(host,config) {
  function formValues(form){return JSON.stringify([...new FormData(form).entries()])}
  function editForm(record){
  if(dead||!permitted(record?'edit':'create'))return;
+ if(record&&config.key==='business-lines'){openBlRecord(record.id,true);return;}
  const editing=!!record,fields=(config.fields||[]).filter(f=>!f.views||f.views.includes(editing?'edit':'create'));
  const currentValue=f=>record?.[f.key]??(f.key==='owner'?(user.name||user.email):f.default??'');
  const fieldHTML=f=>{const value=currentValue(f),label='<label class="mw-field '+(f.full?'mw-field-full':'')+'">'+esc(f.label)+(f.required?' <span class="mw-required" aria-hidden="true">*</span>':'');const attrs='name="'+esc(f.key)+'" '+(f.required?'required ':'')+(f.maxLength?'maxlength="'+f.maxLength+'" ':'');
@@ -218,13 +220,124 @@ function create(host,config) {
  };
  form.querySelector('input:not([readonly]),select,textarea')?.focus();
  }
- async function readRecord(id){if(dead||!permitted('read'))return;const d=openDialog(config.key==='business-lines'?'Business Line Details':'Record details','<div class="mw-state">Loading record…</div>','<button type="button" class="mw-btn" id="mw-read-close">Close</button>',true);if(!d)return;d.querySelector('#mw-read-close').onclick=()=>closeDialog();try{const [{record},history]=await Promise.all([api(config.endpoint+'/'+encodeURIComponent(id)),permitted('history')?api(config.endpoint+'/'+encodeURIComponent(id)+'/history'):Promise.resolve({history:[]})]);if(dead||dialog!==d)return;
+ async function readRecord(id){if(dead||!permitted('read'))return;if(config.key==='business-lines'){openBlRecord(id);return;}const d=openDialog(config.key==='business-lines'?'Business Line Details':'Record details','<div class="mw-state">Loading record…</div>','<button type="button" class="mw-btn" id="mw-read-close">Close</button>',true);if(!d)return;d.querySelector('#mw-read-close').onclick=()=>closeDialog();try{const [{record},history]=await Promise.all([api(config.endpoint+'/'+encodeURIComponent(id)),permitted('history')?api(config.endpoint+'/'+encodeURIComponent(id)+'/history'):Promise.resolve({history:[]})]);if(dead||dialog!==d)return;
  if(config.key==='business-lines'){d.querySelector('.mw-dialog-body').innerHTML='<div class="mw-bl-read">'+blFormSections(record,'read')+'</div>'+(permitted('history')?'<section class="mw-bl-section"><details><summary>Audit History <span class="mw-bl-chevron">⌄</span></summary><div class="mw-bl-section-content mw-history">'+((history.history||[]).length?(history.history||[]).map(h=>'<article><strong>'+esc(h.action)+'</strong> · '+esc(date(h.createdAt))+' · '+esc(h.actor||'System')+(h.reason?' · Reason: '+esc(h.reason):'')+'</article>').join(''):'<p>No history available.</p>')+'</div></details></section>':'');wireBlSections(d);if(permitted('edit')&&!record.archivedAt&&!record.deletedAt){const edit=document.createElement('button');edit.type='button';edit.className='mw-btn mw-primary';edit.textContent='Edit Business Line';edit.onclick=()=>editForm(record);d.querySelector('footer').append(edit)}return;}
  d.querySelector('.mw-dialog-body').innerHTML='<div class="mw-detail-title"><div><span class="mw-id">'+esc(record.displayId)+'</span><h3>'+esc(record.name)+'</h3></div><span class="mw-status '+(record.status==='Active'?'mw-active':'mw-inactive')+'">'+esc(record.archivedAt?'Archived':record.status)+'</span></div><h3>Basic information</h3><dl class="mw-details-grid">'+allColumns.filter(c=>!c.system).map(c=>'<div class="'+(c.key==='remarks'?'mw-field-full':'')+'"><dt>'+esc(c.label)+'</dt><dd>'+esc(c.type==='date'?date(record[c.key]):record[c.key]||'—')+'</dd></div>').join('')+'</dl><h3>System information</h3><dl class="mw-details-grid">'+allColumns.filter(c=>c.system).map(c=>'<div><dt>'+esc(c.label)+'</dt><dd>'+esc(c.type==='date'?date(record[c.key]):record[c.key]||'—')+'</dd></div>').join('')+'</dl><h3>Audit history</h3><div class="mw-history">'+((history.history||[]).length?(history.history||[]).map(h=>'<article><div><strong>'+esc(h.action)+'</strong><span>'+esc(date(h.createdAt))+'</span></div><p>'+esc(h.actor||'System')+'</p>'+Object.entries(h.changes||{}).map(([key,value])=>'<p class="mw-history-change"><b>'+esc(allColumns.find(c=>c.key===key)?.label||key)+':</b> '+esc(value?.before??'—')+' → '+esc(value?.after??'—')+'</p>').join('')+'</article>').join(''):'<p>No history available.</p>')+'</div>';
  if(!permitted('history')){const historyNode=d.querySelector('.mw-history');if(historyNode){historyNode.hidden=true;historyNode.previousElementSibling.hidden=true}}
  if(permitted('edit')&&!record.archivedAt){const edit=document.createElement('button');edit.type='button';edit.className='mw-btn mw-primary';edit.textContent='Edit '+config.singular;edit.onclick=()=>editForm(record);d.querySelector('footer').append(edit)}
  }catch(e){if(!dead&&dialog===d)d.querySelector('.mw-dialog-body').innerHTML='<p class="mw-form-error" role="alert">'+esc(e.message)+'</p>'}}
 
+
+
+ // Dedicated Business Lines record workspace. Uses the same nineteen approved
+ // fields as the existing dialogs, without changing backend authorization.
+ function leaveBlAllowed(){
+  if(blBusy)return false;
+  if(!blDraft)return true;
+  if(blDraft.dataset.dirty==='true'&&!window.confirm('Discard your unsaved changes?'))return false;
+  return true;
+ }
+ function closeBlRecord(){
+  if(!blDetail)return true;
+  if(!leaveBlAllowed())return false;
+  blDetail.remove();blDetail=null;blDraft=null;blRecord=null;blRecordMode='read';
+  host.querySelector('.mw-workspace').hidden=false;
+  if(moduleHeader)moduleHeader.hidden=false;
+  host.classList.remove('mw-bl-detail-active');
+  return true;
+ }
+ async function openBlRecord(id,startEdit=false){
+  if(dead||!permitted('read')||(startEdit&&!permitted('edit')))return;
+  if(blDetail&&!closeBlRecord())return;
+  const page=document.createElement('section');page.className='mw-bl-detail-page';
+  page.setAttribute('aria-label','Business Line record details');page.innerHTML='<div class="mw-state"><span class="mw-spinner"></span> Loading record…</div>';
+  blDetail=page;host.append(page);host.querySelector('.mw-workspace').hidden=true;
+  if(moduleHeader)moduleHeader.hidden=true;
+  host.classList.add('mw-bl-detail-active');
+  try{
+   const [{record},audit]=await Promise.all([api(config.endpoint+'/'+encodeURIComponent(id)),permitted('history')?api(config.endpoint+'/'+encodeURIComponent(id)+'/history'):Promise.resolve({history:[]})]);
+   if(dead||blDetail!==page)return;
+   blRecord=record;
+   renderBlRecordPage(record,startEdit?'edit':'read',audit.history||[]);
+  }catch(e){if(blDetail===page)page.innerHTML='<p class="mw-form-error" role="alert">'+esc(e.message)+'</p><button type="button" class="mw-btn" id="bl-back">Back to Records</button>';page.querySelector('#bl-back')?.addEventListener('click',()=>closeBlRecord())}
+ }
+ function renderBlRecordPage(record,mode='read',history=[]){
+  if(!blDetail)return;
+  blRecord=record;blRecordMode=mode;blDraft=null;
+  const editing=mode==='edit'&&permitted('edit')&&!record.archivedAt&&!record.deletedAt;
+  const order=state.records.findIndex(r=>r.id===record.id),previous=order>0?state.records[order-1]:null,next=order>=0&&order<state.records.length-1?state.records[order+1]:null,hasPrevious=!!previous||order===0&&state.page>1,hasNext=!!next||order===state.records.length-1&&state.page<state.totalPages;
+  const status=record.archivedAt?'Archived':record.status;
+  const sectionNavigation='<nav class="mw-bl-detail-index" aria-label="Jump to section"><span>Sections</span>'+blGroups.map((g,i)=>'<button type="button" data-bl-jump="'+i+'">'+esc(g.name)+'</button>').join('')+'</nav>';
+  blDetail.innerHTML='<div class="mw-bl-detail-breadcrumb"><button type="button" id="bl-back">'+esc(config.title)+'</button><span>›</span><span>'+esc(record.displayId||record.name)+'</span></div>'
+   +'<header class="mw-bl-detail-heading"><div><h2>'+esc(record.name)+'</h2><div class="mw-bl-detail-meta"><span>'+esc(record.displayId||'')+'</span><span class="mw-status '+(status==='Active'?'mw-active':'mw-inactive')+'">'+esc(status)+'</span>'+(editing?'<span class="mw-bl-edit-tag">Editing</span>':'')+'</div></div>'
+   +'<div class="mw-bl-detail-actions"><button type="button" class="mw-btn" data-bl-prev'+(!hasPrevious?' disabled':'')+'>‹ Previous</button><button type="button" class="mw-btn" data-bl-next'+(!hasNext?' disabled':'')+'>Next ›</button>'+(!editing&&permitted('edit')&&!record.archivedAt&&!record.deletedAt?'<button type="button" class="mw-btn mw-primary" id="bl-edit">Edit</button>':'')+'</div></header>'
+   +'<div class="mw-bl-detail-tools"><span>Details</span><button type="button" data-bl-expand="1">Expand all</button><button type="button" data-bl-expand="0">Collapse all</button></div>'
+   +'<div class="mw-bl-detail-layout">'+sectionNavigation+'<div class="mw-bl-detail-content">'+(editing?'<form id="mw-bl-page-form" class="mw-bl-form">'+blFormSections(record,'edit')+'<div class="mw-bl-status-reason" hidden><label for="mw-bl-page-reason">Reason for status change <span class="mw-required">*</span></label><textarea id="mw-bl-page-reason" maxlength="500" rows="2"></textarea></div><p class="mw-form-error" role="alert" hidden></p></form>':'<div class="mw-bl-read">'+blFormSections(record,'read')+'</div>')+(permitted('history')?'<section class="mw-bl-section"><details><summary>Audit History <span class="mw-bl-chevron">⌄</span></summary><div class="mw-bl-section-content mw-history">'+(history.length?history.map(h=>'<article><strong>'+esc(h.action)+'</strong> · '+esc(date(h.createdAt))+' · '+esc(h.actor||'System')+(h.reason?' · '+esc(h.reason):'')+'</article>').join(''):'<p>No history available.</p>')+'</div></details></section>':'')+'</div></div>'
+   +(editing?'<footer class="mw-bl-page-save"><span>* Required fields</span><div><button type="button" class="mw-btn" id="bl-cancel">Cancel</button><button type="submit" form="mw-bl-page-form" class="mw-btn mw-primary" id="bl-save">Save Changes</button></div></footer>':'');
+  const page=blDetail,detailSections=[...page.querySelectorAll('.mw-bl-detail-content .mw-bl-section')];
+  const sectionKey='scrm:bl-sections:'+user.id;
+  let savedSections={};try{savedSections=JSON.parse(localStorage.getItem(sectionKey)||'{}')||{}}catch{}
+  detailSections.slice(0,blGroups.length).forEach((section,index)=>{
+   const details=section.querySelector('details'),name=blGroups[index].name;
+   if(typeof savedSections[name]==='boolean')details.open=savedSections[name];
+   details.addEventListener('toggle',()=>{if(blDetail!==page)return;try{
+    const all=Object.fromEntries(detailSections.slice(0,blGroups.length).map((item,i)=>[blGroups[i].name,item.querySelector('details').open]));
+    localStorage.setItem(sectionKey,JSON.stringify(all));
+   }catch{}});
+  });
+  page.querySelector('#bl-back').onclick=()=>closeBlRecord();
+  const navigate=async direction=>{
+   const adjacent=direction<0?previous:next;
+   if(adjacent){openBlRecord(adjacent.id);return}
+   const newPage=state.page+(direction<0?-1:1);
+   if(newPage<1||newPage>state.totalPages||!leaveBlAllowed())return;
+   const searchParams=new URLSearchParams(params());searchParams.set('page',String(newPage));
+   const prevPage=state.page,prevRecords=state.records;
+   try{
+    const result=await api(config.endpoint+'?'+searchParams.toString());
+    if(dead||blDetail!==page||result.permissions?.read!==true||!result.records?.length)return;
+    const nextRecord=direction<0?result.records[result.records.length-1]:result.records[0];
+    state.page=newPage;state.records=result.records;
+    await openBlRecord(nextRecord.id);
+    render();
+   }catch(e){state.page=prevPage;state.records=prevRecords;announce('Unable to load adjacent records: '+e.message)}
+  };
+  page.querySelector('[data-bl-prev]').onclick=()=>navigate(-1);
+  page.querySelector('[data-bl-next]').onclick=()=>navigate(1);
+  page.querySelector('#bl-edit')?.addEventListener('click',()=>renderBlRecordPage(record,'edit',history));
+  page.querySelector('#bl-cancel')?.addEventListener('click',()=>{if(leaveBlAllowed())renderBlRecordPage(record,'read',history)});
+  page.querySelectorAll('[data-bl-expand]').forEach(b=>b.onclick=()=>detailSections.forEach(section=>{section.querySelector('details').open=b.dataset.blExpand==='1'}));
+  page.querySelectorAll('[data-bl-jump]').forEach(b=>b.onclick=()=>{const section=detailSections[Number(b.dataset.blJump)];if(section){section.querySelector('details').open=true;section.scrollIntoView({block:'start',behavior:'smooth'})}});
+  // Display only the page-level expand/collapse controls, not duplicate field-list controls.
+  page.querySelectorAll('.mw-bl-detail-content>.mw-bl-read>.mw-bl-section-tools,.mw-bl-detail-content>form>.mw-bl-section-tools').forEach(el=>el.remove());
+  if(!editing)return;
+  const form=page.querySelector('#mw-bl-page-form');blDraft=form;
+  const baseline=formValues(form);
+  const mark=()=>{form.dataset.dirty=String(formValues(form)!==baseline)};
+  form.addEventListener('input',mark);form.addEventListener('change',mark);
+  const code=form.elements.code;if(code)code.addEventListener('input',()=>{const caret=code.selectionStart;code.value=code.value.toUpperCase();code.setSelectionRange(caret,caret);mark()});
+  const statusField=form.elements.status,reason=page.querySelector('#mw-bl-page-reason'),reasonWrap=reason.parentElement;
+  const syncStatus=()=>{const changed=statusField.value!==record.status;reasonWrap.hidden=!changed;reason.required=changed;if(!changed)reason.value='';mark()};
+  statusField?.addEventListener('change',syncStatus);syncStatus();
+  form.querySelectorAll('input,select,textarea').forEach(field=>{
+   field.addEventListener('blur',()=>{if(field.willValidate&&!field.checkValidity()){const section=field.closest('details');if(section)section.open=true;}},true);
+  });
+  form.addEventListener('invalid',e=>{const section=e.target.closest('details');if(section)section.open=true},true);
+  form.onsubmit=async e=>{
+   e.preventDefault();if(blBusy||!permitted('edit'))return;
+   const error=page.querySelector('.mw-form-error');error.hidden=true;
+   if(!form.checkValidity()){detailSections.forEach(x=>x.querySelector('details').open=true);error.textContent='Review the highlighted required fields before saving.';error.hidden=false;form.reportValidity();return}
+   const values=new FormData(form);
+   const payload={version:record.version,name:String(values.get('name')||'').trim(),code:String(values.get('code')||'').trim(),description:String(values.get('description')||'').trim()};
+   if(statusField.value!==record.status){const reasonText=reason.value.trim();if(!reasonText){error.textContent='Reason is mandatory for status changes.';error.hidden=false;reason.focus();return}payload.status=statusField.value;payload.reason=reasonText}
+   blBusy=true;page.querySelector('#bl-save').disabled=true;page.querySelector('#bl-save').textContent='Saving…';
+   try{const response=await api(config.endpoint+'/'+encodeURIComponent(record.id),'PUT',payload);
+    if(dead||blDetail!==page)return;blBusy=false;blDraft=null;
+    const updated=response.record||{...record,...payload};
+    renderBlRecordPage(updated,'read',history);announce('Business Line updated.');await load();
+   }catch(err){if(dead||blDetail!==page)return;blBusy=false;error.textContent=err.message;error.hidden=false;page.querySelector('#bl-save').disabled=false;page.querySelector('#bl-save').textContent='Save Changes';error.scrollIntoView({block:'nearest'})}
+  };
+ }
 
  function ownerRecord(record){
   if(dead||!permitted('reassignOwner')||record.archivedAt||record.deletedAt)return;
@@ -306,8 +419,8 @@ function create(host,config) {
  }
  shell();load();
  return {
-  canLeave(){return dead||closeDialog()},
-  destroy(force=false){if(dead)return true;if(!force&&!closeDialog())return false;dead=true;++sequence;clearTimeout(timer);closeDialog(true);host.removeEventListener('click',click);host.removeEventListener('change',change);moduleHeader?.removeEventListener('click',click);headerRestore?.();return true},
+  canLeave(){return dead||(leaveBlAllowed()&&closeDialog())},
+  destroy(force=false){if(dead)return true;if(!force&&(!leaveBlAllowed()||!closeDialog()))return false;closeBlRecord();dead=true;++sequence;clearTimeout(timer);closeDialog(true);host.removeEventListener('click',click);host.removeEventListener('change',change);moduleHeader?.removeEventListener('click',click);headerRestore?.();return true},
   reload:load,
   setSearch(q){if(dead||!permitted('search'))return false;state.q=String(q??'').trim().slice(0,100);state.view='home';state.page=1;const field=find('#mw-search');if(field)field.value=state.q;renderViews();clearTimeout(timer);timer=setTimeout(()=>{rememberSearch(state.q);load()},300);return true},
   openResult(id,label){if(dead||!permitted('read'))return false;state.view='home';renderViews();readRecord(id);return true},

@@ -203,6 +203,15 @@ try{
  assert.equal(await page.locator('.mw-record-link').innerText(),'Line Bravo');
  assert.ok((await page.locator('.mw-query-summary').innerText()).includes('Bravo'));
  await page.locator('[data-mw="clear-filters"]').click();await waitReady();
+ // Dedicated record navigation must traverse the server-paginated filtered list.
+ await page.locator('.mw-record-link').last().click();
+ await page.locator('.mw-bl-detail-heading h2').waitFor();
+ const edgeName=await page.locator('.mw-bl-detail-heading h2').innerText();
+ await page.locator('[data-bl-next]').click();
+ await page.waitForFunction(previous=>document.querySelector('.mw-bl-detail-heading h2')?.textContent!==previous,edgeName);
+ assert.equal(await page.locator('.mw-bl-detail-page').count(),1);
+ await page.locator('#bl-back').click();await waitReady();
+ assert.equal(await page.locator('.mw-table tbody tr').count(),5,'Previous/Next should move to the adjacent results page');
  // A delayed older search response must not replace the newer results.
  const slowRequest=page.waitForRequest(request=>request.url().includes('/business-lines?')&&new URL(request.url()).searchParams.get('q')==='Line Alpha');
  await page.locator('#crmSearchInput').fill('Line Alpha');await page.locator('#crmSearchInput').press('Enter');await slowRequest;
@@ -211,14 +220,24 @@ try{
  assert.equal(await page.locator('.mw-record-link').innerText(),'Line Bravo');
  await page.locator('.mw-record-link').click();
  await page.locator('.mw-bl-section summary').filter({hasText:'Audit History'}).waitFor();
- await page.locator('[data-bl-sections="expand"]').click();
- assert.ok((await page.locator('dialog').innerText()).includes('UI Super Admin'));
+ await page.locator('[data-bl-expand="1"]').click();
+ assert.ok((await page.locator('.mw-bl-detail-page').innerText()).includes('UI Super Admin'));
+ assert.equal(await page.locator('.mw-bl-detail-page .mw-bl-field').count(),19,'Dedicated Read must display all 19 master fields');
  for(const width of [320,360,768,1440]){await page.setViewportSize({width,height:850});await noOverflow('read '+width)}
- await page.getByRole('button',{name:'Edit Business Line',exact:true}).click();
- assert.equal(await page.locator('#mw-record-form [name="name"]').inputValue(),'Line Bravo');
- await page.locator('#mw-record-form [name="name"]').fill('Line Bravo Updated');
- await page.locator('#mw-record-form [name="description"]').fill('Saved UI context');
- await page.locator('#mw-save').click();await page.locator('dialog').waitFor({state:'detached'});await waitReady();
+ await page.locator('#bl-edit').click();
+ assert.equal(await page.locator('#mw-bl-page-form [name="name"]').inputValue(),'Line Bravo');
+ assert.equal(await page.locator('.mw-bl-detail-page .mw-bl-field').count(),19,'Inline Edit retains all nineteen fields');
+ const updatesBefore=requests.filter(request=>request.method==='PUT'&&request.path.startsWith('business-lines/')).length;
+ await page.locator('#mw-bl-page-form [name="status"]').selectOption('Inactive');
+ assert.equal(await page.locator('#mw-bl-page-reason').isVisible(),true);
+ await page.locator('#bl-save').click();
+ assert.equal(requests.filter(request=>request.method==='PUT'&&request.path.startsWith('business-lines/')).length,updatesBefore,'Status must not update without mandatory reason');
+ await page.locator('#mw-bl-page-form [name="status"]').selectOption('Active');
+ await page.locator('#mw-bl-page-form [name="name"]').fill('Line Bravo Updated');
+ await page.locator('#mw-bl-page-form [name="description"]').fill('Saved UI context');
+ await page.locator('#bl-save').click();await page.locator('#mw-bl-page-form').waitFor({state:'detached'});await waitReady();
+ assert.equal(await page.locator('.mw-bl-detail-page .mw-bl-field').count(),19,'Saved record retains all fields');
+ await page.locator('#bl-back').click();
  assert.equal(await page.locator('#mw-search').inputValue(),'Line Bravo');
  assert.equal(await page.locator('.mw-record-link').innerText(),'Line Bravo Updated');
  await page.locator('[data-mw="create"]').click();
@@ -338,12 +357,13 @@ try{
  // Permission fixtures exercise the UI contract without changing backend policy.
  permissions={read:true,history:false,search:true,create:false,edit:false,archive:false,restore:false,export:false,filter:false,settings:false,dashboard:false,import:false,delete:false};
  await page.reload();await openBusiness();
+ assert.equal(await page.locator('.scrm-bl-clean.scrm-no-tabs').count(),1,'Restricted view must reclaim tab bar space');
  for(const selector of ['[data-mw="create"]','[data-mw="export"]','[data-mw="filter-toggle"]','.mw-settings-menu','[data-mw="dashboard"]','[data-mw="import"]'])assert.equal(await page.locator(selector+':visible').count(),0,selector+' should be denied');
  const historyRequests=requests.filter(request=>request.path.endsWith('/history')).length;
  await page.locator('.mw-record-link').first().click();await page.locator('.mw-bl-section summary').filter({hasText:'Basic Information'}).waitFor();
  assert.equal(requests.filter(request=>request.path.endsWith('/history')).length,historyRequests);
- assert.equal(await page.getByRole('button',{name:'Edit Business Line',exact:true}).count(),0);
- await page.locator('#mw-read-close').click();
+ assert.equal(await page.locator('#bl-edit').count(),0);
+ await page.locator('#bl-back').click();
  const beforeDenied=requests.filter(request=>request.method!=='GET').length;
  for(const action of ['create','export','filters','columns','dashboard']){
   await page.evaluate(action=>{const button=document.createElement('button');button.dataset.mw=action;button.textContent='Denied probe';document.querySelector('.mw-workspace').append(button);button.click();button.remove()},action);
