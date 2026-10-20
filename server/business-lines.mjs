@@ -186,7 +186,10 @@ async function exportRecords(client,user,body,permissions){
  const pageMode=body.mode==='page';
  const pageOffset=(options.page-1)*options.pageSize;
  if(pageMode&&pageOffset>1000000)fail(400,'Page is too far into the results');
- const rows=(await client.query(select+suffix+orderFor(options)+(pageMode?' LIMIT  if(rows.length>10000)fail(400,'Export supports up to 10,000 records; narrow your filters');
+ const marker=String.fromCharCode(36);
+ const limitSql=pageMode?' LIMIT '+marker+(params.length+1)+' OFFSET '+marker+(params.length+2):' LIMIT 10001';
+ const rows=(await client.query(select+suffix+orderFor(options)+limitSql,pageMode?[...params,options.pageSize,pageOffset]:params)).rows;
+ if(rows.length>10000)fail(400,'Export supports up to 10,000 records; narrow your filters');
  if(body.mode==='selected'&&rows.length!==body.ids.length)fail(409,'Some selected records are no longer available');
  const columns=['default','page'].includes(body.mode)?defaultColumns:(body.columns||defaultColumns);
  const csv=businessLineCSV(rows.map(businessLineView),columns);
