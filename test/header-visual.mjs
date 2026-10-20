@@ -56,7 +56,7 @@ try{
   assert.ok(r.input.w>=100,name+' typing area collapsed '+JSON.stringify(r));
   assert.ok(r.search.w>=240,name+' search container collapsed '+JSON.stringify(r));
   assert.ok(r.input.x+r.input.w<=r.search.x+r.search.w,name+' input overflows its own search box');
-  if(await page.locator('.scrm-bl-clean').count()===0)assert.ok(r.tabsText.every(x=>x.visible),name+' missing module subtitles');
+  assert.ok(r.tabsText.every(x=>!x.visible),name+' should use compact single-line tab labels');
   assert.ok(r.bell.x<r.focus.x&&r.focus.x<r.profile.x,name+' global control order');
   if(r.main.w>1000){assert.ok(Math.abs(r.tabs.y-r.search.y)<15,name+' search alignment');assert.ok(r.input.w>=120,name+' laptop input too small '+JSON.stringify(r));assert.ok(r.search.x-(r.tabs.x+r.tabs.w)<25,name+' gap wastes search area');}
   return r;
