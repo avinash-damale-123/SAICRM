@@ -393,3 +393,8 @@ html.mw-modal-open{overflow:hidden}
 .mw-column-option[draggable="true"]{cursor:grab}
 .mw-column-option[draggable="true"]:active{cursor:grabbing}
 #mw-column-search{min-height:34px;width:100%;padding:7px 10px;border:1px solid #d8e2e8;border-radius:6px}
+
+/* Row action menus must layer above the sticky pagination footer. */
+.mw-footer{z-index:1!important}
+.mw-table .mw-action-col:has(.mw-row-menu[open]){z-index:15!important}
+.mw-row-menu[open]>div{z-index:30!important}
