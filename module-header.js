@@ -58,9 +58,9 @@ function control(button,kind,label) {
 function tab(button,view,label) {
  button.innerHTML=svg(view)+'<span class="scrm-view-copy"><small class="scrm-view-context"></small><strong class="scrm-view-title"></strong></span>';
  button.querySelector('small').textContent=label;
- button.querySelector('strong').textContent=view==='dashboard'?'Dashboard':label==='Business Lines'?'Records':'Home';
+ button.querySelector('strong').textContent=view==='dashboard'?'Overview':label==='Business Lines'?'Records':'Home';
  button.classList.add('scrm-view');
- button.title=label+' '+(view==='dashboard'?'Dashboard':label==='Business Lines'?'Records':'Home');
+ button.title=label+' '+(view==='dashboard'?'Overview':label==='Business Lines'?'Records':'Home');
  button.setAttribute('aria-label',button.title);
 }
 function decorate(row,page,label) {
@@ -88,7 +88,7 @@ function decorate(row,page,label) {
   if(action==='export')control(button,'export','Export');
   else if(action==='import'||name.includes('import'))control(button,'import','Import');
   else if(action==='filter-toggle'||action==='moduleFilter')control(button,'filter','Filter');
-  else if(button.tagName==='SUMMARY')control(button,'settings','Settings');
+  else if(button.tagName==='SUMMARY')control(button,'settings','Customize');
   else if(action==='create'||action==='new'){
    if(!button.getAttribute('aria-label'))button.setAttribute('aria-label','Add record to '+label);
    control(button,'add','Add');

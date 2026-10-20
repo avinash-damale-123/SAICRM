@@ -355,3 +355,46 @@ html.mw-modal-open{overflow:hidden}
 .mw-bl-dialog .mw-bl-form .mw-bl-grid{grid-template-columns:1fr!important;gap:12px}
 @media(max-width:800px){.mw-bl-detail-layout{grid-template-columns:1fr}.mw-bl-detail-index{position:static;display:flex;flex-direction:row;overflow-x:auto;flex-wrap:nowrap}.mw-bl-detail-index>span{display:none}.mw-bl-detail-index button{white-space:nowrap}.mw-bl-detail-page{padding-bottom:64px}}
 @media(max-width:540px){.mw-bl-detail-heading{padding:11px}.mw-bl-detail-heading h2{font-size:17px}.mw-bl-detail-content .mw-bl-grid{grid-template-columns:1fr}.mw-bl-detail-content .mw-bl-field{grid-column:1/-1!important}.mw-bl-page-save{border-radius:0;margin-left:-12px;margin-right:-12px}.mw-bl-detail-actions{width:100%}.mw-bl-detail-actions>.mw-btn{flex:1}}
+
+
+/* SCRM October compact records and detail refinements */
+.mw-table thead th{background:#174d38!important;color:#fff!important;white-space:normal!important;line-height:1.24!important;vertical-align:middle!important;height:auto!important;min-height:42px!important;padding:9px 12px!important;position:sticky;top:0}
+.mw-table thead th>button{color:inherit!important;white-space:normal!important;text-align:left;line-height:1.2;display:inline-flex;gap:6px;align-items:center}
+.mw-table thead th.mw-sorted{background:#215b35!important;box-shadow:inset 0 -3px #ed962f}
+.mw-table thead th.mw-sorted button span{color:#ffbd65!important;font-weight:900}
+.mw-table thead th:not(.mw-action-col):not(.mw-check-col){position:sticky}
+.mw-table tbody tr:nth-child(even) td:not(.mw-locked):not(.mw-action-col){background:#f5faf7}
+.mw-table tbody tr:hover td{background:#eaf5ef!important}
+.mw-table thead th .mw-column-resizer{position:absolute;top:0;bottom:0;right:0;width:9px;cursor:col-resize;z-index:8;border-right:1px solid #ffffff45;touch-action:none}
+.mw-table thead th .mw-column-resizer:hover,.mw-table thead th .mw-column-resizer:focus-visible{border-right:3px solid #efaa4b;background:#ffffff27}
+.mw-table .mw-action-col{position:sticky!important;right:0;z-index:5;background:#fff!important;box-shadow:-3px 0 8px #15283b15}
+.mw-table thead .mw-action-col{z-index:11;background:#174d38!important}
+.mw-table td{height:41px;vertical-align:middle}
+.mw-bl-detail-page{max-width:none!important;margin:0!important;padding-top:0!important}
+.mw-bl-detail-breadcrumb{min-height:0!important;margin:0 0 5px!important;font-size:11px}
+.mw-bl-detail-heading{padding:10px 14px!important;margin:0 0 7px!important;border-radius:7px!important}
+.mw-bl-detail-heading h2{font-size:18px!important;margin-bottom:1px!important}
+.mw-bl-detail-tools{padding:3px 3px 7px!important}
+.mw-bl-detail-layout{grid-template-columns:minmax(0,1fr)!important}
+.mw-bl-detail-index{display:none!important}
+.mw-bl-detail-content{gap:6px!important}
+.mw-bl-detail-content .mw-bl-section summary{padding:9px 12px!important;background:#e8eff1!important}
+.mw-bl-detail-content .mw-bl-section-content{padding:10px 14px!important}
+.mw-bl-detail-content .mw-bl-grid{gap:9px 20px!important}
+.mw-bl-detail-content .mw-bl-field>label{font-size:11px!important}
+.mw-bl-detail-content .mw-bl-read-value{min-height:19px!important;padding:2px 0!important}
+.mw-bl-detail-content .mw-bl-field{padding-bottom:2px!important}
+@media(max-width:640px){.mw-bl-detail-content .mw-bl-grid{grid-template-columns:minmax(0,1fr)!important}.mw-bl-detail-page .mw-bl-detail-heading{align-items:flex-start}}
+
+
+.mw-column-presets,.mw-column-quick{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 12px}
+.mw-column-group{border:1px solid #e1e6ed;border-radius:8px;padding:6px 10px;margin:8px 0}
+.mw-column-group h3{font-size:12px;color:#173d2d;margin:4px 0 7px;background:#e8f4ee;padding:7px 9px;border-radius:5px}
+.mw-column-option[draggable="true"]{cursor:grab}
+.mw-column-option[draggable="true"]:active{cursor:grabbing}
+#mw-column-search{min-height:34px;width:100%;padding:7px 10px;border:1px solid #d8e2e8;border-radius:6px}
+
+/* Row action menus must layer above the sticky pagination footer. */
+.mw-footer{z-index:1!important}
+.mw-table .mw-action-col:has(.mw-row-menu[open]){z-index:15!important}
+.mw-row-menu[open]>div{z-index:30!important}
