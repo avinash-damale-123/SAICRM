@@ -79,7 +79,7 @@ try{
  const search=async value=>{await page.locator('#crmSearchInput').fill(value);await page.locator('#crmSearchInput').press('Enter');await waitReady()};
  const refresh=async(wait=true)=>{
   // Manual Refresh was removed from Customize; a new search re-requests the list.
-  await page.locator('#crmSearchInput').fill('');
+  await page.locator('#crmSearchInput').fill('Line');
   await page.locator('#crmSearchInput').press('Enter');
   if(wait)await waitReady();
  };
