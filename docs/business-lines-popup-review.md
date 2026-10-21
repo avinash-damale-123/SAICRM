@@ -21,3 +21,7 @@ The module card is slightly more compact with proper inner padding and rounded e
 ## Release gate
 
 Run existing Node 22/24 security/API/PostgreSQL and browser regressions, real authenticated PostgreSQL browser acceptance, header geometry and the new modal review suite. New coverage includes dirty X/Escape/Cancel, required reasons, in-flight write protection, stale-write drafts, focus wrapping, load/history failures and stale responses, both-tab permissions, original view preservation, and Create/Read/Edit at desktop, mobile and landscape dimensions. Inspect resulting screenshots before merging. No migration is required.
+
+## Screenshot review follow-up
+
+The first full CI run passed on Node 22 and Node 24 (run 39606179636). Inspecting its actual Create, Read, Edit and mobile screenshots revealed that an older global rule hid section-jump navigation. The popup-specific override now restores those controls, separates section cards and preserves a narrow-screen inset. The focused modal suite passed again locally after these refinements. The final head must pass the full CI gate again; an earlier passing run is not substituted for final-head verification.
