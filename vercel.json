@@ -39,5 +39,11 @@
     "api/index.js": {
       "maxDuration": 60
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/internal/records-maintenance",
+      "schedule": "17 3 * * *"
+    }
+  ]
 }

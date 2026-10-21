@@ -12,6 +12,9 @@ let address=1;
 const ip=()=> 'test-'+address++;
 before(async()=>{
  if(!enabled)return;
+ const testDatabase=new URL(process.env.TEST_DATABASE_URL);
+ assert.ok(['localhost','127.0.0.1','[::1]'].includes(testDatabase.hostname),'Write-capable integration tests require an isolated loopback database');
+ assert.ok(/test/i.test(testDatabase.pathname),'The integration database name must explicitly identify a test database');
  pool=new pg.Pool({connectionString:process.env.TEST_DATABASE_URL,max:8});
  await pool.query(await readFile(new URL('../db/001_initial.sql',import.meta.url),'utf8'));
  await pool.query(await readFile(new URL('../db/002_google.sql',import.meta.url),'utf8'));
@@ -555,7 +558,7 @@ test('CSV import is dry-run first, partial and repeat-safe with downloadable fai
  assert.equal((await pool.query("SELECT count(*) FROM business_lines WHERE code LIKE 'RF-IMP-%'")).rows[0].count,'0');
  const valid=await call('business-lines/imports/'+id+'/validate','POST',{mapping:{name:0,code:1,description:2},mode:'create',atomic:false},superAdmin);assert.equal(valid.status,200,JSON.stringify(valid.body));assert.equal(valid.body.valid,2);assert.equal(valid.body.invalid,1);
  assert.equal((await pool.query("SELECT count(*) FROM business_lines WHERE code LIKE 'RF-IMP-%'")).rows[0].count,'0');
- assert.equal((await call('business-lines/jobs/'+id+'/start','POST',{},superAdmin)).status,200);
+ assert.equal((await call('business-lines/jobs/'+id+'/start','POST',{validationToken:valid.body.validationToken},superAdmin)).status,200);
  const run=await call('business-lines/jobs/'+id+'/step','POST',{},superAdmin);assert.equal(run.status,200,JSON.stringify(run.body));assert.equal(run.body.job.status,'partial');assert.equal(run.body.job.succeeded,2);assert.equal(run.body.job.failed,1);
  const again=await call('business-lines/jobs/'+id+'/step','POST',{},superAdmin);assert.equal(again.body.job.succeeded,2);
  const reupload=await call('business-lines/imports/analyze','POST',{filename:'same-records.csv',data:Buffer.from(csv).toString('base64')},superAdmin);assert.equal(reupload.body.reused,true);assert.equal(reupload.body.job.id,id);
@@ -567,7 +570,7 @@ test('Atomic import rolls back successful rows if a later row conflicts after va
  const upload=await call('business-lines/imports/analyze','POST',{filename:'atomic.csv',data:Buffer.from(csv).toString('base64')},superAdmin);assert.equal(upload.status,200,JSON.stringify(upload.body));const id=upload.body.job.id;
  const valid=await call('business-lines/imports/'+id+'/validate','POST',{mapping:{name:0,code:1},mode:'create',atomic:true},superAdmin);assert.equal(valid.body.valid,2);
  assert.equal((await call('business-lines','POST',{name:'RF Atomic Concurrent',code:'RF-ATOMIC-2'},superAdmin)).status,200);
- await call('business-lines/jobs/'+id+'/start','POST',{},superAdmin);const run=await call('business-lines/jobs/'+id+'/step','POST',{},superAdmin);assert.equal(run.status,200,JSON.stringify(run.body));assert.equal(run.body.job.status,'failed');assert.equal(run.body.job.succeeded,0);
+ await call('business-lines/jobs/'+id+'/start','POST',{validationToken:valid.body.validationToken},superAdmin);const run=await call('business-lines/jobs/'+id+'/step','POST',{},superAdmin);assert.equal(run.status,200,JSON.stringify(run.body));assert.equal(run.body.job.status,'failed');assert.equal(run.body.job.succeeded,0);
  assert.equal((await pool.query("SELECT count(*) FROM business_lines WHERE code='RF-ATOMIC-1'")).rows[0].count,'0');
 });
 
@@ -597,7 +600,7 @@ test('Records XLSX import updates preserve unmapped Description and protect syst
  const {default:ExcelJS}=await import('exceljs');const workbook=new ExcelJS.Workbook(),sheet=workbook.addWorksheet('Import Data');sheet.addRow(['Business Line ID','Business Line Code','Business Line Name']);sheet.addRow([initial.body.record.displayId,'RF-XLSX-2','RF XLSX Updated']);const bytes=Buffer.from(await workbook.xlsx.writeBuffer());
  const upload=await call('business-lines/imports/analyze','POST',{filename:'update.xlsx',data:bytes.toString('base64')},superAdmin);assert.equal(upload.status,200,JSON.stringify(upload.body));const id=upload.body.job.id;
  const validation=await call('business-lines/imports/'+id+'/validate','POST',{mapping:{displayId:0,code:1,name:2},mode:'update',atomic:true},superAdmin);assert.equal(validation.status,200,JSON.stringify(validation.body));assert.equal(validation.body.valid,1);
- await call('business-lines/jobs/'+id+'/start','POST',{},superAdmin);const run=await call('business-lines/jobs/'+id+'/step','POST',{},superAdmin);assert.equal(run.status,200,JSON.stringify(run.body));assert.equal(run.body.job.succeeded,1);
+ await call('business-lines/jobs/'+id+'/start','POST',{validationToken:validation.body.validationToken},superAdmin);const run=await call('business-lines/jobs/'+id+'/step','POST',{},superAdmin);assert.equal(run.status,200,JSON.stringify(run.body));assert.equal(run.body.job.succeeded,1);
  const record=(await call('business-lines/'+initial.body.record.id,'GET',undefined,superAdmin)).body.record;assert.equal(record.name,'RF XLSX Updated');assert.equal(record.code,'RF-XLSX-2');assert.equal(record.description,'Preserved description');assert.equal(record.createdAt,initial.body.record.createdAt);assert.equal(record.createdById,initial.body.record.createdById);assert.equal(record.ownerId,initial.body.record.ownerId);
 });
 
@@ -622,4 +625,148 @@ test('Records and Overview restore independent filters and Overview exports only
  const saved=await call('business-lines/preferences','PUT',{version,data},superAdmin);assert.equal(saved.status,200,JSON.stringify(saved.body));assert.equal(saved.body.preferences.query.q,'RF Large Export');assert.equal(saved.body.preferences.queries.records.q,'RF XLSX');
  const restored=(await call('business-lines/preferences','GET',undefined,superAdmin)).body.preferences;assert.equal(restored.queries.records.pageSize,50);assert.equal(restored.queries.overview.pageSize,25);
  const exported=await call('business-lines/overview-export','POST',{query:{q:'RF Large Export'},format:'csv'},superAdmin);assert.equal(exported.status,200,JSON.stringify(exported.body));const csv=Buffer.from(exported.body.data,'base64').toString();assert.match(csv,/Matching Business Lines/);assert.match(csv,/1005/);assert.equal(csv.trim().split('\n').length,6,'Overview exports five summary metrics, not the underlying records');
+});
+
+test('Create import templates omit generated identity and provide field-by-field CSV guidance',{skip:!enabled},async()=>{
+ const {superAdmin,admin:ordinaryAdmin}=await businessActors();
+ const template=await call('business-lines/imports/template?format=csv','GET',undefined,superAdmin);
+ assert.equal(template.status,200,JSON.stringify(template.body));
+ const {parseCSV}=await import('../server/records-files.mjs');
+ const headers=parseCSV(Buffer.from(template.body.data,'base64'))[0];
+ assert.deepEqual(new Set(headers),new Set(['Business Line Code','Business Line Name','Business Line Description']));
+ assert.ok(!headers.includes('Business Line ID'),'System-generated identity is not a user-fillable Create column');
+ const guide=await call('business-lines/imports/guidelines?format=csv','GET',undefined,superAdmin);
+ assert.equal(guide.status,200,JSON.stringify(guide.body));
+ const content=Buffer.from(guide.body.data,'base64').toString('utf8');
+ for(const label of headers)assert.ok(content.includes(label),'Guidelines explain '+label);
+ assert.match(content,/required/i);assert.match(content,/unique/i);assert.match(content,/dependenc/i);
+ assert.equal((await call('business-lines/imports/guidelines?format=csv','GET',undefined,ordinaryAdmin)).status,403);
+});
+
+test('Repeated completed imports explicitly identify the original result without new writes',{skip:!enabled},async()=>{
+ const {superAdmin}=await businessActors();
+ const csv='Business Line Code,Business Line Name\nRF-REPEAT-C,RF Completed Reupload\n';
+ const analyze=()=>call('business-lines/imports/analyze','POST',{filename:'repeated-complete.csv',data:Buffer.from(csv).toString('base64')},superAdmin);
+ const first=await analyze();assert.equal(first.status,200,JSON.stringify(first.body));const id=first.body.job.id;
+ const validation=await call('business-lines/imports/'+id+'/validate','POST',{mapping:{code:0,name:1},mode:'create',atomic:false},superAdmin);
+ assert.equal(validation.body.valid,1);await call('business-lines/jobs/'+id+'/start','POST',{validationToken:validation.body.validationToken},superAdmin);
+ const result=await call('business-lines/jobs/'+id+'/step','POST',{},superAdmin);assert.equal(result.body.job.status,'completed');
+ const before=(await pool.query("SELECT id,version,updated_at FROM business_lines WHERE code='RF-REPEAT-C'")).rows[0];
+ const [a,b]=await Promise.all([analyze(),analyze()]);
+ for(const repeat of [a,b]){assert.equal(repeat.status,200,JSON.stringify(repeat.body));assert.equal(repeat.body.reused,true);assert.equal(repeat.body.duplicate,true);assert.equal(repeat.body.job.id,id);assert.equal(repeat.body.job.succeeded,1);assert.match(repeat.body.message,/already|previous|original/i);assert.match(repeat.body.message,/no new|not imported|not.*again|no records.*changed/i);}
+ const after=(await pool.query("SELECT id,version,updated_at FROM business_lines WHERE code='RF-REPEAT-C'")).rows[0];assert.deepEqual(after,before);
+ assert.equal((await pool.query("SELECT count(*) FROM business_lines WHERE code='RF-REPEAT-C'")).rows[0].count,'1');
+});
+
+test('Partial update import reports changed, unchanged and invalid rows and supports correction',{skip:!enabled},async()=>{
+ const {superAdmin}=await businessActors();
+ const created=[];for(const [code,name] of [['RF-MIX-1','RF Mixed Update One'],['RF-MIX-2','RF Mixed Update Two']]){
+  const r=await call('business-lines','POST',{code,name,description:'Original description'},superAdmin);assert.equal(r.status,200,JSON.stringify(r.body));created.push(r.body.record);
+ }
+ const csv='Business Line Code,Business Line Name,Business Line Description\nRF-MIX-1,RF Mixed Update One,Updated description\nRF-MIX-2,RF Mixed Update Two,Original description\nRF-MIX-404,RF Missing Update,Missing record\n';
+ const upload=await call('business-lines/imports/analyze','POST',{filename:'mixed-updates.csv',data:Buffer.from(csv).toString('base64')},superAdmin);const id=upload.body.job.id;
+ const validation=await call('business-lines/imports/'+id+'/validate','POST',{mapping:{code:0,name:1,description:2},mode:'update',atomic:false},superAdmin);
+ assert.equal(validation.status,200,JSON.stringify(validation.body));assert.equal(validation.body.valid,1);assert.equal(validation.body.invalid,1);assert.equal(validation.body.unchanged,1);
+ const before=await call('business-lines/'+created[0].id,'GET',undefined,superAdmin);assert.equal(before.body.record.description,'Original description','Validation never mutates records');
+ const errorsBefore=await call('business-lines/jobs/'+id+'/errors?part=1','GET',undefined,superAdmin);assert.equal(errorsBefore.status,200);const failedOnly=Buffer.from(errorsBefore.body.data,'base64').toString();assert.match(failedOnly,/RF-MIX-404/);assert.doesNotMatch(failedOnly,/RF-MIX-2/,'Unchanged rows do not belong in the correction file');assert.doesNotMatch(failedOnly,/RF-MIX-1/,'Valid changed rows do not belong in the correction file');
+ await call('business-lines/jobs/'+id+'/start','POST',{validationToken:validation.body.validationToken},superAdmin);const complete=await call('business-lines/jobs/'+id+'/step','POST',{},superAdmin);
+ assert.equal(complete.status,200,JSON.stringify(complete.body));assert.equal(complete.body.job.status,'partial');assert.equal(complete.body.job.updated,1);assert.equal(complete.body.job.created,0);assert.equal(complete.body.job.failed,1);assert.equal(complete.body.job.skipped,1);
+ const changed=await call('business-lines/'+created[0].id,'GET',undefined,superAdmin),unchanged=await call('business-lines/'+created[1].id,'GET',undefined,superAdmin);
+ assert.equal(changed.body.record.description,'Updated description');assert.equal(unchanged.body.record.version,created[1].version,'An unchanged row does not create a misleading edit/audit event');
+ const outcomes=await call('business-lines/jobs/'+id+'/results?format=csv','GET',undefined,superAdmin);assert.equal(outcomes.status,200,JSON.stringify(outcomes.body));const output=Buffer.from(outcomes.body.data,'base64').toString();for(const code of ['RF-MIX-1','RF-MIX-2','RF-MIX-404'])assert.match(output,new RegExp(code));assert.match(output,/updated/i);assert.match(output,/unchanged|no changes/i);assert.match(output,/failed/i);
+ const corrected='Business Line Code,Business Line Name,Business Line Description\nRF-MIX-1,RF Mixed Update One,Corrected failed row\n';
+ const correction=await call('business-lines/imports/analyze','POST',{filename:'corrected-only.csv',data:Buffer.from(corrected).toString('base64')},superAdmin);assert.notEqual(correction.body.job.id,id);assert.equal(correction.body.reused,false);
+});
+
+test('Successful updates with unchanged rows complete without reporting a partial failure',{skip:!enabled},async()=>{
+ const {superAdmin}=await businessActors();const csv='Business Line Code,Business Line Name,Business Line Description\nRF-MIX-1,RF Mixed Update One,Another saved update\nRF-MIX-2,RF Mixed Update Two,Original description\n';
+ const upload=await call('business-lines/imports/analyze','POST',{filename:'unchanged-is-success.csv',data:Buffer.from(csv).toString('base64')},superAdmin);const id=upload.body.job.id;
+ const validation=await call('business-lines/imports/'+id+'/validate','POST',{mapping:{code:0,name:1,description:2},mode:'update',atomic:false},superAdmin);assert.equal(validation.status,200,JSON.stringify(validation.body));assert.equal(validation.body.valid,1);assert.equal(validation.body.invalid,0);assert.equal(validation.body.unchanged,1);
+ const start=await call('business-lines/jobs/'+id+'/start','POST',{validationToken:validation.body.validationToken},superAdmin);assert.equal(start.status,200,JSON.stringify(start.body));
+ const completed=await call('business-lines/jobs/'+id+'/step','POST',{},superAdmin);assert.equal(completed.status,200,JSON.stringify(completed.body));assert.equal(completed.body.job.status,'completed');assert.equal(completed.body.job.updated,1);assert.equal(completed.body.job.skipped,1);assert.equal(completed.body.job.failed,0);
+ const details=await call('business-lines/jobs/'+id,'GET',undefined,superAdmin);assert.equal(details.body.reportParts,0,'There is no correction file when every row is valid or unchanged');
+});
+
+test('A stale import review in another session cannot commit a replaced validation snapshot',{skip:!enabled},async()=>{
+ const {superAdmin}=await businessActors();const login=await call('auth/login','POST',{email:superAdmin.email,password});assert.equal(login.status,200);const secondSession={cookie:login.headers['Set-Cookie'].split(';')[0],csrf:login.body.csrf,email:superAdmin.email};
+ const csv='Business Line Code,Name A,Name B\nRF-REVIEW-RACE,RF Cross Session Earlier,RF Cross Session Reviewed\n';
+ const upload=await call('business-lines/imports/analyze','POST',{filename:'two-review-sessions.csv',data:Buffer.from(csv).toString('base64')},superAdmin);assert.equal(upload.status,200);const id=upload.body.job.id;
+ const first=await call('business-lines/imports/'+id+'/validate','POST',{mapping:{code:0,name:1},mode:'create',atomic:true},superAdmin);assert.equal(first.status,200);assert.equal(first.body.valid,1);
+ const second=await call('business-lines/imports/'+id+'/validate','POST',{mapping:{code:0,name:2},mode:'create',atomic:false},secondSession);assert.equal(second.status,200);assert.equal(second.body.valid,1);assert.notEqual(first.body.validationToken,second.body.validationToken);
+ assert.equal((await call('business-lines/jobs/'+id+'/start','POST',{},superAdmin)).status,409,'A missing review token cannot approve the latest snapshot');
+ const stale=await call('business-lines/jobs/'+id+'/start','POST',{validationToken:first.body.validationToken},superAdmin);assert.equal(stale.status,409);assert.match(stale.body.error,/validation|review/i);assert.equal((await pool.query("SELECT count(*) FROM business_lines WHERE code='RF-REVIEW-RACE'")).rows[0].count,'0');
+ const accepted=await call('business-lines/jobs/'+id+'/start','POST',{validationToken:second.body.validationToken},secondSession);assert.equal(accepted.status,200,JSON.stringify(accepted.body));const finished=await call('business-lines/jobs/'+id+'/step','POST',{},secondSession);assert.equal(finished.status,200,JSON.stringify(finished.body));assert.equal(finished.body.job.created,1);
+ assert.equal((await pool.query("SELECT name FROM business_lines WHERE code='RF-REVIEW-RACE'")).rows[0].name,'RF Cross Session Reviewed');
+ const repeat=await call('business-lines/jobs/'+id+'/start','POST',{},superAdmin);assert.equal(repeat.status,200);assert.equal(repeat.body.reused,true,'A completed retry remains idempotent');
+});
+
+test('Business Line events retain supplied origin timezones without changing UTC instants or ordinary fields',{skip:!enabled},async()=>{
+ const {superAdmin}=await businessActors();
+ const rejected=await call('business-lines','POST',{code:'RF-TZ-BAD',name:'RF Invalid Event Zone',timeZone:'Invalid/Zone'},superAdmin);assert.equal(rejected.status,400);assert.equal((await pool.query("SELECT count(*) FROM business_lines WHERE code='RF-TZ-BAD'")).rows[0].count,'0');
+ const created=await call('business-lines','POST',{code:'RF-TZ-EVENT',name:'RF Origin Event Zone',description:'Initial value',timeZone:'Asia/Kolkata'},superAdmin);assert.equal(created.status,200,JSON.stringify(created.body));const initial=created.body.record;assert.match(initial.createdAt,/Z$/);assert.ok(Number.isFinite(Date.parse(initial.createdAt)));assert.equal(Object.hasOwn(initial,'timeZone'),false,'Timezone context does not become an ordinary Business Line form field');
+ let history=await call('business-lines/'+initial.id+'/history','GET',undefined,superAdmin);assert.equal(history.status,200);assert.equal(history.body.history[0].action,'Created');assert.equal(history.body.history[0].timeZone,'Asia/Kolkata');assert.equal(Object.hasOwn(history.body.history[0].changes,'_context'),false);
+ assert.equal((await pool.query("SELECT changes->'_context'->>'timeZone' AS zone FROM business_line_events WHERE business_line_id=$1 ORDER BY id DESC LIMIT 1",[initial.id])).rows[0].zone,'Asia/Kolkata');
+ const edited=await call('business-lines/'+initial.id,'PUT',{version:initial.version,description:'Changed value',timeZone:'America/New_York'},superAdmin);assert.equal(edited.status,200,JSON.stringify(edited.body));assert.equal(edited.body.record.createdAt,initial.createdAt);assert.match(edited.body.record.updatedAt,/Z$/);
+ const noChange=await call('business-lines/'+initial.id,'PUT',{version:edited.body.record.version,description:'Changed value',timeZone:'Europe/London'},superAdmin);assert.equal(noChange.status,200);assert.equal(noChange.body.record.version,edited.body.record.version);
+ history=await call('business-lines/'+initial.id+'/history','GET',undefined,superAdmin);assert.equal(history.body.history.length,2,'A timezone-only no-op does not manufacture a change event');assert.equal(history.body.history[0].timeZone,'America/New_York');
+ const invalidArchive=await call('business-lines/'+initial.id+'/archive','POST',{version:edited.body.record.version,reason:'Reviewed fixture',timeZone:'Invalid/Zone'},superAdmin);assert.equal(invalidArchive.status,400);assert.equal((await call('business-lines/'+initial.id,'GET',undefined,superAdmin)).body.record.version,edited.body.record.version);
+ const archived=await call('business-lines/'+initial.id+'/archive','POST',{version:edited.body.record.version,reason:'Reviewed fixture',timeZone:'Australia/Sydney'},superAdmin);assert.equal(archived.status,200,JSON.stringify(archived.body));assert.match(archived.body.record.archivedAt,/Z$/);
+ const restored=await call('business-lines/'+initial.id+'/restore','POST',{version:archived.body.record.version,reason:'Restored fixture'},superAdmin);assert.equal(restored.status,200,JSON.stringify(restored.body));
+ history=await call('business-lines/'+initial.id+'/history','GET',undefined,superAdmin);assert.deepEqual(history.body.history.map(e=>[e.action,e.timeZone]),[['Restored',null],['Archived','Australia/Sydney'],['Updated','America/New_York'],['Created','Asia/Kolkata']]);assert.ok(history.body.history.every(e=>e.createdAt.endsWith('Z')&&!Object.hasOwn(e.changes,'_context')));
+ const withoutZone=await call('business-lines','POST',{code:'RF-TZ-UNKNOWN',name:'RF Unknown Event Zone'},superAdmin);assert.equal(withoutZone.status,200);assert.equal((await call('business-lines/'+withoutZone.body.record.id+'/history','GET',undefined,superAdmin)).body.history[0].timeZone,null,'Missing origin stays unknown rather than being inferred from server UTC');
+});
+
+test('Import and bulk workers retain the initiating timezone through retries and reject origin replacement',{skip:!enabled},async()=>{
+ const {superAdmin}=await businessActors();const csv='Business Line Code,Business Line Name\nRF-TZ-JOB,RF Background Origin Zone\n';
+ const uploaded=await call('business-lines/imports/analyze','POST',{filename:'origin-zone.csv',data:Buffer.from(csv).toString('base64')},superAdmin);assert.equal(uploaded.status,200,JSON.stringify(uploaded.body));const importId=uploaded.body.job.id;
+ const validationInput={mapping:{code:0,name:1},mode:'create',atomic:false,timeZone:'Europe/London'};
+ assert.equal((await call('business-lines/imports/'+importId+'/validate','POST',{...validationInput,timeZone:'Invalid/Zone'},superAdmin)).status,400);assert.equal((await pool.query("SELECT count(*) FROM business_lines WHERE code='RF-TZ-JOB'")).rows[0].count,'0');
+ const validated=await call('business-lines/imports/'+importId+'/validate','POST',validationInput,superAdmin);assert.equal(validated.status,200,JSON.stringify(validated.body));assert.equal(validated.body.valid,1);assert.equal((await pool.query('SELECT request FROM crm_transfer_jobs WHERE id=$1',[importId])).rows[0].request.timeZone,'Europe/London');
+ assert.equal((await call('business-lines/jobs/'+importId+'/start','POST',{validationToken:validated.body.validationToken},superAdmin)).status,200);assert.equal((await call('business-lines/jobs/'+importId+'/start','POST',{timeZone:'Pacific/Auckland'},superAdmin)).status,400);assert.equal((await call('business-lines/jobs/'+importId+'/start','POST',{},superAdmin)).status,200);
+ const imported=await call('business-lines/jobs/'+importId+'/step','POST',{},superAdmin);assert.equal(imported.status,200,JSON.stringify(imported.body));assert.equal(imported.body.job.created,1);assert.equal(imported.body.job.status,'completed');
+ const record=(await pool.query("SELECT id FROM business_lines WHERE code='RF-TZ-JOB'")).rows[0];let history=await call('business-lines/'+record.id+'/history','GET',undefined,superAdmin);assert.equal(history.body.history[0].timeZone,'Europe/London');
+ const bulkInput={scope:'selected',ids:[record.id],action:'archive',reason:'Reviewed timezone fixture',expectedCount:1,requestId:'7c8056f9-a231-4b14-a0de-44dc8b79f44a',timeZone:'Australia/Sydney'};
+ assert.equal((await call('business-lines/bulk','POST',{...bulkInput,timeZone:'Invalid/Zone'},superAdmin)).status,400);assert.equal((await call('business-lines/'+record.id,'GET',undefined,superAdmin)).body.record.archivedAt,null);
+ const bulk=await call('business-lines/bulk','POST',bulkInput,superAdmin);assert.equal(bulk.status,200,JSON.stringify(bulk.body));const bulkId=bulk.body.job.id;assert.equal((await pool.query('SELECT request FROM crm_transfer_jobs WHERE id=$1',[bulkId])).rows[0].request.timeZone,'Australia/Sydney');
+ assert.equal((await call('business-lines/jobs/'+bulkId+'/step','POST',{timeZone:'Pacific/Auckland'},superAdmin)).status,400);const completed=await call('business-lines/jobs/'+bulkId+'/step','POST',{},superAdmin);assert.equal(completed.status,200,JSON.stringify(completed.body));assert.equal(completed.body.job.status,'completed');
+ const retry=await call('business-lines/jobs/'+bulkId+'/step','POST',{},superAdmin);assert.equal(retry.body.job.succeeded,1);history=await call('business-lines/'+record.id+'/history','GET',undefined,superAdmin);assert.deepEqual(history.body.history.map(e=>[e.action,e.timeZone]),[['Archived','Australia/Sydney'],['Created','Europe/London']]);
+});
+
+test('Export preserves local timezone metadata, filters and 24-hour completion-based expiry',{skip:!enabled},async()=>{
+ const {superAdmin,admin:ordinaryAdmin}=await businessActors();
+ const body={scope:'matching',query:{q:'RF Completed Reupload'},columnMode:'custom',columns:['displayId','name','createdAt','updatedAt'],format:'xlsx',timeZone:'Asia/Kolkata'};
+ const bad=await call('business-lines/exports/plan','POST',{...body,timeZone:'Invalid/Zone'},superAdmin);assert.equal(bad.status,400);
+ const plan=await call('business-lines/exports/plan','POST',body,superAdmin);assert.equal(plan.status,200,JSON.stringify(plan.body));assert.equal(plan.body.count,1);assert.equal(plan.body.timeZone,'Asia/Kolkata');
+ const queued=await call('business-lines/exports','POST',{...body,expectedCount:plan.body.count,requestId:'15f3bce8-a866-43ea-8bfa-18aa3d21a558'},superAdmin);assert.equal(queued.status,200,JSON.stringify(queued.body));const id=queued.body.job.id;assert.equal(queued.body.job.timeZone,'Asia/Kolkata');
+ // The job's files get a full retention period after completion, even when queued earlier.
+ await pool.query("UPDATE crm_transfer_jobs SET created_at=now()-interval '2 hours',expires_at=now()+interval '22 hours' WHERE id=$1",[id]);
+ const run=await call('business-lines/jobs/'+id+'/step','POST',{},superAdmin);assert.equal(run.status,200,JSON.stringify(run.body));assert.equal(run.body.job.status,'completed');
+ const remaining=new Date(run.body.job.expiresAt).getTime()-Date.now();assert.ok(remaining>23.99*3600000&&remaining<=24.01*3600000,'Files retain approximately 24 hours after completion');
+ const details=await call('business-lines/jobs/'+id,'GET',undefined,superAdmin);assert.equal(details.status,200);assert.equal(details.body.job.timeZone,'Asia/Kolkata');assert.equal(details.body.job.request.query.q,body.query.q);
+ const downloaded=await call('business-lines/jobs/'+id+'/file?part=1','GET',undefined,superAdmin);assert.equal(downloaded.status,200);assert.match(downloaded.body.filename,/\d{4}-\d{2}-\d{2}/);assert.match(downloaded.body.filename,/\d{2}-\d{2}-\d{2}/);
+ const {default:ExcelJS}=await import('exceljs');const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(Buffer.from(downloaded.body.data,'base64'));const sheet=workbook.getWorksheet('Records');assert.ok(sheet);const headers=sheet.getRow(1).values.slice(1);assert.equal(headers.filter(v=>/Time Zone/.test(v)).length,2);for(let c=1;c<=headers.length;c++)if(/Time Zone/.test(headers[c-1])){const zone=sheet.getCell(2,c).value??'';if(sheet.getCell(2,c-1).value)assert.match(String(zone),/^Asia\/Kolkata \(UTC\+05:30\)$/);else assert.equal(zone,'','Blank dates have blank timezones');}assert.ok(sheet.getRow(2).values.some(v=>String(v).startsWith('Asia/Kolkata')));assert.ok(workbook.worksheets.length>=2);
+ const guide=await call('business-lines/jobs/'+id+'/guidelines?format=csv','GET',undefined,superAdmin);assert.equal(guide.status,200);assert.match(Buffer.from(guide.body.data,'base64').toString(),/Asia\/Kolkata/);
+ assert.equal((await call('business-lines/jobs/'+id+'/guidelines?format=csv','GET',undefined,ordinaryAdmin)).status,403);
+ await pool.query("UPDATE crm_transfer_jobs SET expires_at=now()-interval '1 second' WHERE id=$1",[id]);
+ assert.equal((await call('business-lines/jobs/'+id+'/file?part=1','GET',undefined,superAdmin)).status,410);
+ await call('business-lines/jobs','GET',undefined,superAdmin);
+ assert.equal((await pool.query('SELECT count(*) FROM crm_transfer_files WHERE job_id=$1',[id])).rows[0].count,'0','Expired downloadable bytes are removed');
+});
+
+test('Wide Unicode exports subdivide safely without losing records or requested columns',{skip:!enabled},async()=>{
+ const {superAdmin}=await businessActors();const actor=(await pool.query("SELECT id,name FROM users WHERE email=$1",[superAdmin.email])).rows[0];
+ try{
+  await pool.query('UPDATE users SET name=$2 WHERE id=$1',[actor.id,'界'.repeat(120)]);
+  await pool.query("INSERT INTO business_lines(id,name,code,description,owner_id,created_by,updated_by) SELECT gen_random_uuid(),'RF Wide Unicode '||n||repeat('界',120),'RF-WIDE-'||n,repeat('界',500),$1,$1,$1 FROM generate_series(1,1000) n",[actor.id]);
+  const fields=(await call('business-lines/framework','GET',undefined,superAdmin)).body.fields;const columns=fields.map(f=>f.key);
+  const request={scope:'matching',query:{q:'RF Wide Unicode',sorts:[{field:'name',direction:'asc'}]},columnMode:'custom',columns,format:'csv',timeZone:'Asia/Kolkata'};
+  const plan=await call('business-lines/exports/plan','POST',request,superAdmin);assert.equal(plan.status,200,JSON.stringify(plan.body));assert.equal(plan.body.count,1000);
+  const created=await call('business-lines/exports','POST',{...request,expectedCount:1000,requestId:'d5e5089a-8bf0-4a94-ae8a-4f181d10b72a'},superAdmin);assert.equal(created.status,200,JSON.stringify(created.body));const id=created.body.job.id;
+  let run=await call('business-lines/jobs/'+id+'/step','POST',{},superAdmin);assert.equal(run.status,200,JSON.stringify(run.body));assert.ok(run.body.job.succeeded>0&&run.body.job.succeeded<1000,'An oversized first batch makes safe partial progress');
+  for(let n=0;n<10&&run.body.job.status!=='completed';n++){run=await call('business-lines/jobs/'+id+'/step','POST',{},superAdmin);assert.equal(run.status,200,JSON.stringify(run.body));}
+  assert.equal(run.body.job.status,'completed');assert.equal(run.body.job.succeeded,1000);assert.equal(run.body.job.failed,0);
+  const details=await call('business-lines/jobs/'+id,'GET',undefined,superAdmin);assert.ok(details.body.files.length>=2);const {parseCSV}=await import('../server/records-files.mjs');const codes=[];
+  for(const part of details.body.files){assert.ok(part.size<=2500000,'Every part stays inside the response-size budget');const file=await call('business-lines/jobs/'+id+'/file?part='+part.part,'GET',undefined,superAdmin);assert.equal(file.status,200);const parsed=parseCSV(Buffer.from(file.body.data,'base64')),headers=parsed[0];for(const field of fields)assert.ok(headers.includes(field.label),'No requested column was dropped: '+field.label);const codeIndex=headers.indexOf('Business Line Code');codes.push(...parsed.slice(1).map(r=>r[codeIndex]));}
+  assert.equal(codes.length,1000);assert.equal(new Set(codes).size,1000);assert.ok(codes.includes('RF-WIDE-1')&&codes.includes('RF-WIDE-1000'));
+ }finally{await pool.query('UPDATE users SET name=$2 WHERE id=$1',[actor.id,actor.name]);}
 });
