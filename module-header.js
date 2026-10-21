@@ -32,10 +32,14 @@ function searchNode() {
 function parkSearch() {
  const search=searchNode(), top=document.querySelector('.topbar .top-actions');
  if(search&&top&&search.parentElement!==top)top.prepend(search);
- search?.classList.remove('scrm-search','crm-search-in-workbar');
+ search?.classList.remove('scrm-search','crm-search-in-workbar','crm-search-in-topbar');
+ document.querySelector('.topbar')?.classList.remove('scrm-bl-top-search');
 }
 function preserveSearch(action) {
  const search=searchNode(), input=search?.querySelector('input');
+ // Business Lines search now lives outside the rerendered module. Leave focus
+ // and text selection alone while the user types or clears the existing query.
+ if(currentPage==='businesslines'&&search?.classList.contains('crm-search-in-topbar'))return action();
  const focused=document.activeElement===input;
  const start=input?.selectionStart,end=input?.selectionEnd;
  parkSearch();
@@ -129,6 +133,19 @@ function sync(page,label) {
  if(bell&&focus&&bell.nextElementSibling!==focus)bell.after(focus);
  if(!row){parkSearch();return;}
  decorate(row,page,label);
+ const top=document.querySelector('.topbar'), actions=top?.querySelector('.top-actions');
+ const inTopbar=page==='businesslines'&&!!search&&!!actions&&bell?.parentElement===actions;
+ top?.classList.toggle('scrm-bl-top-search',inTopbar);
+ row.classList.toggle('scrm-search-in-topbar',inTopbar);
+ search?.classList.toggle('crm-search-in-topbar',inTopbar);
+ if(inTopbar){
+  // Move the same live search, keeping its scope, handlers and keyboard behavior.
+  if(search.nextElementSibling!==bell)actions.insertBefore(search,bell);
+  search.classList.add('scrm-search');
+  search.classList.remove('crm-search-in-workbar');
+  const icon=search.querySelector('.crm-search-symbol');if(icon&&!icon.querySelector('svg'))icon.innerHTML=svg('search');
+  return;
+ }
  const slot=row.querySelector('.scrm-search-slot');
  if(slot&&search){
   if(search.parentElement!==slot)slot.append(search);

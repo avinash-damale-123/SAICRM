@@ -269,3 +269,37 @@
 .scrm-workbar .scrm-search{min-height:36px!important;height:36px!important}
 .scrm-workbar .scrm-search input{min-height:34px!important}
 @media(max-width:800px){.topbar{padding:5px 10px!important}.crm-module-workbar.scrm-workbar{padding:6px 10px!important}}
+
+/* Business Lines review: relocate the existing search, without changing controls. */
+.topbar.scrm-bl-top-search>.top-left{flex:0 1 auto;max-width:36%}
+.topbar.scrm-bl-top-search>.top-actions{flex:1 1 auto;min-width:0;gap:10px}
+.topbar.scrm-bl-top-search .crm-search-in-topbar{display:flex;flex:1 1 320px;width:auto;min-width:0;max-width:640px;margin-left:auto;box-sizing:border-box;height:36px;min-height:36px;padding:0 8px;gap:7px;border-radius:8px;background:#fff}
+.topbar.scrm-bl-top-search .crm-search-in-topbar #crmSearchInput{height:34px;min-height:0;font-size:12px}
+.topbar.scrm-bl-top-search .crm-search-in-topbar .crm-scope-button{min-width:0;min-height:29px;padding:5px 7px;border-radius:6px;font-size:10px}
+.topbar.scrm-bl-top-search .crm-search-in-topbar>kbd{display:inline-block!important}
+.topbar.scrm-bl-top-search .crm-search-in-topbar .crm-search-results{left:auto;right:0;width:min(640px,calc(100vw - 32px));max-height:min(490px,calc(100dvh - 130px))}
+.scrm-bl-clean.scrm-search-in-topbar>.scrm-search-slot{display:none!important}
+.scrm-bl-clean.scrm-search-in-topbar .scrm-tabs>.scrm-view{border-radius:6px!important}
+.scrm-bl-clean.scrm-search-in-topbar .scrm-tabs>.scrm-view:is(.active,.mw-active-tab),
+.scrm-bl-clean.scrm-search-in-topbar .scrm-tabs>.scrm-view:is(.active,.mw-active-tab):hover{background:#087b40!important;color:#fff!important;border-bottom-color:#087b40!important}
+.scrm-bl-clean.scrm-search-in-topbar .scrm-tabs>.scrm-view:focus-visible{outline:2px solid #b9690d;outline-offset:2px}
+@container scrm-main (max-width:960px){
+ .topbar.scrm-bl-top-search{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;height:auto!important;gap:6px 8px}
+ .topbar.scrm-bl-top-search>.top-left{grid-column:1;grid-row:1;max-width:100%}
+ .topbar.scrm-bl-top-search>.top-actions{display:contents}
+ .topbar.scrm-bl-top-search .crm-search-in-topbar{grid-column:1/-1;grid-row:2;width:100%;max-width:none;margin:0}
+ .topbar.scrm-bl-top-search #notifBtn{grid-column:2;grid-row:1}
+ .topbar.scrm-bl-top-search #focusModeBtn{grid-column:3;grid-row:1}
+ .topbar.scrm-bl-top-search .crm-profile{grid-column:4;grid-row:1}
+ .topbar.scrm-bl-top-search .crm-search-in-topbar .crm-search-results{left:0;right:0;width:100%}
+}
+@container scrm-main (max-width:920px){
+ .scrm-bl-clean.scrm-search-in-topbar{grid-template-rows:auto auto!important}
+ .scrm-bl-clean.scrm-search-in-topbar.scrm-no-tabs>.scrm-actions{grid-row:2!important}
+}
+@container scrm-main (max-width:520px){
+ .scrm-bl-clean.scrm-search-in-topbar>.scrm-actions{grid-row:3!important}
+ .scrm-bl-clean.scrm-search-in-topbar.scrm-no-tabs>.scrm-actions{grid-row:2!important}
+ .topbar.scrm-bl-top-search .crm-search-in-topbar>kbd{display:none!important}
+ .topbar.scrm-bl-top-search .crm-search-in-topbar #crmSearchInput{font-size:16px}
+}

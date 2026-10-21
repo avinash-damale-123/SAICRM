@@ -49,7 +49,7 @@ try{
   await page.waitForTimeout(240);
   const r=await page.evaluate(()=>{
    const box=s=>{const n=document.querySelector(s);if(!n)return null;const b=n.getBoundingClientRect();return{x:b.x,y:b.y,w:b.width,h:b.height};};
-   return {width:innerWidth,overflow:document.documentElement.scrollWidth>innerWidth+1,collapsed:document.getElementById('app').classList.contains('nav-collapsed'),main:box('.main'),bar:box('.scrm-workbar'),identity:box('.scrm-identity'),tabs:box('.scrm-tabs'),search:box('.scrm-search'),input:box('#crmSearchInput'),actions:box('.scrm-actions'),bell:box('#notifBtn'),focus:box('#focusModeBtn'),profile:box('.crm-profile'),tabsText:[...document.querySelectorAll('.scrm-view-context')].map(e=>({text:e.textContent,visible:e.getBoundingClientRect().height>0})),inputCount:document.querySelectorAll('#crmSearchInput').length};
+   return {width:innerWidth,overflow:document.documentElement.scrollWidth>innerWidth+1,collapsed:document.getElementById('app').classList.contains('nav-collapsed'),main:box('.main'),bar:box('.scrm-workbar'),identity:box('.scrm-identity'),tabs:box('.scrm-tabs'),search:box('.scrm-search'),input:box('#crmSearchInput'),actions:box('.scrm-actions'),bell:box('#notifBtn'),focus:box('#focusModeBtn'),profile:box('.crm-profile'),top:box('.topbar'),topSearch:!!document.querySelector('.topbar #crmSearchInput'),searchBeforeBell:document.getElementById('globalSearchBtn')?.nextElementSibling?.id==='notifBtn',activeTab:[...document.querySelectorAll('.scrm-tabs .mw-active-tab')].map(e=>({background:getComputedStyle(e).backgroundColor,color:getComputedStyle(e).color})),tabsText:[...document.querySelectorAll('.scrm-view-context')].map(e=>({text:e.textContent,visible:e.getBoundingClientRect().height>0})),inputCount:document.querySelectorAll('#crmSearchInput').length};
   });metrics.push({name,...r});
   assert.equal(r.overflow,false,name+' overflow '+JSON.stringify(r));
   assert.equal(r.inputCount,1,name+' must have one shared search');
@@ -58,7 +58,8 @@ try{
   assert.ok(r.input.x+r.input.w<=r.search.x+r.search.w,name+' input overflows its own search box');
   assert.ok(r.tabsText.every(x=>!x.visible),name+' should use compact single-line tab labels');
   assert.ok(r.bell.x<r.focus.x&&r.focus.x<r.profile.x,name+' global control order');
-  if(r.main.w>1000){assert.ok(Math.abs(r.tabs.y-r.search.y)<15,name+' search alignment');assert.ok(r.input.w>=120,name+' laptop input too small '+JSON.stringify(r));assert.ok(r.search.x-(r.tabs.x+r.tabs.w)<25,name+' gap wastes search area');}
+  if(r.topSearch){assert.equal(r.searchBeforeBell,true,name+' search is immediately before the bell');assert.ok(r.search.y>=r.top.y&&r.search.y+r.search.h<=r.top.y+r.top.h+1,name+' search inside topbar');assert.ok(r.activeTab.every(t=>t.background==='rgb(8, 123, 64)'&&t.color==='rgb(255, 255, 255)'),name+' active tab has a filled green highlight');if(r.main.w>960)assert.ok(r.search.x+r.search.w<=r.bell.x,name+' search does not overlap bell');}
+  else if(r.main.w>1000){assert.ok(Math.abs(r.tabs.y-r.search.y)<15,name+' search alignment');assert.ok(r.input.w>=120,name+' laptop input too small '+JSON.stringify(r));assert.ok(r.search.x-(r.tabs.x+r.tabs.w)<25,name+' gap wastes search area');}
   return r;
  };
  await open('businesslines');await measure('Business Lines Home laptop expanded');
