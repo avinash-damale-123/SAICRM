@@ -1,0 +1,65 @@
+import assert from 'node:assert/strict';
+import {createServer} from 'node:https';
+import {readFile,mkdir,mkdtemp,rm,writeFile} from 'node:fs/promises';
+import {execFileSync} from 'node:child_process';
+import {tmpdir} from 'node:os';
+import {resolve,extname,join} from 'node:path';
+import {randomBytes} from 'node:crypto';
+import pg from 'pg';
+import {chromium,request} from 'playwright';
+import {configuration,createHandler} from '../server/api.mjs';
+
+// Never run this write-capable fixture harness against production or a remote database.
+const db=new URL(process.env.TEST_DATABASE_URL||'');
+assert.ok(['localhost','127.0.0.1','[::1]'].includes(db.hostname),'An isolated loopback test database is required');
+assert.ok(/test/i.test(db.pathname),'The database name must explicitly identify a test database');
+const pool=new pg.Pool({connectionString:db.href,max:6});
+const privateDir=await mkdtemp(join(tmpdir(),'scrm-acceptance-'));
+execFileSync('openssl',['req','-x509','-newkey','rsa:2048','-nodes','-keyout',join(privateDir,'key.pem'),'-out',join(privateDir,'cert.pem'),'-days','1','-subj','/CN=localhost'],{stdio:'ignore'});
+const origin='https://localhost:8445',mail=[],checks=[],browserErrors=[],responses=[];
+const config=configuration({DATABASE_URL:db.href,APP_ORIGIN:origin,TOKEN_SECRET:randomBytes(48).toString('hex'),SMTP_HOST:'smtp.invalid',SMTP_PORT:'587',SMTP_USER:'fixture@example.org',SMTP_PASSWORD:'isolated-fixture-only',EMAIL_FROM:'SCRM Test <fixture@example.org>'});
+const handler=createHandler({pool,config,deliver:async message=>mail.push(message)});
+const publicRoot=resolve('public');
+const headers=JSON.parse(await readFile('vercel.json','utf8')).headers[0].headers;
+const server=createServer({key:await readFile(join(privateDir,'key.pem')),cert:await readFile(join(privateDir,'cert.pem'))},async(req,res)=>{
+ for(const h of headers)res.setHeader(h.key,h.value);
+ if(req.url.startsWith('/api/')){req.headers['x-real-ip']='isolated-browser-fixture';return handler(req,res);}
+ try{const pathname=decodeURIComponent(new URL(req.url,origin).pathname);const file=resolve(publicRoot,'.'+(pathname==='/'?'/index.html':pathname));if(!file.startsWith(publicRoot+'/'))throw Error('Invalid path');res.setHeader('Content-Type',({'.html':'text/html','.js':'application/javascript','.css':'text/css','.webp':'image/webp'})[extname(file)]||'application/octet-stream');res.end(await readFile(file));}catch{res.writeHead(404);res.end();}
+});
+await new Promise(r=>server.listen(8445,'127.0.0.1',r));
+const setup=await request.newContext({baseURL:origin,ignoreHTTPSErrors:true,extraHTTPHeaders:{Origin:origin}});
+const suffix=Date.now().toString(36),password=randomBytes(24).toString('hex');
+const adminEmail='browser-'+suffix+'@example.org',restrictedEmail='restricted-'+suffix+'@example.org';
+let browser,context,page;
+async function account(email,superAdmin){
+ for(const [path,body] of [['auth/register',{email,password,name:superAdmin?'Acceptance Super Admin':'Acceptance Standard User'}]]){const r=await setup.post('/api/'+path,{data:body});assert.equal(r.status(),200);}
+ const code=mail.findLast(m=>m.to===email)?.text.match(/\b\d{6}\b/)?.[0];assert.ok(code,'The verification boundary must be exercised');
+ assert.equal((await setup.post('/api/auth/verify',{data:{email,code}})).status(),200);
+ // Test-fixture provisioning only, with an explicit loopback/test-database guard above.
+ await pool.query("UPDATE users SET status='approved',role=$2,system_role=$3 WHERE email=$1",[email,superAdmin?'admin':'member',superAdmin?'super_admin':'user']);
+}
+async function login(email){await page.goto(origin);await page.locator('#authEmail').fill(email);await page.locator('#authPassword').fill(password);await page.locator('#submitAuth').click();await page.locator('#navigation [data-nav]').first().waitFor();}
+async function openBusiness(){await page.locator('[data-nav="businesslines"]').waitFor({state:'attached'});await page.evaluate(()=>document.querySelector('[data-nav="businesslines"]').click());await page.locator('.rf-table').waitFor();await page.waitForFunction(()=>document.querySelector('.mw-results')?.getAttribute('aria-busy')==='false');}
+async function search(value){const r=page.waitForResponse(r=>r.url().includes('/api/business-lines?')&&new URL(r.url()).searchParams.get('q')===value&&r.status()===200);await page.locator('#crmSearchInput').fill(value);await page.locator('#crmSearchInput').press('Enter');await r;await page.waitForFunction(()=>document.querySelector('.mw-results')?.getAttribute('aria-busy')==='false');}
+async function browserAPI(path,method='GET',data){return page.evaluate(async({path,method,data})=>{try{return {ok:true,data:await window.SCRM.api(path,method,data)};}catch(e){return {ok:false,error:e.message};}},{path,method,data});}
+try{
+ await account(adminEmail,true);await account(restrictedEmail,false);
+ browser=await chromium.launch({headless:true});context=await browser.newContext({ignoreHTTPSErrors:true,viewport:{width:1366,height:900}});page=await context.newPage();page.setDefaultTimeout(15000);page.on('pageerror',e=>browserErrors.push(e.message));page.on('response',r=>{if(r.url().includes('/api/'))responses.push({path:new URL(r.url()).pathname,status:r.status()});});
+ await login(adminEmail);await openBusiness();checks.push('Real browser email/password login with secure session, real API and PostgreSQL');
+ await page.locator('[data-mw="create"]').click();await page.locator('#mw-save').click();assert.equal(await page.locator('.rf-form-error-summary').isVisible(),true);checks.push('Create validates mandatory fields visibly without saving');
+ const name='Acceptance '+suffix,code='ACC-'+suffix.toUpperCase();
+ await page.locator('#mw-record-form [name="name"]').fill(name);await page.locator('#mw-record-form [name="code"]').fill(code.toLowerCase());await page.locator('#mw-record-form [name="description"]').fill('Real database acceptance fixture');await page.locator('#mw-save').click();await page.locator('dialog').waitFor({state:'detached'});await search(name);await page.locator('.rf-table .mw-record-link').first().click();await page.locator('#bl-edit').waitFor();
+ assert.equal(await page.locator('.mw-bl-detail-page .mw-bl-field').count(),19);assert.equal(await page.locator('#bl-back').isVisible(),true);checks.push('Create -> Read retains nineteen fields and a visible Back to Records action');
+ await page.locator('#bl-edit').click();await page.locator('#mw-bl-page-form [name="code"]').fill(code+'X');await page.locator('#mw-bl-page-form [name="status"]').selectOption('Inactive');await page.locator('#bl-save').click();assert.equal(await page.locator('#mw-bl-page-form').count(),1);assert.equal(await page.locator('#mw-bl-page-reason').isVisible(),true);await page.locator('#mw-bl-page-reason').fill('Isolated acceptance status change');await page.locator('#bl-save').click();await page.locator('#bl-edit').waitFor();assert.match(await page.locator('.mw-bl-detail-heading').innerText(),/Inactive/);checks.push('Editable Code, required status reason, and Edit -> Save -> Read round trip');
+ await page.locator('#bl-edit').click();await page.locator('#mw-bl-page-form [name="description"]').fill('Unsaved data must not escape');page.once('dialog',d=>d.dismiss());await page.locator('#bl-back').click();assert.equal(await page.locator('#mw-bl-page-form').count(),1);page.once('dialog',d=>d.accept());await page.locator('#bl-cancel').click();await page.locator('#bl-back').click();await page.locator('.rf-table').waitFor();checks.push('Unsaved-change protection and return to filtered list');
+ await page.locator('.mw-settings-menu>summary').click();await page.locator('[data-mw="columns"]').click();await page.locator('[data-preset="all"]').click();assert.equal(await page.locator('[data-column-check]:checked').count(),19);assert.equal(await page.locator('[data-column-check="displayId"]').isDisabled(),true);await page.locator('#rf-save-my').check();await page.locator('[data-rf="apply"]').click();await page.locator('dialog').waitFor({state:'detached'});checks.push('All nineteen selectable columns, locked identity and durable My View save');
+ const before=await browserAPI('business-lines/preferences');assert.ok(before.ok);assert.equal(before.data.preferences.myColumns.length,19);
+ await browserAPI('auth/logout','POST',{});assert.equal((await context.request.get(origin+'/api/business-lines/framework')).status(),401);await context.close();context=await browser.newContext({ignoreHTTPSErrors:true,viewport:{width:1366,height:900}});page=await context.newPage();page.setDefaultTimeout(15000);page.on('pageerror',e=>browserErrors.push(e.message));await login(adminEmail);await openBusiness();assert.equal(await page.locator('.rf-table th[data-column-key]').count(),19);checks.push('My View persists after logout and a new browser context without local storage');
+ await page.locator('[data-mw="import"]').click();await page.locator('#rf-import-file').setInputFiles({name:'acceptance.csv',mimeType:'text/csv',buffer:Buffer.from('Business Line Name,Business Line Code,Business Line Description\nImported '+suffix+',IMP-'+suffix.toUpperCase()+',Accepted fixture\n')});await page.locator('[data-rf="inspect"]').click();await page.locator('[data-rf="validate"]').click();await page.locator('[data-rf="start-import"]').click();await page.waitForFunction(()=>document.querySelector('.rf-job-badge')?.textContent==='completed',{},{timeout:30000});assert.match(await page.locator('#rf-job-state').innerText(),/1 succeeded/);await page.locator('[data-rf="cancel"]').click();checks.push('Browser CSV upload, mapping, validation, confirmation and completed import through the real API');
+ await page.locator('[data-mw="export"]').click();assert.equal(await page.locator('#rf-export-scope').inputValue(),'page');await page.locator('[data-rf="plan"]').click();await page.locator('[data-rf="export-confirm"]').click();await page.locator('[data-download]').first().waitFor({timeout:30000});const download=page.waitForEvent('download');await page.locator('[data-download]').first().click();assert.match((await download).suggestedFilename(),/\.xlsx$/);await page.locator('[data-rf="cancel"]').click();checks.push('Current Page default and authenticated XLSX download through real job processing');
+ await page.locator('.mw-settings-menu>summary').click();await page.locator('[data-mw="column-customization"]').click();await page.locator('[data-allow]').first().waitFor();assert.equal(await page.locator('[data-allow]:disabled').count(),19);await page.locator('#rf-policy-role').selectOption('standard');assert.equal(await page.locator('[data-allow="displayId"]').isDisabled(),true);await page.locator('[data-rf="cancel"]').click();checks.push('Real Super Admin policy UI protects identity and all Super Admin fields');
+ await mkdir('work/browser',{recursive:true});await page.screenshot({path:'work/browser/authenticated-postgres-desktop.png'});await page.setViewportSize({width:390,height:844});await page.waitForTimeout(150);assert.ok(await page.locator('.rf-record-card').count());assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2));await page.screenshot({path:'work/browser/authenticated-postgres-mobile.png'});checks.push('Real authenticated desktop/mobile rendering without page overflow');
+ await browserAPI('auth/logout','POST',{});await context.close();context=await browser.newContext({ignoreHTTPSErrors:true});page=await context.newPage();await login(restrictedEmail);const blocked=await context.request.get(origin+'/api/business-lines/configuration');assert.equal(blocked.status(),403);assert.equal((await context.request.get(origin+'/api/business-lines/framework')).status(),403);checks.push('Real restricted-user login cannot bypass module or configuration authorization');
+ assert.deepEqual(browserErrors,[]);await writeFile('work/browser/authenticated-postgres-results.json',JSON.stringify({status:'passed',database:'isolated PostgreSQL; no production credentials',checks,apiRequests:responses.length},null,2));console.log('PASS authenticated PostgreSQL browser acceptance: '+checks.length+' checks');
+}catch(error){await mkdir('work/browser',{recursive:true});await writeFile('work/browser/authenticated-postgres-results.json',JSON.stringify({status:'failed',checks,error:error.message},null,2));if(page&&!page.isClosed())await page.screenshot({path:'work/browser/authenticated-postgres-failure.png'}).catch(()=>{});throw error;}
+finally{await browser?.close();await setup.dispose();await new Promise(r=>server.close(r));await pool.end();await rm(privateDir,{recursive:true,force:true});}
