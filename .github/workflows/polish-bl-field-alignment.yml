@@ -1,0 +1,38 @@
+name: Apply Business Lines paired field alignment review
+on:
+  push:
+    branches: [ui/business-lines-field-rows-save-close-20261021]
+    paths: [.github/workflows/polish-bl-field-alignment.yml]
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: github.ref == 'refs/heads/ui/business-lines-field-rows-save-close-20261021'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ui/business-lines-field-rows-save-close-20261021
+      - name: Apply exact reviewed refinements
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('module-workspace.css');s=p.read_text()
+          a='--bl-label-width:144px;';assert s.count(a)==1;s=s.replace(a,'--bl-label-width:154px;')
+          a='gap:8px 14px!important;align-items:start';assert s.count(a)==1;s=s.replace(a,'gap:8px 14px!important;align-items:stretch');p.write_text(s)
+          p=Path('test/business-lines-modal-browser.mjs');s=p.read_text()
+          a='  const dismissColors=await modal().evaluate';assert s.count(a)==1
+          s=s.replace(a,"""  if(!mode.includes('long values')&&await page.evaluate(()=>innerWidth>760)){
+             const pair=await modal().evaluate(d=>{const first=d.querySelector('.mw-bl-field-name'),id=d.querySelector('.mw-bl-field-displayId');if(!first||!id||!first.getClientRects().length)return null;const a=first.getBoundingClientRect(),b=id.getBoundingClientRect();return {top:Math.abs(a.top-b.top),height:Math.abs(a.height-b.height)};});
+             if(pair){assert.ok(pair.top<2,mode+' paired fields align at top');assert.ok(pair.height<2,mode+' paired fields have consistent row height');}
+            }
+          """+a);p.write_text(s)
+          PY
+          git diff --check
+          git rm .github/workflows/polish-bl-field-alignment.yml
+          git add module-workspace.css test/business-lines-modal-browser.mjs
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Align paired field cards and keep required labels together'
+          git push origin HEAD:ui/business-lines-field-rows-save-close-20261021
