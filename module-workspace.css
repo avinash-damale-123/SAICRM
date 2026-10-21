@@ -457,3 +457,72 @@ html.mw-modal-open{overflow:hidden}
 .mw-bl-record-dialog .mw-bl-detail-index{display:flex!important}
 .mw-bl-record-dialog :is(.mw-bl-form,.mw-bl-read){display:grid;grid-template-columns:minmax(0,1fr);gap:9px}
 @media(max-width:600px){.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog){width:calc(100% - 16px)!important;max-width:calc(100% - 16px)!important}}
+
+/* Popup refinement: readable density, centered brand header and discoverable actions.
+   Only record Create/Read/Edit dialogs change, never Import/Export or other modules. */
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog)>header{
+ --bl-title-actions:80px;display:grid!important;grid-template-columns:var(--bl-title-actions) minmax(0,1fr) var(--bl-title-actions);
+ align-items:center;column-gap:0;min-height:60px;padding:9px 16px!important;background:#164c38!important;color:#fff;border-bottom:1px solid #123f2e;
+}
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog)>header .mw-bl-title-copy{grid-column:2;min-width:0;text-align:center}
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog)>header .mw-eyebrow{margin:0 0 3px!important;color:#e0eee5!important;font-size:10px;line-height:1.3;letter-spacing:.06em}
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog)>header h2{margin:0!important;font-size:19px!important;line-height:1.25;color:#fff!important;overflow-wrap:anywhere}
+dialog.mw-bl-dialog .mw-bl-title-actions{grid-column:3;display:flex;justify-content:flex-end;align-items:center;gap:6px}
+dialog.mw-bl-dialog .mw-bl-title-actions>button{display:inline-flex;align-items:center;justify-content:center;flex:0 0 36px;width:36px;height:36px;min-width:36px;min-height:36px;padding:8px;border:1px solid #8fb09d;border-radius:7px;color:#fff!important;background:#ffffff12;cursor:pointer}
+dialog.mw-bl-dialog .mw-bl-title-actions>button:hover:not(:disabled){background:#ffffff2b;border-color:#d5ebdf}
+dialog.mw-bl-dialog .mw-bl-title-actions>button:focus-visible{outline:2px solid #ffdf9b;outline-offset:2px}
+dialog.mw-bl-dialog .mw-bl-title-actions>button:disabled{opacity:.45;cursor:wait}
+dialog.mw-bl-dialog .mw-bl-title-actions svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8}
+dialog.mw-bl-dialog .mw-bl-action-icon{width:16px;height:16px;flex:none;stroke:currentColor;fill:none}
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-dialog-body{padding:10px 18px}
+dialog.mw-bl-record-dialog .mw-bl-detail-heading{padding:0 0 8px!important;margin:0 0 8px;min-height:40px;gap:10px}
+dialog.mw-bl-record-dialog .mw-bl-detail-heading>div:first-child{display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px;min-width:0;flex:1 1 200px}
+dialog.mw-bl-record-dialog .mw-bl-detail-heading h2{margin:0!important;font-size:17px!important;line-height:1.35;min-width:0;max-width:100%;overflow-wrap:anywhere}
+dialog.mw-bl-record-dialog .mw-bl-detail-meta{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:12px;line-height:1.4}
+dialog.mw-bl-record-dialog .mw-bl-navigation{display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;margin:0}
+dialog.mw-bl-record-dialog .mw-bl-detail-index{flex:1 1 420px;min-width:0;gap:5px}
+dialog.mw-bl-record-dialog .mw-bl-detail-index button{min-height:32px;font-size:11.5px;padding:5px 9px;color:#395d4c;border-color:#bdcfc4}
+dialog.mw-bl-record-dialog .mw-bl-detail-tools{flex:0 1 auto;display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:0!important;margin:0}
+dialog.mw-bl-record-dialog :is(.mw-bl-detail-tools>button,.mw-bl-detail-actions>.mw-btn){display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:34px;height:auto;padding:6px 10px;font-size:12px;line-height:1.3;font-weight:650;border:1px solid #93b6a2;border-radius:6px;color:#185939;background:#eef6f1;cursor:pointer;white-space:nowrap}
+dialog.mw-bl-record-dialog :is(.mw-bl-detail-tools>button,.mw-bl-detail-actions>.mw-btn):hover:not(:disabled){background:#dfefe5;border-color:#4a8263;color:#103e28}
+dialog.mw-bl-record-dialog .mw-bl-detail-actions>.mw-btn:disabled{background:#f4f6f5;border-color:#d9e2dc;color:#728078;opacity:.7;cursor:not-allowed}
+dialog.mw-bl-record-dialog :is(.mw-bl-detail-layout,.mw-bl-detail-content,.mw-bl-form,.mw-bl-read){gap:8px}
+dialog.mw-bl-record-dialog .mw-bl-detail-content .mw-bl-section{margin:0!important}
+dialog.mw-bl-record-dialog .mw-bl-section details>summary{padding:5px 12px!important;min-height:40px;font-size:13px!important;line-height:1.35;gap:10px;transition:background .12s}
+dialog.mw-bl-record-dialog .mw-bl-section details>summary:hover{background:#d7e8dd!important}
+dialog.mw-bl-record-dialog .mw-bl-chevron{display:inline-flex;align-items:center;justify-content:center;flex:0 0 30px;width:30px;height:30px;border:1px solid #8eae9a;border-radius:6px;background:#fff;color:#235d3f;transform:none!important}
+dialog.mw-bl-record-dialog .mw-bl-chevron svg{width:18px;height:18px;transition:transform .15s}
+dialog.mw-bl-record-dialog details[open]>summary .mw-bl-chevron svg{transform:rotate(180deg)}
+dialog.mw-bl-record-dialog .mw-bl-section details>summary:focus-visible{outline:2px solid #9b5d0d;outline-offset:-3px}
+dialog.mw-bl-record-dialog .mw-bl-section-content{padding:10px 13px!important}
+dialog.mw-bl-record-dialog .mw-bl-grid{gap:10px 24px!important;align-items:start}
+dialog.mw-bl-record-dialog .mw-bl-field{gap:3px;padding-bottom:0!important}
+dialog.mw-bl-record-dialog .mw-bl-field>label{font-size:12px!important;line-height:1.4;color:#405e4f!important}
+dialog.mw-bl-record-dialog .mw-bl-read-value{font-size:13px!important;line-height:1.5!important;padding:1px 0!important;min-height:22px!important;color:#203b2e!important}
+dialog.mw-bl-record-dialog .mw-bl-field :is(input,select){min-height:36px!important;font-size:13px!important}
+dialog.mw-bl-record-dialog .mw-bl-field textarea{min-height:64px!important;font-size:13px!important;line-height:1.5}
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-hint{font-size:11px;line-height:1.4;color:#586e61}
+dialog.mw-bl-create-dialog #mw-record-form{margin:0}
+dialog.mw-bl-create-dialog .mw-bl-form>.mw-bl-section{margin:0!important}
+dialog.mw-bl-create-dialog .mw-bl-section-content{padding:8px 8px 12px!important}
+dialog.mw-bl-create-dialog .mw-bl-field>label{font-size:12px!important;line-height:1.4}
+dialog.mw-bl-create-dialog .mw-bl-field :is(input,textarea){font-size:13px;min-height:36px}
+dialog.mw-bl-create-dialog .mw-bl-field textarea{min-height:64px}
+@media(max-width:700px){
+ dialog.mw-bl-record-dialog .mw-bl-detail-index{flex-basis:100%}
+ dialog.mw-bl-record-dialog .mw-bl-detail-tools{margin-left:auto}
+}
+@media(max-width:600px){
+ dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog)>header{--bl-title-actions:76px;padding:9px 12px!important;min-height:60px}
+ dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog)>header h2{font-size:17px!important}
+ dialog.mw-bl-dialog .mw-bl-title-actions{gap:4px}
+ dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-dialog-body{padding:10px 12px}
+ dialog.mw-bl-record-dialog .mw-bl-detail-heading>div:first-child{flex-basis:130px}
+ dialog.mw-bl-record-dialog .mw-bl-detail-heading{flex-wrap:wrap!important}
+ dialog.mw-bl-record-dialog .mw-bl-detail-index button{min-height:34px}
+ dialog.mw-bl-record-dialog :is(.mw-bl-detail-tools>button,.mw-bl-detail-actions>.mw-btn){min-height:36px;padding:7px 8px}
+ dialog.mw-bl-record-dialog .mw-bl-chevron{width:32px;height:32px;flex-basis:32px}
+ dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-field :is(input,select,textarea){font-size:16px!important}
+ dialog.mw-bl-create-dialog .mw-bl-section-content{padding:6px 0 10px!important}
+}
+@media(prefers-reduced-motion:reduce){dialog.mw-bl-record-dialog .mw-bl-chevron svg{transition:none}}

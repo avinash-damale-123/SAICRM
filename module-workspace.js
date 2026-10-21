@@ -204,6 +204,39 @@ function create(host,config) {
   d.showModal();document.documentElement.classList.add('mw-modal-open');return d;
  }
 
+ // Popup presentation only: existing form and permission handlers stay authoritative.
+ function blPopupGlyph(name){
+  const paths={edit:'<path d="m16 3 5 5-12 12-6 1 1-6Z"/><path d="m14 5 5 5"/>',chevron:'<path d="m6 9 6 6 6-6"/>',previous:'<path d="m14 5-7 7 7 7"/>',next:'<path d="m10 5 7 7-7 7"/>',expand:'<path d="M12 9V3m-4 4 4-4 4 4M12 15v6m-4-4 4 4 4-4"/>',collapse:'<path d="M12 3v6m-4-4 4 4 4-4M12 21v-6m-4 4 4-4 4 4"/>'};
+  return '<svg class="mw-bl-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">'+(paths[name]||paths.chevron)+'</svg>';
+ }
+ function blPopupHeader(d,editable=false){
+  const header=d.querySelector(':scope > header');if(!header)return;
+  let actions=header.querySelector('.mw-bl-title-actions');
+  if(!actions){
+   header.querySelector(':scope > div').classList.add('mw-bl-title-copy');
+   actions=document.createElement('div');actions.className='mw-bl-title-actions';
+   actions.append(header.querySelector('.mw-dialog-close'));header.append(actions);
+  }
+  let edit=actions.querySelector('#bl-edit-top');
+  if(!editable){edit?.remove();return;}
+  if(!edit){
+   edit=document.createElement('button');edit.id='bl-edit-top';edit.type='button';edit.className='mw-icon-btn mw-bl-quick-edit';
+   edit.setAttribute('aria-label','Edit Business Line');edit.title='Edit Business Line';edit.innerHTML=blPopupGlyph('edit');
+   // Delegate to the same permission-checked footer action, never create a second write path.
+   edit.onclick=()=>{if(dialog!==d||dialogSaving||blBusy)return;const action=d.querySelector('#bl-edit');if(action&&!action.disabled)action.click();};
+   actions.prepend(edit);
+  }
+ }
+ function blDisclosureAffordance(root){
+  root.querySelectorAll('.mw-bl-section > details').forEach(details=>{
+   const summary=details.querySelector(':scope > summary'),chevron=summary?.querySelector('.mw-bl-chevron');
+   if(!summary||!chevron)return;
+   const label=summary.textContent.replace(/[\u2304\u2303]/g,'').trim();
+   chevron.innerHTML=blPopupGlyph('chevron');chevron.setAttribute('aria-hidden','true');
+   const update=()=>{summary.title=(details.open?'Collapse ':'Expand ')+label;};
+   update();details.addEventListener('toggle',update);
+  });
+ }
  function blValue(record,key){
   const value=record?.[key];
   if(key==='isArchived')return record?.archivedAt?'Yes':'No';
@@ -260,7 +293,7 @@ function create(host,config) {
  return label+'<input '+attrs+'type="'+esc(f.type||'text')+'" autocomplete="off" value="'+esc(value)+'"></label>'};
  const body=config.key==='business-lines'?'<form id="mw-record-form" class="mw-bl-form">'+blFormSections(record,editing?'edit':'create')+(editing?'<div class="mw-bl-status-reason" hidden><label for="mw-bl-status-reason">Reason for status change <span class="mw-required">*</span></label><textarea id="mw-bl-status-reason" maxlength="500" rows="2" placeholder="Explain why the status is changing"></textarea><small>Required only when changing Active / Inactive.</small></div>':'')+'<p class="mw-form-error" role="alert" hidden></p></form>':'<form id="mw-record-form"><p class="mw-form-intro">'+(editing?'Update details. Record identifiers and audit fields are protected.':'Create this record. The record owner will be you.')+'</p><h3>Basic information</h3><div class="mw-form-grid">'+fields.map(fieldHTML).join('')+'</div>'+(editing?'<h3>System information</h3><dl class="mw-details-grid"><div><dt>'+esc(allColumns.find(c=>c.key==='displayId')?.label||'Record ID')+'</dt><dd>'+esc(record.displayId)+'</dd></div><div><dt>Last modified</dt><dd>'+esc(date(record.updatedAt))+'</dd></div></dl>':'')+'<p class="mw-form-error" role="alert" hidden></p></form>';
  const d=openDialog(config.key==='business-lines'?(editing?'Edit Business Line':'New Business Line'):(editing?'Edit ':'Create ')+config.singular,body,'<button type="button" class="mw-btn" id="mw-cancel">Cancel</button><button type="submit" form="mw-record-form" class="mw-btn mw-primary" id="mw-save">'+(config.key==='business-lines'?'Save':editing?'Save changes':'Create '+esc(config.singular))+'</button>');if(!d)return;
- if(config.key==='business-lines')d.classList.add('mw-bl-create-dialog');
+ if(config.key==='business-lines'){d.classList.add('mw-bl-create-dialog');blPopupHeader(d);}
  const form=d.querySelector('form'),base=formValues(form);dialogDirty=()=>formValues(form)!==base;recordsTools?.wireForm(form);
  if(config.key==='business-lines'){wireBlSections(d);form.addEventListener('invalid',event=>{const section=event.target.closest('.mw-bl-section details');if(section)section.open=true},true);if(editing){const status=form.querySelector('[name="status"]'),reasonWrap=form.querySelector('.mw-bl-status-reason'),reasonField=form.querySelector('#mw-bl-status-reason');const sync=()=>{const changed=status?.value!==record.status;reasonWrap.hidden=!changed;reasonField.required=changed;if(!changed)reasonField.value='';};status?.addEventListener('change',sync);sync()}}
  d.querySelector('#mw-cancel').onclick=()=>closeDialog();
@@ -315,6 +348,7 @@ function create(host,config) {
    d=openDialog(startEdit?'Edit Business Line':'View Business Line','','<button type="button" class="mw-btn" id="bl-back">Close</button>',true);
    if(!d)return;d.classList.add('mw-bl-record-dialog');
   }
+  blPopupHeader(d);
   const request=++blLoadSequence;
   const page=document.createElement('section');page.className='mw-bl-detail-page';page.setAttribute('aria-label','Business Line record details');
   page.innerHTML='<div class="mw-state" role="status"><span class="mw-spinner"></span> Loading record...</div>';
@@ -335,9 +369,9 @@ function create(host,config) {
   const index=state.records.findIndex(r=>r.id===record.id),previous=index>0?state.records[index-1]:null,next=index>=0&&index<state.records.length-1?state.records[index+1]:null;
   const hasPrevious=!!previous||index===0&&state.page>1,hasNext=!!next||index>=0&&index===state.records.length-1&&state.page<state.totalPages;
   const status=record.deletedAt?'Deleted':record.archivedAt?'Archived':record.status;
-  page.innerHTML='<header class="mw-bl-detail-heading"><div><h2>'+esc(record.name)+'</h2><div class="mw-bl-detail-meta"><span>'+esc(record.displayId||'')+'</span><span class="mw-status '+(status==='Active'?'mw-active':'mw-inactive')+'">'+esc(status)+'</span></div></div><div class="mw-bl-detail-actions"><button type="button" class="mw-btn" data-bl-prev'+(!hasPrevious?' disabled':'')+'>Previous</button><button type="button" class="mw-btn" data-bl-next'+(!hasNext?' disabled':'')+'>Next</button></div></header>'
+  page.innerHTML='<header class="mw-bl-detail-heading"><div><h2>'+esc(record.name)+'</h2><div class="mw-bl-detail-meta"><span>'+esc(record.displayId||'')+'</span><span class="mw-status '+(status==='Active'?'mw-active':'mw-inactive')+'">'+esc(status)+'</span></div></div><div class="mw-bl-detail-actions"><button type="button" class="mw-btn" data-bl-prev'+(!hasPrevious?' disabled':'')+'>'+blPopupGlyph('previous')+'<span>Previous</span></button><button type="button" class="mw-btn" data-bl-next'+(!hasNext?' disabled':'')+'><span>Next</span>'+blPopupGlyph('next')+'</button></div></header>'
    +'<p class="mw-bl-record-notice" role="status" hidden></p>'
-   +'<div class="mw-bl-detail-tools"><span>Details</span><button type="button" data-bl-expand="1">Expand all</button><button type="button" data-bl-expand="0">Collapse all</button></div>'
+   +'<div class="mw-bl-detail-tools" role="group" aria-label="Section display"><button type="button" data-bl-expand="1">'+blPopupGlyph('expand')+'<span>Expand all</span></button><button type="button" data-bl-expand="0">'+blPopupGlyph('collapse')+'<span>Collapse all</span></button></div>'
    +'<div class="mw-bl-detail-layout"><nav class="mw-bl-detail-index" aria-label="Jump to section">'+blGroups.map((g,i)=>'<button type="button" data-bl-jump="'+i+'">'+esc(g.name)+'</button>').join('')+'</nav><div class="mw-bl-detail-content">'
    +(editing?'<form id="mw-bl-page-form" class="mw-bl-form">'+blFormSections(record,'edit')+'<div class="mw-bl-status-reason" hidden><label for="mw-bl-page-reason">Reason for status change <span class="mw-required">*</span></label><textarea id="mw-bl-page-reason" name="lifecycleReason" maxlength="500" rows="2"></textarea></div><p class="mw-form-error" role="alert" hidden></p></form>':'<div class="mw-bl-read">'+blFormSections(record,'read')+'</div>')
    +(permitted('history')?'<section class="mw-bl-section"><details><summary>Audit History <span class="mw-bl-chevron" aria-hidden="true">&#8964;</span></summary><div class="mw-bl-section-content mw-history" data-bl-history>'+blAuditMarkup(null)+'</div></details></section>':'')+'</div></div>';
@@ -346,6 +380,12 @@ function create(host,config) {
   footer.querySelector('#bl-back').onclick=()=>closeDialog();
   footer.querySelector('#bl-edit')?.addEventListener('click',()=>{renderBlRecordPage(record,'edit');refreshBlAudit(d,record.id)});
   footer.querySelector('#bl-cancel')?.addEventListener('click',()=>{if(leaveBlAllowed()){renderBlRecordPage(record,'read');refreshBlAudit(d,record.id)}});
+  blPopupHeader(d,!editing&&editable);
+  // Consolidate section jumps and all-section controls into one wrapping navigation row.
+  const navigation=document.createElement('div');navigation.className='mw-bl-navigation';
+  navigation.append(page.querySelector('.mw-bl-detail-index'),page.querySelector('.mw-bl-detail-tools'));
+  page.querySelector('.mw-bl-detail-layout').prepend(navigation);
+  blDisclosureAffordance(page);
   const sections=[...page.querySelectorAll('.mw-bl-detail-content .mw-bl-section')];
   const sectionKey='scrm:bl-sections:'+user.id;
   let saved=recordsTools?.sections()||{};if(!recordsTools?.enabled)try{saved=JSON.parse(localStorage.getItem(sectionKey)||'{}')||{}}catch{}

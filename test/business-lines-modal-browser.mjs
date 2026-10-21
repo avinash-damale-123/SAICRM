@@ -50,7 +50,7 @@ try{
  const open=async()=>{await page.locator('[data-nav="businesslines"]').waitFor({state:'attached'});await page.evaluate(()=>document.querySelector('[data-nav="businesslines"]').click());await ready();};
 
  await page.goto('http://127.0.0.1:4190');await open();
- const checks=[];
+ const checks=[],presentation=[];
  const modal=()=>page.locator('dialog[open]');
  const assertModal=async mode=>{
   assert.equal(await modal().count(),1,mode+': exactly one dialog');
@@ -58,6 +58,18 @@ try{
   assert.equal(await page.locator('.mw-workspace').isVisible(),true,mode+': underlying workspace remains mounted');
   assert.equal(await page.locator('.crm-module-host').isVisible(),true,mode+': module header remains visible behind backdrop');
   assert.equal(await page.locator('#content>.mw-bl-detail-page').count(),0,'No dedicated record page');
+  const v=await modal().evaluate(d=>{
+   const box=e=>{const r=e.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height};};
+   const header=d.querySelector(':scope>header'),title=d.querySelector('#mw-dialog-title'),actions=d.querySelector('.mw-bl-title-actions'),close=d.querySelector('.mw-dialog-close'),body=d.querySelector('.mw-dialog-body'),section=d.querySelector('.mw-bl-detail-content .mw-bl-section');
+   return {modal:box(d),title:box(title),actions:box(actions),close:box(close),background:getComputedStyle(header).backgroundColor,titleColor:getComputedStyle(title).color,titleSize:parseFloat(getComputedStyle(title).fontSize),textAlign:getComputedStyle(title.parentElement).textAlign,body:box(body),bodyScroll:body.scrollHeight,bodyClient:body.clientHeight,firstSection:section?box(section):null,innerWidth};
+  });presentation.push({mode,...v});
+  assert.equal(v.background,'rgb(22, 76, 56)',mode+' branded header');assert.equal(v.titleColor,'rgb(255, 255, 255)',mode+' white header label');
+  assert.equal(v.textAlign,'center');assert.ok(Math.abs((v.title.left+v.title.right-v.modal.left-v.modal.right)/2)<2,mode+' title truly centered regardless of action count');
+  assert.ok(v.title.right<=v.actions.left+1,mode+' title does not overlap actions');assert.ok(v.close.width>=35&&v.close.height>=35,mode+' clear Close target');
+  assert.ok(v.titleSize>=17,mode+' title readable');
+  assert.equal(await page.locator('#bl-edit-top').count(),mode.startsWith('read')?1:0,mode+' header Edit available only in Read');
+  if(v.firstSection&&v.innerWidth>=1024&&mode.startsWith('read'))assert.ok(v.firstSection.top-v.body.top<125,'No excessive blank toolbar stack before fields');
+
   const g=await modal().evaluate(d=>{const r=d.getBoundingClientRect(),h=d.querySelector(':scope>header').getBoundingClientRect(),f=d.querySelector(':scope>footer').getBoundingClientRect();return {x:r.left,y:r.top,right:r.right,bottom:r.bottom,width:innerWidth,height:innerHeight,headerTop:h.top,footerBottom:f.bottom,overflow:document.documentElement.scrollWidth>innerWidth+1}});
   assert.ok(g.x>=0&&g.y>=0&&g.right<=g.width+1&&g.bottom<=g.height+1,mode+' fits viewport '+JSON.stringify(g));
   assert.ok(g.headerTop>=g.y&&g.footerBottom<=g.bottom+1,mode+' header/footer remain inside popup');
@@ -87,9 +99,25 @@ try{
  await openFirst();await assertModal('read');await assertFields();await page.locator('[data-bl-expand="1"]').click();
  assert.equal(await page.locator('.mw-bl-detail-index').isVisible(),true);await page.locator('[data-bl-jump="3"]').click();assert.equal(await page.locator('.mw-bl-detail-content .mw-bl-section').nth(3).locator('details').getAttribute('open'),'');await page.locator('.mw-dialog-body').evaluate(el=>el.scrollTop=0);
  assert.equal(await page.locator('.mw-bl-detail-page input,.mw-bl-detail-page textarea,.mw-bl-detail-page select').count(),0,'Read has values, not editable form controls');
+ assert.equal(await page.locator('#bl-edit').isVisible(),true,'Footer Edit retained alongside top shortcut');
+ assert.equal(await page.locator('#bl-edit-top').getAttribute('aria-label'),'Edit Business Line');
+ const disclosure=page.locator('.mw-bl-detail-content .mw-bl-section').first().locator('summary');
+ const chevron=await disclosure.locator('.mw-bl-chevron').boundingBox();assert.ok(chevron.width>=30&&chevron.height>=30,'Section indicator has a clear button-like target');
+ assert.ok((await disclosure.boundingBox()).height>=40);await disclosure.focus();await page.keyboard.press('Space');
+ await page.waitForFunction(()=>!document.querySelector('.mw-bl-detail-content .mw-bl-section details').open&&document.querySelector('.mw-bl-detail-content .mw-bl-section summary').title.startsWith('Expand '));assert.match(await disclosure.getAttribute('title'),/^Expand /);
+ await page.keyboard.press('Enter');await page.waitForFunction(()=>document.querySelector('.mw-bl-detail-content .mw-bl-section details').open);
+ await page.locator('[data-bl-expand="0"]').click();await page.waitForFunction(()=>[...document.querySelectorAll('.mw-bl-detail-content .mw-bl-section details')].every(d=>!d.open));
+ await page.locator('[data-bl-expand="1"]').click();await page.waitForFunction(()=>[...document.querySelectorAll('.mw-bl-detail-content .mw-bl-section details')].every(d=>d.open));
+ assert.ok((await page.locator('[data-bl-expand="1"]').boundingBox()).height>=34);
+ const nextName=await page.locator('.mw-bl-detail-heading h2').innerText();await page.locator('[data-bl-next]').click();
+ await page.waitForFunction(name=>document.querySelector('.mw-bl-detail-heading h2')?.textContent!==name,nextName);await page.locator('#bl-edit-top').waitFor();
+ await page.locator('[data-bl-prev]').click();await page.waitForFunction(name=>document.querySelector('.mw-bl-detail-heading h2')?.textContent===name,nextName);
+ await page.locator('[data-bl-expand="1"]').click();await page.locator('.mw-dialog-body').evaluate(e=>e.scrollTop=0);
+ checks.push('Centered dark-green title, visible top and bottom Edit, keyboard-operable large disclosures, prominent Next and section actions');
+
  await page.screenshot({path:'work/browser/popup-read-desktop.png'});
  const originalDialog=await modal().evaluate(d=>{window.__recordPopup=d;return true});
- await edit();await assertFields();await assertModal('edit');assert.ok(originalDialog);assert.equal(await modal().evaluate(d=>d===window.__recordPopup),true,'Edit reuses the same popup');
+ await page.locator('#bl-edit-top').click();await page.locator('#mw-bl-page-form').waitFor();await assertFields();await assertModal('edit');assert.ok(originalDialog);assert.equal(await modal().evaluate(d=>d===window.__recordPopup),true,'Edit reuses the same popup');
  await page.locator('[data-bl-expand="1"]').click();
  const pairing=await page.evaluate(()=>{const a=document.querySelector('.mw-bl-field-name').getBoundingClientRect(),b=document.querySelector('.mw-bl-field-displayId').getBoundingClientRect();return {sameRow:Math.abs(a.top-b.top)<2,separate:b.left>a.left+100};});
  assert.deepEqual(pairing,{sameRow:true,separate:true},'Two-column approved field pairing');
@@ -131,8 +159,8 @@ try{
  await page.setViewportSize({width:1366,height:768});
  permissions.create=false;permissions.edit=false;permissions.import=false;permissions.export=false;permissions.settings=false;
  await page.reload();await open();for(const tab of ['home','dashboard']){await page.locator('[data-mw="'+tab+'"]').click();await page.waitForTimeout(80);for(const selector of ['[data-mw="import"]','[data-mw="export"]','.mw-settings-menu','[data-mw="create"]'])assert.equal(await page.locator(selector+':visible').count(),0,'Denied actions remain hidden in '+tab);}
- await page.locator('[data-mw="home"]').click();await ready();await page.locator('.mw-record-link:visible').first().click();await page.locator('.mw-bl-field-name').waitFor();assert.equal(await page.locator('#bl-edit').count(),0);await page.locator('#bl-back').click();checks.push('Permission-denied controls stay hidden on both tabs and Read has no Edit action');
+ await page.locator('[data-mw="home"]').click();await ready();await page.locator('.mw-record-link:visible').first().click();await page.locator('.mw-bl-field-name').waitFor();assert.equal(await page.locator('#bl-edit').count(),0);assert.equal(await page.locator('#bl-edit-top').count(),0);await page.locator('#bl-back').click();checks.push('Permission-denied controls stay hidden on both tabs and Read has no Edit action');
  assert.deepEqual(errors,[]);
- await import('node:fs/promises').then(fs=>fs.writeFile('work/browser/popup-review-report.json',JSON.stringify({status:'passed',checks},null,2)));
+ await import('node:fs/promises').then(fs=>fs.writeFile('work/browser/popup-review-report.json',JSON.stringify({status:'passed',checks,presentation},null,2)));
  console.log('PASS Business Lines popup review: '+checks.join('; '));
 }finally{releaseRead?.();releaseSave?.();await browser.close();await new Promise(r=>server.close(r));}
