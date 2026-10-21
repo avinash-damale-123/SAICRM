@@ -41,5 +41,16 @@ CREATE TABLE IF NOT EXISTS crm_transfer_files (
 );
 DROP TRIGGER IF EXISTS crm_configuration_audit_immutable ON crm_configuration_audit;
 CREATE TRIGGER crm_configuration_audit_immutable BEFORE UPDATE OR DELETE ON crm_configuration_audit FOR EACH ROW EXECUTE FUNCTION prevent_audit_mutation();
+-- Production uses this existing restricted database role, not the migration owner.
+-- Do not grant ownership, DDL, TRUNCATE or changes to the append-only audit.
+DO $runtime_access$
+BEGIN
+ IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='saicrm_runtime') THEN
+  GRANT SELECT, INSERT, UPDATE ON crm_column_policy, crm_user_preferences TO saicrm_runtime;
+  GRANT SELECT, INSERT ON crm_configuration_audit TO saicrm_runtime;
+  GRANT USAGE, SELECT ON SEQUENCE crm_configuration_audit_id_seq TO saicrm_runtime;
+  GRANT SELECT, INSERT, UPDATE, DELETE ON crm_transfer_jobs, crm_transfer_items, crm_transfer_files TO saicrm_runtime;
+ END IF;
+END $runtime_access$;
 INSERT INTO schema_migrations(version) VALUES(7) ON CONFLICT DO NOTHING;
 COMMIT;
