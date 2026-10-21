@@ -123,7 +123,7 @@ function create(host,config) {
  function rowFor(button){const id=button.dataset.record||button.closest('tr')?.querySelector('[data-record-id]')?.dataset.recordId;return state.records.find(r=>r.id===id)}
  async function click(event){const b=event.target.closest('[data-mw]');if(dead||!b||(!host.contains(b)&&!moduleHeader?.contains(b)))return;const action=b.dataset.mw;const access={create:'create',read:'read',edit:'edit',archive:'archive',restore:'restore',filters:'filter','filter-toggle':'filter',columns:'settings',refresh:'read',export:'export','export-selected':'export',dashboard:'dashboard',home:'read',import:'import','clear-filters':'filter','remove-filter':'filter',sort:'read',page:'read','clear-selection':'read'};if(access[action]&&!permitted(access[action])&&!(action==='refresh'&&state.error&&!state.permissionsKnown)){announce('You do not have permission to perform this action.');return}moduleHeader?.querySelectorAll('.mw-settings-menu[open]').forEach(menu=>menu.open=false);
  if(recordsTools?.enabled&&await recordsTools.handle(action,event,b))return;
- if(action==='home'||action==='dashboard'){if(blDetail&&!closeBlRecord())return;state.view=action;renderViews();stats();}
+ if(action==='home'||action==='dashboard'){if(blDetail&&!closeBlRecord())return;if(recordsTools?.enabled){await recordsTools.switchView(action);return;}state.view=action;renderViews();stats();}
  else if(action==='filter-toggle'){state.view='home';state.filtersOpen=!state.filtersOpen;renderViews();}
  else if(action==='import'){if(config.import&&typeof config.onImport==='function')config.onImport();}
  else if(action==='refresh'){clearTimeout(timer);load()}
@@ -210,7 +210,7 @@ function create(host,config) {
  return label+'<input '+attrs+'type="'+esc(f.type||'text')+'" autocomplete="off" value="'+esc(value)+'"></label>'};
  const body=config.key==='business-lines'?'<form id="mw-record-form" class="mw-bl-form">'+blFormSections(record,editing?'edit':'create')+(editing?'<div class="mw-bl-status-reason" hidden><label for="mw-bl-status-reason">Reason for status change <span class="mw-required">*</span></label><textarea id="mw-bl-status-reason" maxlength="500" rows="2" placeholder="Explain why the status is changing"></textarea><small>Required only when changing Active / Inactive.</small></div>':'')+'<p class="mw-form-error" role="alert" hidden></p></form>':'<form id="mw-record-form"><p class="mw-form-intro">'+(editing?'Update details. Record identifiers and audit fields are protected.':'Create this record. The record owner will be you.')+'</p><h3>Basic information</h3><div class="mw-form-grid">'+fields.map(fieldHTML).join('')+'</div>'+(editing?'<h3>System information</h3><dl class="mw-details-grid"><div><dt>'+esc(allColumns.find(c=>c.key==='displayId')?.label||'Record ID')+'</dt><dd>'+esc(record.displayId)+'</dd></div><div><dt>Last modified</dt><dd>'+esc(date(record.updatedAt))+'</dd></div></dl>':'')+'<p class="mw-form-error" role="alert" hidden></p></form>';
  const d=openDialog(config.key==='business-lines'?(editing?'Edit Business Line':'New Business Line'):(editing?'Edit ':'Create ')+config.singular,body,'<button type="button" class="mw-btn" id="mw-cancel">Cancel</button><button type="submit" form="mw-record-form" class="mw-btn mw-primary" id="mw-save">'+(config.key==='business-lines'?'Save':editing?'Save changes':'Create '+esc(config.singular))+'</button>');if(!d)return;
- const form=d.querySelector('form'),base=formValues(form);dialogDirty=()=>formValues(form)!==base;
+ const form=d.querySelector('form'),base=formValues(form);dialogDirty=()=>formValues(form)!==base;recordsTools?.wireForm(form);
  if(config.key==='business-lines'){wireBlSections(d);form.addEventListener('invalid',event=>{const section=event.target.closest('.mw-bl-section details');if(section)section.open=true},true);if(editing){const status=form.querySelector('[name="status"]'),reasonWrap=form.querySelector('.mw-bl-status-reason'),reasonField=form.querySelector('#mw-bl-status-reason');const sync=()=>{const changed=status?.value!==record.status;reasonWrap.hidden=!changed;reasonField.required=changed;if(!changed)reasonField.value='';};status?.addEventListener('change',sync);sync()}}
  d.querySelector('#mw-cancel').onclick=()=>closeDialog();
  form.querySelectorAll('[data-counted],textarea[name="description"]').forEach(input=>input.oninput=()=>{const count=form.querySelector('[data-count-for="'+(input.dataset.counted||input.name)+'"]');if(count)count.textContent=input.value.length});
@@ -283,7 +283,7 @@ function create(host,config) {
    +'<div class="mw-bl-detail-actions"><button type="button" class="mw-btn" data-bl-prev'+(!hasPrevious?' disabled':'')+'>‹ Previous</button><button type="button" class="mw-btn" data-bl-next'+(!hasNext?' disabled':'')+'>Next ›</button>'+(!editing&&permitted('edit')&&!record.archivedAt&&!record.deletedAt?'<button type="button" class="mw-btn mw-primary" id="bl-edit">Edit</button>':'')+'</div></header>'
    +'<div class="mw-bl-detail-tools"><span>Details</span><button type="button" data-bl-expand="1">Expand all</button><button type="button" data-bl-expand="0">Collapse all</button></div>'
    +'<div class="mw-bl-detail-layout">'+sectionNavigation+'<div class="mw-bl-detail-content">'+(editing?'<form id="mw-bl-page-form" class="mw-bl-form">'+blFormSections(record,'edit')+'<div class="mw-bl-status-reason" hidden><label for="mw-bl-page-reason">Reason for status change <span class="mw-required">*</span></label><textarea id="mw-bl-page-reason" maxlength="500" rows="2"></textarea></div><p class="mw-form-error" role="alert" hidden></p></form>':'<div class="mw-bl-read">'+blFormSections(record,'read')+'</div>')+(permitted('history')?'<section class="mw-bl-section"><details><summary>Audit History <span class="mw-bl-chevron">⌄</span></summary><div class="mw-bl-section-content mw-history">'+(history.length?history.map(h=>'<article><strong>'+esc(h.action)+'</strong> · '+esc(date(h.createdAt))+' · '+esc(h.actor||'System')+(h.reason?' · '+esc(h.reason):'')+'</article>').join(''):'<p>No history available.</p>')+'</div></details></section>':'')+'</div></div>'
-   +(editing?'<footer class="mw-bl-page-save"><span>* Required fields</span><div><button type="button" class="mw-btn" id="bl-cancel">Cancel</button><button type="submit" form="mw-bl-page-form" class="mw-btn mw-primary" id="bl-save">Save Changes</button></div></footer>':'');
+   +(editing?'<footer class="mw-bl-page-save"><span>* Required fields</span><div><button type="button" class="mw-btn" id="bl-cancel">Cancel</button><button type="submit" form="mw-bl-page-form" class="mw-btn mw-primary" id="bl-save">Save</button></div></footer>':'');
   const page=blDetail,detailSections=[...page.querySelectorAll('.mw-bl-detail-content .mw-bl-section')];
   const sectionKey='scrm:bl-sections:'+user.id;
   let savedSections=recordsTools?.sections()||{};if(!recordsTools?.enabled)try{savedSections=JSON.parse(localStorage.getItem(sectionKey)||'{}')||{}}catch{}
@@ -321,7 +321,7 @@ function create(host,config) {
   // Display only the page-level expand/collapse controls, not duplicate field-list controls.
   page.querySelectorAll('.mw-bl-detail-content>.mw-bl-read>.mw-bl-section-tools,.mw-bl-detail-content>form>.mw-bl-section-tools').forEach(el=>el.remove());
   if(!editing)return;
-  const form=page.querySelector('#mw-bl-page-form');blDraft=form;
+  const form=page.querySelector('#mw-bl-page-form');blDraft=form;recordsTools?.wireForm(form);
   const baseline=formValues(form);
   const mark=()=>{form.dataset.dirty=String(formValues(form)!==baseline)};
   form.addEventListener('input',mark);form.addEventListener('change',mark);
@@ -345,7 +345,7 @@ function create(host,config) {
     if(dead||blDetail!==page)return;blBusy=false;blDraft=null;
     const updated=response.record||{...record,...payload};
     renderBlRecordPage(updated,'read',history);announce('Business Line updated.');await load();
-   }catch(err){if(dead||blDetail!==page)return;blBusy=false;error.textContent=err.message;error.hidden=false;page.querySelector('#bl-save').disabled=false;page.querySelector('#bl-save').textContent='Save Changes';error.scrollIntoView({block:'nearest'})}
+   }catch(err){if(dead||blDetail!==page)return;blBusy=false;error.textContent=err.message;error.hidden=false;page.querySelector('#bl-save').disabled=false;page.querySelector('#bl-save').textContent='Save';error.scrollIntoView({block:'nearest'})}
   };
  }
 

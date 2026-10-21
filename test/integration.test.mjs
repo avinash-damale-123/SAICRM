@@ -591,3 +591,35 @@ test('Typed nested filtering, stable multi-sort and explicit bulk snapshots work
  const ran=await call('business-lines/jobs/'+created.body.job.id+'/step','POST',{},superAdmin);assert.equal(ran.status,200,JSON.stringify(ran.body));assert.equal(ran.body.job.succeeded,2);
  assert.equal((await pool.query("SELECT count(*) FROM business_lines WHERE code IN ('RF-IMP-1','RF-IMP-2') AND archived_at IS NOT NULL")).rows[0].count,'2');
 });
+
+test('Records XLSX import updates preserve unmapped Description and protect system fields',{skip:!enabled},async()=>{
+ const {superAdmin}=await businessActors();const initial=await call('business-lines','POST',{name:'RF XLSX Old Name',code:'RF-XLSX-1',description:'Preserved description'},superAdmin);assert.equal(initial.status,200,JSON.stringify(initial.body));
+ const {default:ExcelJS}=await import('exceljs');const workbook=new ExcelJS.Workbook(),sheet=workbook.addWorksheet('Import Data');sheet.addRow(['Business Line ID','Business Line Code','Business Line Name']);sheet.addRow([initial.body.record.displayId,'RF-XLSX-2','RF XLSX Updated']);const bytes=Buffer.from(await workbook.xlsx.writeBuffer());
+ const upload=await call('business-lines/imports/analyze','POST',{filename:'update.xlsx',data:bytes.toString('base64')},superAdmin);assert.equal(upload.status,200,JSON.stringify(upload.body));const id=upload.body.job.id;
+ const validation=await call('business-lines/imports/'+id+'/validate','POST',{mapping:{displayId:0,code:1,name:2},mode:'update',atomic:true},superAdmin);assert.equal(validation.status,200,JSON.stringify(validation.body));assert.equal(validation.body.valid,1);
+ await call('business-lines/jobs/'+id+'/start','POST',{},superAdmin);const run=await call('business-lines/jobs/'+id+'/step','POST',{},superAdmin);assert.equal(run.status,200,JSON.stringify(run.body));assert.equal(run.body.job.succeeded,1);
+ const record=(await call('business-lines/'+initial.body.record.id,'GET',undefined,superAdmin)).body.record;assert.equal(record.name,'RF XLSX Updated');assert.equal(record.code,'RF-XLSX-2');assert.equal(record.description,'Preserved description');assert.equal(record.createdAt,initial.body.record.createdAt);assert.equal(record.createdById,initial.body.record.createdById);assert.equal(record.ownerId,initial.body.record.ownerId);
+});
+
+test('Large exports resume in ordered parts, and downloads invalidate after policy publishing',{skip:!enabled},async()=>{
+ const {superAdmin}=await businessActors();
+ const actor=(await pool.query("SELECT id FROM users WHERE system_role='super_admin' AND status='approved' ORDER BY created_at LIMIT 1")).rows[0].id;
+ await pool.query("INSERT INTO business_lines(id,name,code,owner_id,created_by,updated_by) SELECT gen_random_uuid(),'RF Large Export '||lpad(n::text,4,'0'),'RF-LARGE-'||n,$1,$1,$1 FROM generate_series(1,1005) n",[actor]);
+ const request={scope:'matching',query:{q:'RF Large Export',sorts:[{field:'name',direction:'asc'}]},columnMode:'custom',columns:['displayId','name','code'],format:'csv'};
+ const plan=await call('business-lines/exports/plan','POST',request,superAdmin);assert.equal(plan.status,200,JSON.stringify(plan.body));assert.equal(plan.body.count,1005);assert.equal(plan.body.parts,2);
+ const created=await call('business-lines/exports','POST',{...request,expectedCount:1005,requestId:'03fa2d0e-f844-4b0c-b3db-70dd8688c926'},superAdmin);assert.equal(created.status,200,JSON.stringify(created.body));const id=created.body.job.id;
+ const a=await call('business-lines/jobs/'+id+'/step','POST',{},superAdmin);assert.equal(a.status,200,JSON.stringify(a.body));assert.equal(a.body.job.succeeded,1000);assert.equal(a.body.job.status,'running');
+ const b=await call('business-lines/jobs/'+id+'/step','POST',{},superAdmin);assert.equal(b.status,200,JSON.stringify(b.body));assert.equal(b.body.job.succeeded,1005);assert.equal(b.body.job.status,'completed');
+ const first=await call('business-lines/jobs/'+id+'/file?part=1','GET',undefined,superAdmin),second=await call('business-lines/jobs/'+id+'/file?part=2','GET',undefined,superAdmin);assert.equal(first.status,200);assert.equal(second.status,200);const part1=Buffer.from(first.body.data,'base64').toString(),part2=Buffer.from(second.body.data,'base64').toString();assert.match(part1,/RF Large Export 0001/);assert.doesNotMatch(part1,/RF Large Export 1001/);assert.match(part2,/RF Large Export 1001/);
+ const configuration=await call('business-lines/configuration','GET',undefined,superAdmin);const draft=await call('business-lines/configuration','PUT',{version:configuration.body.version,action:'draft',config:configuration.body.config},superAdmin);assert.equal(draft.status,200);assert.equal((await call('business-lines/jobs/'+id+'/file?part=1','GET',undefined,superAdmin)).status,200,'Draft must not change effective export permissions');
+ const published=await call('business-lines/configuration','PUT',{version:draft.body.version,action:'publish',config:configuration.body.config},superAdmin);assert.equal(published.status,200);assert.equal((await call('business-lines/jobs/'+id+'/file?part=1','GET',undefined,superAdmin)).status,403,'Published policy requires a fresh export');
+ await assert.rejects(pool.query("UPDATE crm_configuration_audit SET action='tampered'"));
+});
+
+test('Records and Overview restore independent filters and Overview exports only summary metrics',{skip:!enabled},async()=>{
+ const {superAdmin}=await businessActors();const p=(await call('business-lines/preferences','GET',undefined,superAdmin)).body.preferences;
+ const {version,...data}=p;data.queries={records:{q:'RF XLSX',pageSize:50},overview:{q:'RF Large Export',pageSize:25}};data.view='overview';
+ const saved=await call('business-lines/preferences','PUT',{version,data},superAdmin);assert.equal(saved.status,200,JSON.stringify(saved.body));assert.equal(saved.body.preferences.query.q,'RF Large Export');assert.equal(saved.body.preferences.queries.records.q,'RF XLSX');
+ const restored=(await call('business-lines/preferences','GET',undefined,superAdmin)).body.preferences;assert.equal(restored.queries.records.pageSize,50);assert.equal(restored.queries.overview.pageSize,25);
+ const exported=await call('business-lines/overview-export','POST',{query:{q:'RF Large Export'},format:'csv'},superAdmin);assert.equal(exported.status,200,JSON.stringify(exported.body));const csv=Buffer.from(exported.body.data,'base64').toString();assert.match(csv,/Matching Business Lines/);assert.match(csv,/1005/);assert.equal(csv.trim().split('\n').length,6,'Overview exports five summary metrics, not the underlying records');
+});

@@ -39,5 +39,7 @@ CREATE TABLE IF NOT EXISTS crm_transfer_files (
  filename text NOT NULL, mime text NOT NULL, bytes bytea NOT NULL CHECK(octet_length(bytes)<=2500000),
  created_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(job_id,part)
 );
+DROP TRIGGER IF EXISTS crm_configuration_audit_immutable ON crm_configuration_audit;
+CREATE TRIGGER crm_configuration_audit_immutable BEFORE UPDATE OR DELETE ON crm_configuration_audit FOR EACH ROW EXECUTE FUNCTION prevent_audit_mutation();
 INSERT INTO schema_migrations(version) VALUES(7) ON CONFLICT DO NOTHING;
 COMMIT;
