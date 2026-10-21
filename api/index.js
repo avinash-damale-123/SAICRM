@@ -1,9 +1,14 @@
+import {waitUntil} from '@vercel/functions';
+import {enqueueTransfer,workerRequest} from '../server/records-worker.mjs';
 import { database } from '../server/db.mjs';
 import { configuration, createHandler } from '../server/api.mjs';
 let handler;
 export default async function api(req, res) {
  try {
-  if (!handler) handler = createHandler({ pool: database(), config: configuration() });
+  const pool=database(),config=configuration();
+  const route=req.query?.route||new URL(req.url,config.origin).pathname.replace(/^\/api\/?/,'');
+  if(route==='internal/records-worker')return await workerRequest(req,res,{pool,config,waitUntil});
+  if (!handler) handler = createHandler({pool,config,enqueue:id=>enqueueTransfer(waitUntil,pool,config,id)});
   await handler(req,res);
  } catch {
   res.statusCode=503; res.setHeader('Cache-Control','no-store'); res.setHeader('Content-Type','application/json');

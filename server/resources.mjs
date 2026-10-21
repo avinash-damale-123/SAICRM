@@ -9,7 +9,7 @@ export const businessLineResource = Object.freeze({
  section: 'Administration', subsection: 'Core Masters', route: '#business-lines',
  implementationStatus: 'Available', registration: 'automatic',
  systemLocked: true, superAdminOnly: true, actions,
- supportsImport: false, supportsDelete: false
+ supportsImport: true, supportsDelete: false
 });
 
 /**
@@ -24,7 +24,7 @@ export function businessLinePermissions(user){
  const eligible=user?.system_role==='super_admin'&&user.email_verified===true&&user.status==='approved';
  return Object.freeze(Object.fromEntries([
   ...actions.map(action=>[action,eligible]),
-  ['import',false],['delete',false]
+  ['import',eligible],['delete',false]
  ]));
 }
 export const resources = Object.freeze([businessLineResource]);
