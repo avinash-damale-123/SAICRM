@@ -70,6 +70,10 @@ try{
    if(row.width>480){assert.ok(row.valueLeft>=row.right-1,mode+' label on left and value on right');assert.ok(Math.abs(row.top-row.valueTop)<2,mode+' label and value share a row');}
    else assert.ok(row.valueTop>=row.bottom-1,mode+' readable stacked fallback on narrow screens');
   }
+  if(!mode.includes('long values')&&await page.evaluate(()=>innerWidth>760)){
+   const pair=await modal().evaluate(d=>{const first=d.querySelector('.mw-bl-field-name'),id=d.querySelector('.mw-bl-field-displayId');if(!first||!id||!first.getClientRects().length)return null;const a=first.getBoundingClientRect(),b=id.getBoundingClientRect();return {top:Math.abs(a.top-b.top),height:Math.abs(a.height-b.height)};});
+   if(pair){assert.ok(pair.top<2,mode+' paired fields align at top');assert.ok(pair.height<2,mode+' paired fields have consistent row height');}
+  }
   const dismissColors=await modal().evaluate(d=>[...d.querySelectorAll('.mw-dialog-close,#mw-cancel,#bl-cancel')].map(el=>({bg:getComputedStyle(el).backgroundColor,color:getComputedStyle(el).color})));
   for(const style of dismissColors){assert.ok(['rgb(180, 35, 44)','rgb(148, 29, 38)'].includes(style.bg),mode+' red dismiss control');assert.equal(style.color,'rgb(255, 255, 255)',mode+' readable white action label');}
 

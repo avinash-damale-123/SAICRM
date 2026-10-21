@@ -530,7 +530,7 @@ dialog.mw-bl-create-dialog .mw-bl-field textarea{min-height:64px}
 /* Business Lines review: label/value rows and unambiguous dismiss controls. */
 dialog.mw-bl-dialog.mw-bl-record-dialog{width:min(920px,calc(100vw - 40px))!important}
 dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-field{
- --bl-label-width:144px;display:grid!important;grid-template-columns:var(--bl-label-width) minmax(0,1fr);
+ --bl-label-width:154px;display:grid!important;grid-template-columns:var(--bl-label-width) minmax(0,1fr);
  gap:0!important;align-items:stretch;padding:0!important;min-width:0;border:1px solid #d7e2dc;border-radius:6px;
  background:#fff;overflow:visible;
 }
@@ -565,7 +565,7 @@ dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-field .
 dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-field .rf-field-error{
  font-size:12px;line-height:1.4;overflow-wrap:anywhere;
 }
-dialog.mw-bl-dialog.mw-bl-record-dialog .mw-bl-grid{gap:8px 14px!important;align-items:start}
+dialog.mw-bl-dialog.mw-bl-record-dialog .mw-bl-grid{gap:8px 14px!important;align-items:stretch}
 dialog.mw-bl-dialog.mw-bl-create-dialog .mw-bl-grid{gap:10px!important}
 dialog.mw-bl-dialog.mw-bl-create-dialog .mw-bl-field{--bl-label-width:154px}
 dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-field-description>label{align-items:flex-start;align-content:start;padding-top:11px!important}
