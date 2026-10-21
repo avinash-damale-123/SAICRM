@@ -1,3 +1,4 @@
+import { recordsFramework } from './records-framework.mjs';
 import { randomUUID } from 'node:crypto';
 import { businessLines, validateBusinessLineReferences } from './business-lines.mjs';
 import { searchWorkspace, notificationsFeed } from './workspace-discovery.mjs';
@@ -22,17 +23,17 @@ export function configuration(env = process.env) {
  if (!origin || new URL(origin).origin !== origin || !origin.startsWith('https://') || !env.DATABASE_URL || !env.TOKEN_SECRET || env.TOKEN_SECRET.length < 64) throw new Error('Service configuration incomplete');
  return { origin, secret: env.TOKEN_SECRET, ...smtpConfiguration(env), ...googleConfiguration(env) };
 }
-async function bodyOf(req) {
+async function bodyOf(req, maxBytes=16384) {
  if (!String(req.headers['content-type'] || '').startsWith('application/json')) fail(415, 'JSON required');
  const length = Number(req.headers['content-length'] || 0);
- if (length > 16384) fail(413, 'Request too large');
+ if (length > maxBytes) fail(413, 'Request too large');
  let body = req.body;
  if (body === undefined) {
   let raw = '';
-  for await (const chunk of req) { raw += chunk; if (Buffer.byteLength(raw) > 16384) fail(413, 'Request too large'); }
+  for await (const chunk of req) { raw += chunk; if (Buffer.byteLength(raw) > maxBytes) fail(413, 'Request too large'); }
   body = raw;
  }
- if (Buffer.byteLength(typeof body === 'string' ? body : JSON.stringify(body ?? {})) > 16384) fail(413, 'Request too large');
+ if (Buffer.byteLength(typeof body === 'string' ? body : JSON.stringify(body ?? {})) > maxBytes) fail(413, 'Request too large');
  try { if (typeof body === 'string') body = JSON.parse(body); } catch { fail(400, 'Invalid JSON'); }
  if (!body || typeof body !== 'object' || Array.isArray(body)) fail(400, 'Expected JSON object');
  return body;
@@ -69,7 +70,7 @@ async function permitsScope(client,user,module,data) {
 export const sessionCookie = (value,remember=false) => '__Host-scrm=' + value + '; Path=/; HttpOnly; Secure; SameSite=Lax' + (!value?'; Max-Age=0':remember?'; Max-Age=2592000':'');
 const cookie=sessionCookie;
 const oauthCookie=(value)=>'__Host-scrm-oauth='+value+'; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age='+(value?600:0);
-export function createHandler({ pool, config, deliver = message => sendEmail(config, message), googleExchange=exchangeGoogle }) {
+export function createHandler({ pool, config, deliver = message => sendEmail(config, message), googleExchange=exchangeGoogle, enqueue=()=>{} }) {
  return async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -84,7 +85,7 @@ export function createHandler({ pool, config, deliver = message => sendEmail(con
    if (!['GET','POST','PUT','DELETE'].includes(method)) fail(405, 'Method not allowed');
    const mutation = method !== 'GET';
    if (mutation && req.headers.origin !== config.origin) fail(403, 'Request origin rejected');
-   const body = mutation ? await bodyOf(req) : {};
+   const body = mutation ? await bodyOf(req, path[0]==='business-lines'&&path[1]==='imports'&&path[2]==='analyze'?3000000:path[0]==='business-lines'?64000:16384) : {};
    // Vercel overwrites x-real-ip at its edge. Do not trust client-provided X-Forwarded-For.
    const ip = req.headers['x-real-ip'] || req.socket?.remoteAddress || 'unknown';
    await limit(pool, config, 'all:' + ip, 600, 600);
@@ -262,7 +263,7 @@ export function createHandler({ pool, config, deliver = message => sendEmail(con
      if (method !== 'GET' || path.length !== 1) fail(405, 'Method not allowed');
      return await notificationsFeed(client, principal, current);
     }
-    if (path[0] === 'business-lines') return await businessLines({client,user:current,path,method,url,body});
+    if (path[0] === 'business-lines') return await recordsFramework({client,user:current,path,method,url,body});
     if (path[0] === 'access') {
      if (!authorize(principal, method === 'GET' ? 'read' : 'approve', 'access')) fail(403, 'Administrator access required');
      if (method === 'GET') {
@@ -338,6 +339,7 @@ export function createHandler({ pool, config, deliver = message => sendEmail(con
     await audit(client,user.id,'Updated',module,existing.id);
     return {record:{...data,id:existing.id,version:existing.version+1}};
    });
+   if(result?.workJob){const jobId=result.workJob;delete result.workJob;enqueue(jobId);}
    return reply(200,result);
   } catch (error) {
    if (error.code === '55P03' || error.code === '40P01') return reply(409,{error:'Access changed concurrently. Retry the request.'});

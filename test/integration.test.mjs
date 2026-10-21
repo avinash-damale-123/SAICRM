@@ -19,6 +19,8 @@ before(async()=>{
  await pool.query(await readFile(new URL('../db/004_business_lines_fields.sql',import.meta.url),'utf8'));
  await pool.query(await readFile(new URL('../db/005_user_master_display_id.sql',import.meta.url),'utf8'));
  await pool.query(await readFile(new URL('../db/006_business_lines_lifecycle.sql',import.meta.url),'utf8'));
+ await pool.query(await readFile(new URL('../db/007_records_framework.sql',import.meta.url),'utf8'));
+ await pool.query(await readFile(new URL('../db/007_records_framework.sql',import.meta.url),'utf8'));
  // Applying migrations twice must preserve an initialized database.
  await pool.query(await readFile(new URL('../db/003_business_lines.sql',import.meta.url),'utf8'));
  await pool.query(await readFile(new URL('../db/004_business_lines_fields.sql',import.meta.url),'utf8'));
@@ -527,4 +529,97 @@ test('shared CRM search and notifications enforce module, branch, and business-l
  assert.ok(adminNotice.body.items.some(x=>x.kind==='approval'&&x.title.includes('New Employee')));
  const memberNotices=await call('notifications','GET',undefined,member);
  assert.ok(!memberNotices.body.items.some(x=>x.kind==='approval'));
+});
+
+test('Records framework persists personal views and publishes display-only role policy',{skip:!enabled},async()=>{
+ const {superAdmin,admin:ordinaryAdmin}=await businessActors();
+ const first=await call('business-lines/framework','GET',undefined,superAdmin);
+ assert.equal(first.status,200,JSON.stringify(first.body));assert.equal(first.body.fields.length,19);assert.equal(first.body.permissions.import,true);
+ const get=await call('business-lines/preferences','GET',undefined,superAdmin);
+ const data={active:'my',myColumns:['displayId','name','code'],selectedColumns:['displayId','name','code'],widths:{name:250},query:{q:'',status:'all',archived:'exclude',page:1,pageSize:25},sections:{'Basic Information':false},view:'records'};
+ const saved=await call('business-lines/preferences','PUT',{version:get.body.preferences.version,data},superAdmin);
+ assert.equal(saved.status,200,JSON.stringify(saved.body));assert.equal(saved.body.preferences.widths.name,250);
+ const restored=await call('business-lines/preferences','GET',undefined,superAdmin);assert.equal(restored.body.preferences.active,'my');assert.equal(restored.body.preferences.sections['Basic Information'],false);
+ assert.equal((await call('business-lines/preferences','PUT',{version:get.body.preferences.version,data},superAdmin)).status,409);
+ const config=await call('business-lines/configuration','GET',undefined,superAdmin);const draft=structuredClone(config.body.config);draft.order.reverse();draft.frozenCount=2;
+ const staged=await call('business-lines/configuration','PUT',{version:config.body.version,action:'draft',config:draft},superAdmin);assert.equal(staged.status,200,JSON.stringify(staged.body));assert.deepEqual(staged.body.config.order,config.body.config.order);
+ const published=await call('business-lines/configuration','PUT',{version:staged.body.version,action:'publish',config:draft},superAdmin);assert.equal(published.status,200,JSON.stringify(published.body));assert.equal(published.body.config.frozenCount,2);
+ const reset=await call('business-lines/configuration','PUT',{version:published.body.version,action:'publish',config:config.body.config},superAdmin);assert.equal(reset.status,200);
+ assert.equal((await call('business-lines/configuration','GET',undefined,ordinaryAdmin)).status,403);
+});
+
+test('CSV import is dry-run first, partial and repeat-safe with downloadable failed rows',{skip:!enabled},async()=>{
+ const {superAdmin}=await businessActors();
+ const csv='Business Line Name,Business Line Code,Business Line Description\nRF Import One,RF-IMP-1,First row\nRF Import Two,RF-IMP-2,Second row\n,RF-IMP-3,Missing name\n';
+ const upload=await call('business-lines/imports/analyze','POST',{filename:'records.csv',data:Buffer.from(csv).toString('base64')},superAdmin);assert.equal(upload.status,200,JSON.stringify(upload.body));const id=upload.body.job.id;
+ assert.equal((await pool.query("SELECT count(*) FROM business_lines WHERE code LIKE 'RF-IMP-%'")).rows[0].count,'0');
+ const valid=await call('business-lines/imports/'+id+'/validate','POST',{mapping:{name:0,code:1,description:2},mode:'create',atomic:false},superAdmin);assert.equal(valid.status,200,JSON.stringify(valid.body));assert.equal(valid.body.valid,2);assert.equal(valid.body.invalid,1);
+ assert.equal((await pool.query("SELECT count(*) FROM business_lines WHERE code LIKE 'RF-IMP-%'")).rows[0].count,'0');
+ assert.equal((await call('business-lines/jobs/'+id+'/start','POST',{},superAdmin)).status,200);
+ const run=await call('business-lines/jobs/'+id+'/step','POST',{},superAdmin);assert.equal(run.status,200,JSON.stringify(run.body));assert.equal(run.body.job.status,'partial');assert.equal(run.body.job.succeeded,2);assert.equal(run.body.job.failed,1);
+ const again=await call('business-lines/jobs/'+id+'/step','POST',{},superAdmin);assert.equal(again.body.job.succeeded,2);
+ const reupload=await call('business-lines/imports/analyze','POST',{filename:'same-records.csv',data:Buffer.from(csv).toString('base64')},superAdmin);assert.equal(reupload.body.reused,true);assert.equal(reupload.body.job.id,id);
+ const report=await call('business-lines/jobs/'+id+'/errors?part=1','GET',undefined,superAdmin);assert.equal(report.status,200,JSON.stringify(report.body));assert.match(Buffer.from(report.body.data,'base64').toString('utf8'),/Missing name/);
+});
+
+test('Atomic import rolls back successful rows if a later row conflicts after validation',{skip:!enabled},async()=>{
+ const {superAdmin}=await businessActors();const csv='Business Line Name,Business Line Code\nRF Atomic One,RF-ATOMIC-1\nRF Atomic Two,RF-ATOMIC-2\n';
+ const upload=await call('business-lines/imports/analyze','POST',{filename:'atomic.csv',data:Buffer.from(csv).toString('base64')},superAdmin);assert.equal(upload.status,200,JSON.stringify(upload.body));const id=upload.body.job.id;
+ const valid=await call('business-lines/imports/'+id+'/validate','POST',{mapping:{name:0,code:1},mode:'create',atomic:true},superAdmin);assert.equal(valid.body.valid,2);
+ assert.equal((await call('business-lines','POST',{name:'RF Atomic Concurrent',code:'RF-ATOMIC-2'},superAdmin)).status,200);
+ await call('business-lines/jobs/'+id+'/start','POST',{},superAdmin);const run=await call('business-lines/jobs/'+id+'/step','POST',{},superAdmin);assert.equal(run.status,200,JSON.stringify(run.body));assert.equal(run.body.job.status,'failed');assert.equal(run.body.job.succeeded,0);
+ assert.equal((await pool.query("SELECT count(*) FROM business_lines WHERE code='RF-ATOMIC-1'")).rows[0].count,'0');
+});
+
+test('Export plans separate columns from record scope and generate authenticated XLSX jobs',{skip:!enabled},async()=>{
+ const {superAdmin,admin:ordinaryAdmin}=await businessActors();const request={scope:'matching',query:{q:'RF Import',page:1,pageSize:25},columnMode:'custom',columns:['displayId','name','code'],format:'xlsx'};
+ const plan=await call('business-lines/exports/plan','POST',request,superAdmin);assert.equal(plan.status,200,JSON.stringify(plan.body));assert.equal(plan.body.count,2);
+ const idempotency='3da17230-31dc-449e-b2ce-7241085b975a';
+ const created=await call('business-lines/exports','POST',{...request,expectedCount:2,requestId:idempotency},superAdmin);assert.equal(created.status,200,JSON.stringify(created.body));const id=created.body.job.id;
+ const repeated=await call('business-lines/exports','POST',{...request,expectedCount:2,requestId:idempotency},superAdmin);assert.equal(repeated.body.job.id,id);
+ const step=await call('business-lines/jobs/'+id+'/step','POST',{},superAdmin);assert.equal(step.status,200,JSON.stringify(step.body));assert.equal(step.body.job.succeeded,2);assert.equal(step.body.job.status,'completed');
+ const file=await call('business-lines/jobs/'+id+'/file?part=1','GET',undefined,superAdmin);assert.equal(file.status,200,JSON.stringify(file.body));assert.equal(Buffer.from(file.body.data,'base64').readUInt32LE(0),0x04034b50);
+ assert.equal((await call('business-lines/jobs/'+id+'/file?part=1','GET',undefined,ordinaryAdmin)).status,403);
+ assert.equal((await call('business-lines/exports/plan','POST',{...request,scope:'all'},superAdmin)).status,400);
+});
+
+test('Typed nested filtering, stable multi-sort and explicit bulk snapshots work together',{skip:!enabled},async()=>{
+ const {superAdmin}=await businessActors();const query={filters:{logic:'and',conditions:[{field:'name',operator:'startsWith',value:'RF Import'},{logic:'or',conditions:[{field:'code',operator:'equals',value:'RF-IMP-1'},{field:'code',operator:'equals',value:'RF-IMP-2'}]}]},sorts:[{field:'name',direction:'desc'},{field:'createdAt',direction:'asc'}],page:1,pageSize:25};
+ const params=new URLSearchParams({filters:JSON.stringify(query.filters),sorts:JSON.stringify(query.sorts)});const listed=await call('business-lines?'+params,'GET',undefined,superAdmin);assert.equal(listed.status,200,JSON.stringify(listed.body));assert.equal(listed.body.total,2);assert.equal(listed.body.records[0].code,'RF-IMP-2');
+ const plan=await call('business-lines/bulk/plan','POST',{scope:'matching',query,action:'archive'},superAdmin);assert.equal(plan.body.count,2);
+ const created=await call('business-lines/bulk','POST',{scope:'matching',query,action:'archive',reason:'Bulk reviewed fixture',expectedCount:2,requestId:'e3a00255-ebf4-4375-a3d1-cb3bcd018d73'},superAdmin);assert.equal(created.status,200,JSON.stringify(created.body));
+ const ran=await call('business-lines/jobs/'+created.body.job.id+'/step','POST',{},superAdmin);assert.equal(ran.status,200,JSON.stringify(ran.body));assert.equal(ran.body.job.succeeded,2);
+ assert.equal((await pool.query("SELECT count(*) FROM business_lines WHERE code IN ('RF-IMP-1','RF-IMP-2') AND archived_at IS NOT NULL")).rows[0].count,'2');
+});
+
+test('Records XLSX import updates preserve unmapped Description and protect system fields',{skip:!enabled},async()=>{
+ const {superAdmin}=await businessActors();const initial=await call('business-lines','POST',{name:'RF XLSX Old Name',code:'RF-XLSX-1',description:'Preserved description'},superAdmin);assert.equal(initial.status,200,JSON.stringify(initial.body));
+ const {default:ExcelJS}=await import('exceljs');const workbook=new ExcelJS.Workbook(),sheet=workbook.addWorksheet('Import Data');sheet.addRow(['Business Line ID','Business Line Code','Business Line Name']);sheet.addRow([initial.body.record.displayId,'RF-XLSX-2','RF XLSX Updated']);const bytes=Buffer.from(await workbook.xlsx.writeBuffer());
+ const upload=await call('business-lines/imports/analyze','POST',{filename:'update.xlsx',data:bytes.toString('base64')},superAdmin);assert.equal(upload.status,200,JSON.stringify(upload.body));const id=upload.body.job.id;
+ const validation=await call('business-lines/imports/'+id+'/validate','POST',{mapping:{displayId:0,code:1,name:2},mode:'update',atomic:true},superAdmin);assert.equal(validation.status,200,JSON.stringify(validation.body));assert.equal(validation.body.valid,1);
+ await call('business-lines/jobs/'+id+'/start','POST',{},superAdmin);const run=await call('business-lines/jobs/'+id+'/step','POST',{},superAdmin);assert.equal(run.status,200,JSON.stringify(run.body));assert.equal(run.body.job.succeeded,1);
+ const record=(await call('business-lines/'+initial.body.record.id,'GET',undefined,superAdmin)).body.record;assert.equal(record.name,'RF XLSX Updated');assert.equal(record.code,'RF-XLSX-2');assert.equal(record.description,'Preserved description');assert.equal(record.createdAt,initial.body.record.createdAt);assert.equal(record.createdById,initial.body.record.createdById);assert.equal(record.ownerId,initial.body.record.ownerId);
+});
+
+test('Large exports resume in ordered parts, and downloads invalidate after policy publishing',{skip:!enabled},async()=>{
+ const {superAdmin}=await businessActors();
+ const actor=(await pool.query("SELECT id FROM users WHERE system_role='super_admin' AND status='approved' ORDER BY created_at LIMIT 1")).rows[0].id;
+ await pool.query("INSERT INTO business_lines(id,name,code,owner_id,created_by,updated_by) SELECT gen_random_uuid(),'RF Large Export '||lpad(n::text,4,'0'),'RF-LARGE-'||n,$1,$1,$1 FROM generate_series(1,1005) n",[actor]);
+ const request={scope:'matching',query:{q:'RF Large Export',sorts:[{field:'name',direction:'asc'}]},columnMode:'custom',columns:['displayId','name','code'],format:'csv'};
+ const plan=await call('business-lines/exports/plan','POST',request,superAdmin);assert.equal(plan.status,200,JSON.stringify(plan.body));assert.equal(plan.body.count,1005);assert.equal(plan.body.parts,2);
+ const created=await call('business-lines/exports','POST',{...request,expectedCount:1005,requestId:'03fa2d0e-f844-4b0c-b3db-70dd8688c926'},superAdmin);assert.equal(created.status,200,JSON.stringify(created.body));const id=created.body.job.id;
+ const a=await call('business-lines/jobs/'+id+'/step','POST',{},superAdmin);assert.equal(a.status,200,JSON.stringify(a.body));assert.equal(a.body.job.succeeded,1000);assert.equal(a.body.job.status,'running');
+ const b=await call('business-lines/jobs/'+id+'/step','POST',{},superAdmin);assert.equal(b.status,200,JSON.stringify(b.body));assert.equal(b.body.job.succeeded,1005);assert.equal(b.body.job.status,'completed');
+ const first=await call('business-lines/jobs/'+id+'/file?part=1','GET',undefined,superAdmin),second=await call('business-lines/jobs/'+id+'/file?part=2','GET',undefined,superAdmin);assert.equal(first.status,200);assert.equal(second.status,200);const part1=Buffer.from(first.body.data,'base64').toString(),part2=Buffer.from(second.body.data,'base64').toString();assert.match(part1,/RF Large Export 0001/);assert.doesNotMatch(part1,/RF Large Export 1001/);assert.match(part2,/RF Large Export 1001/);
+ const configuration=await call('business-lines/configuration','GET',undefined,superAdmin);const draft=await call('business-lines/configuration','PUT',{version:configuration.body.version,action:'draft',config:configuration.body.config},superAdmin);assert.equal(draft.status,200);assert.equal((await call('business-lines/jobs/'+id+'/file?part=1','GET',undefined,superAdmin)).status,200,'Draft must not change effective export permissions');
+ const published=await call('business-lines/configuration','PUT',{version:draft.body.version,action:'publish',config:configuration.body.config},superAdmin);assert.equal(published.status,200);assert.equal((await call('business-lines/jobs/'+id+'/file?part=1','GET',undefined,superAdmin)).status,403,'Published policy requires a fresh export');
+ await assert.rejects(pool.query("UPDATE crm_configuration_audit SET action='tampered'"));
+});
+
+test('Records and Overview restore independent filters and Overview exports only summary metrics',{skip:!enabled},async()=>{
+ const {superAdmin}=await businessActors();const p=(await call('business-lines/preferences','GET',undefined,superAdmin)).body.preferences;
+ const {version,...data}=p;data.queries={records:{q:'RF XLSX',pageSize:50},overview:{q:'RF Large Export',pageSize:25}};data.view='overview';
+ const saved=await call('business-lines/preferences','PUT',{version,data},superAdmin);assert.equal(saved.status,200,JSON.stringify(saved.body));assert.equal(saved.body.preferences.query.q,'RF Large Export');assert.equal(saved.body.preferences.queries.records.q,'RF XLSX');
+ const restored=(await call('business-lines/preferences','GET',undefined,superAdmin)).body.preferences;assert.equal(restored.queries.records.pageSize,50);assert.equal(restored.queries.overview.pageSize,25);
+ const exported=await call('business-lines/overview-export','POST',{query:{q:'RF Large Export'},format:'csv'},superAdmin);assert.equal(exported.status,200,JSON.stringify(exported.body));const csv=Buffer.from(exported.body.data,'base64').toString();assert.match(csv,/Matching Business Lines/);assert.match(csv,/1005/);assert.equal(csv.trim().split('\n').length,6,'Overview exports five summary metrics, not the underlying records');
 });

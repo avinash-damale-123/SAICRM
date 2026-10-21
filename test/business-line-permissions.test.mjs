@@ -8,9 +8,9 @@ test('Business Line workspace exposes only implemented capabilities to an approv
  const permissions=businessLinePermissions(approved);
  for(const action of ['read','create','edit','archive','restore','export','history','search','filter','settings','dashboard'])
   assert.equal(permissions[action],true,action);
- assert.equal(permissions.import,false);
+ assert.equal(permissions.import,true);
  assert.equal(permissions.delete,false);
- assert.equal(businessLineResource.supportsImport,false);
+ assert.equal(businessLineResource.supportsImport,true);
  assert.equal(businessLineResource.supportsDelete,false);
  assert.throws(()=>{permissions.create=false;},TypeError);
 });

@@ -34,5 +34,10 @@
   ],
   "framework": null,
   "buildCommand": "node scripts/build.mjs",
-  "outputDirectory": "public"
+  "outputDirectory": "public",
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 60
+    }
+  }
 }

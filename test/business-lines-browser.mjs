@@ -158,7 +158,7 @@ try{
  assert.equal(await page.locator('.mw-table').isVisible(),true);
  assert.equal(await page.locator('.mw-table tbody tr').count(),25);
  assert.match(await page.locator('.mw-range').innerText(),/1–25 of 30/);
- assert.equal(await page.locator('[data-mw="import"]').count(),0);
+ assert.equal(await page.locator('[data-mw="import"]:visible').count(),0,'Import remains hidden without module import permission');
  for(const width of [320,360,768,1100,1440]){
   await page.setViewportSize({width,height:850});await noOverflow('list '+width);
   if(width>=1100){

@@ -11,15 +11,22 @@
     "db:migrate": "node scripts/migrate.mjs",
     "admin:bootstrap": "node scripts/bootstrap-admin.mjs",
     "test:browser": "node test/browser.mjs",
-    "test:business-browser": "node test/business-lines-browser.mjs && node test/header-visual.mjs",
-    "super-admin:bootstrap": "node scripts/bootstrap-super-admin.mjs"
+    "test:business-browser": "node test/business-lines-browser.mjs && node test/header-visual.mjs && node test/records-framework-browser.mjs",
+    "super-admin:bootstrap": "node scripts/bootstrap-super-admin.mjs",
+    "test:records-browser": "node test/records-framework-browser.mjs"
   },
   "dependencies": {
-    "pg": "8.16.3",
+    "@vercel/functions": "3.10.2",
+    "exceljs": "4.4.0",
+    "jose": "6.2.12",
     "nodemailer": "10.1.1",
-    "jose": "6.2.12"
+    "pg": "8.16.3",
+    "yauzl": "3.4.0"
   },
   "devDependencies": {
     "playwright": "1.56.1"
+  },
+  "overrides": {
+    "uuid": "11.1.1"
   }
 }
