@@ -3,6 +3,7 @@
  const root=document.querySelector('#authRoot'), app=document.querySelector('#app');
  const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  let email='', csrf='', user=null, loaded=false, mode='login', resetToken='', googleEnabled=false, remember=false;
+ let authInitializing=true;
  function captureReset(){const params=new URLSearchParams(location.hash.slice(1));if(!params.has('reset'))return false;resetToken=params.get('reset');email=params.get('email')||'';mode='reset';history.replaceState(null,'',location.pathname);document.querySelector('#overlay').classList.add('hidden');return true}
  let initialMessage='';
  const authOutcome=new URLSearchParams(location.hash.slice(1)).get('auth');
@@ -68,6 +69,8 @@
    const button=event.currentTarget;button.disabled=true;
    try{note((await api('auth/forgot','POST',{email,method:'otp'})).message);document.querySelector('#authCode').value='';setTimeout(()=>{if(button.isConnected)button.disabled=false},60000)}catch(error){note(error.message);button.disabled=false}
   });
+  root.inert=authInitializing;root.setAttribute('aria-busy',String(authInitializing));
+  if(authInitializing)root.querySelectorAll('input,button,select,textarea').forEach(control=>control.disabled=true);
   document.querySelector('#authForm').onsubmit=async event=>{
    event.preventDefault();const form=event.target;if(!form.reportValidity())return;
    const confirm=document.querySelector('#confirmPassword');if(confirm&&confirm.value!==form.password.value){note('Passwords do not match');confirm.focus();return}
@@ -106,5 +109,5 @@
  // including unsaved-work checks and server-side session revocation.
  document.querySelector('#sidebarSignOut').onclick=()=>document.querySelector('#logoutBtn').click();
  draw('Checking session…');
- Promise.all([api('auth/me'),api('auth/options').catch(()=>({googleEnabled:false}))]).then(([session,options])=>{googleEnabled=options.googleEnabled===true;return session}).then(session=>{if(mode==='reset'){draw();return}if(session.user?.emailVerified&&session.user.status==='approved')return enter(session);draw(initialMessage)}).catch(error=>draw(error.message));
+ Promise.all([api('auth/me'),api('auth/options').catch(()=>({googleEnabled:false}))]).then(([session,options])=>{authInitializing=false;root.inert=false;root.setAttribute('aria-busy','false');googleEnabled=options.googleEnabled===true;return session}).then(session=>{if(mode==='reset'){draw();return}if(session.user?.emailVerified&&session.user.status==='approved')return enter(session);draw(initialMessage)}).catch(error=>{authInitializing=false;root.inert=false;root.setAttribute('aria-busy','false');draw(error.message)});
 })();
