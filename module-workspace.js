@@ -3,6 +3,7 @@
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const icon=(name)=>{const paths={search:'<circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/>',plus:'<path d="M12 5v14M5 12h14"/>',refresh:'<path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 7a7 7 0 0 1 12-2l2 3M4 16l2 3a7 7 0 0 0 12-2"/>',filter:'<path d="M3 5h18l-7 8v6l-4 2v-8Z"/>',columns:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M10 4v16M16 4v16"/>',download:'<path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/>',expand:'<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>',close:'<path d="m6 6 12 12M6 18 18 6"/>',settings:'<path d="M4 7h5m5 0h6M4 17h10m5 0h1"/><circle cx="11" cy="7" r="2"/><circle cx="16" cy="17" r="2"/>',chevron:'<path d="m8 10 4 4 4-4"/>',briefcase:'<rect x="3" y="7" width="18" height="14" rx="2"/><path d="M8 7V3h8v4M3 13h18m-9-2v4"/>'};return '<svg viewBox="0 0 24 24" aria-hidden="true">'+(paths[name]||paths.briefcase)+'</svg>'};
 const date=v=>v?new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'short'}).format(new Date(v)):'—';
+const actionTimeZone=()=>{try{return Intl.DateTimeFormat().resolvedOptions().timeZone||undefined;}catch{return undefined;}};
 function create(host,config) {
  const user=window.SCRM.user||{},api=config.api;
  const storageKey='scrm:view:'+user.id+':'+config.key,recentKey='scrm:recent:'+user.id+':'+config.key;
@@ -213,6 +214,8 @@ function create(host,config) {
  }
  function blPopupHeader(d,editable=false){
   const header=d.querySelector(':scope > header');if(!header)return;
+  const body=d.querySelector('.mw-dialog-body');
+  body.tabIndex=0;body.setAttribute('role','region');body.setAttribute('aria-label','Scrollable Business Line details');
   let actions=header.querySelector('.mw-bl-title-actions');
   if(!actions){
    header.querySelector(':scope > div').classList.add('mw-bl-title-copy');
@@ -253,6 +256,31 @@ function create(host,config) {
   {name:'Record Information',fields:[['createdBy','Created By'],['createdAt','Created At'],['createdById','Created By ID'],['updatedBy','Last Modified By'],['updatedAt','Last Modified At'],['updatedById','Last Modified By ID']]},
   {name:'Lifecycle Information',fields:[['isArchived','Is Archived'],['archivedAt','Archived At'],['archivedById','Archived By ID'],['isDeleted','Is Deleted'],['deletedAt','Deleted At'],['deletedById','Deleted By ID']]}
  ];
+ function blFieldActionAllowed(key,record,mode){
+  if(mode==='create')return permitted('create')&&['name','code','description'].includes(key);
+  return permitted('edit')&&!record?.archivedAt&&!record?.deletedAt&&['name','code','description','status'].includes(key);
+ }
+ function wireBlFieldActions(root,record,mode){
+  const d=root.closest('dialog');
+  root.querySelectorAll('[data-bl-field-edit]').forEach(button=>{
+   // A blur validation message must not move the clicked shortcut before click.
+   button.addEventListener('pointerdown',event=>{if(event.button===0)event.preventDefault();});
+   button.addEventListener('click',()=>{
+    const key=button.dataset.blFieldEdit;
+    if(dead||dialog!==d||dialogSaving||blBusy||!blFieldActionAllowed(key,record,mode))return;
+    if(mode==='read'){
+     const edit=d.querySelector('#bl-edit');if(!edit||edit.disabled)return;
+     // Use the existing Edit transition and Save flow; the shortcut never writes.
+     edit.click();
+    }
+    const form=d.querySelector(mode==='create'?'#mw-record-form':'#mw-bl-page-form');
+    const field=form?.elements.namedItem(key);
+    if(!field||field.disabled||field.readOnly)return;
+    const section=field.closest('details');if(section)section.open=true;
+    field.focus({preventScroll:true});field.scrollIntoView({block:'nearest',inline:'nearest'});
+   });
+  });
+ }
  function blInput(key,label,record,mode){
   const editable=mode==='create'?['name','code','description'].includes(key):mode==='edit'&&['name','code','description','status'].includes(key);
   const value=mode==='create'?'':blValue(record,key),shown=value==='—'?'':value;
@@ -263,8 +291,9 @@ function create(host,config) {
   let control=key==='status'&&editable?'<select id="'+controlId+'" name="status" aria-label="Business Line Status"><option value="Active"'+(shown==='Active'?' selected':'')+'>Active</option><option value="Inactive"'+(shown==='Inactive'?' selected':'')+'>Inactive</option></select>':full?'<textarea rows="2"'+attrs+'>'+esc(shown)+'</textarea>':'<input type="text"'+attrs+' value="'+esc(shown)+'"'+(editable?' autocomplete="off"':'')+'>';
   if(mode==='read'||mode==='edit'&&!editable)control='<div class="mw-bl-read-value'+(full?' mw-bl-read-description':'')+'" aria-labelledby="'+controlId+'-label">'+esc(value)+'</div>';
   const hint=editable&&key==='status'?'<small class="mw-bl-hint">Changing status requires a reason and may be blocked when records depend on this line.</small>':editable&&key==='code'?'<small class="mw-bl-hint">Uppercase letters, digits and hyphens; maximum 20 characters.</small>':editable&&key==='description'?'<small class="mw-bl-hint">Maximum 500 characters. <span data-count-for="description">'+shown.length+'</span> / 500</small>':'';
+  const action=blFieldActionAllowed(key,record,mode)?'<button type="button" class="mw-bl-field-edit" data-bl-field-edit="'+esc(key)+'" aria-label="Edit '+esc(label)+'" title="Edit '+esc(label)+'">'+blPopupGlyph('edit')+'</button>':'';
   // Separate label and value surfaces without turning protected values into inputs.
-  return '<div class="mw-bl-field mw-bl-field-'+esc(key)+(full?' mw-bl-full':'')+(editable?' mw-bl-editable':' mw-bl-readonly')+'"><label id="'+controlId+'-label"'+(editable?' for="'+controlId+'"':'')+'>'+esc(label)+(required?' <span class="mw-required">*</span>':'')+'</label><div class="mw-bl-value-cell">'+control+hint+'</div></div>';
+  return '<div class="mw-bl-field mw-bl-field-'+esc(key)+(full?' mw-bl-full':'')+(editable?' mw-bl-editable':' mw-bl-readonly')+(action?' mw-bl-field-actionable':'')+'"><label id="'+controlId+'-label"'+(editable?' for="'+controlId+'"':'')+'><span>'+esc(label)+(required?'&nbsp;<span class="mw-required">*</span>':'')+'</span></label><div class="mw-bl-value-cell">'+control+hint+action+'</div></div>';
  }
  function blFormSections(record,mode){
   if(mode==='create'){
@@ -298,11 +327,12 @@ function create(host,config) {
  const d=openDialog(config.key==='business-lines'?(editing?'Edit Business Line':'New Business Line'):(editing?'Edit ':'Create ')+config.singular,body,'<button type="button" class="mw-btn" id="mw-cancel">Cancel</button><button type="submit" form="mw-record-form" class="mw-btn mw-primary" id="mw-save">'+(config.key==='business-lines'?'Save':editing?'Save changes':'Create '+esc(config.singular))+'</button>');if(!d)return;
  if(config.key==='business-lines'){d.classList.add('mw-bl-create-dialog');blPopupHeader(d);}
  const form=d.querySelector('form'),base=formValues(form);dialogDirty=()=>formValues(form)!==base;recordsTools?.wireForm(form);
- if(config.key==='business-lines'){wireBlSections(d);form.addEventListener('invalid',event=>{const section=event.target.closest('.mw-bl-section details');if(section)section.open=true},true);if(editing){const status=form.querySelector('[name="status"]'),reasonWrap=form.querySelector('.mw-bl-status-reason'),reasonField=form.querySelector('#mw-bl-status-reason');const sync=()=>{const changed=status?.value!==record.status;reasonWrap.hidden=!changed;reasonField.required=changed;if(!changed)reasonField.value='';};status?.addEventListener('change',sync);sync()}}
+ if(config.key==='business-lines'){wireBlSections(d);wireBlFieldActions(form,record,editing?'edit':'create');form.addEventListener('invalid',event=>{const section=event.target.closest('.mw-bl-section details');if(section)section.open=true},true);if(editing){const status=form.querySelector('[name="status"]'),reasonWrap=form.querySelector('.mw-bl-status-reason'),reasonField=form.querySelector('#mw-bl-status-reason');const sync=()=>{const changed=status?.value!==record.status;reasonWrap.hidden=!changed;reasonField.required=changed;if(!changed)reasonField.value='';};status?.addEventListener('change',sync);sync()}}
  d.querySelector('#mw-cancel').onclick=()=>closeDialog();
  form.querySelectorAll('[data-counted],textarea[name="description"]').forEach(input=>input.oninput=()=>{const count=form.querySelector('[data-count-for="'+(input.dataset.counted||input.name)+'"]');if(count)count.textContent=input.value.length});
  if(config.key==='business-lines'){const code=form.elements.code;if(code)code.addEventListener('input',()=>{const p=code.selectionStart;code.value=code.value.toUpperCase();code.setSelectionRange(p,p)})}
  form.onsubmit=async e=>{e.preventDefault();if(dialogSaving||!permitted(editing?'edit':'create'))return;if(!form.checkValidity()){if(config.key==='business-lines')form.querySelectorAll('.mw-bl-section details').forEach(section=>{section.open=true});form.reportValidity();return}const values=new FormData(form),error=d.querySelector('.mw-form-error');error.hidden=true;const body=Object.fromEntries(fields.filter(f=>f.type!=='readonly').map(f=>[f.key,String(values.get(f.key)||'').trim()]));if(editing)body.version=record.version;
+ if(config.key==='business-lines')body.timeZone=actionTimeZone();
  if(config.key==='business-lines'&&editing){
   const status=form.querySelector('[name="status"]')?.value||record.status;
   if(status!==record.status){const reason=form.querySelector('#mw-bl-status-reason')?.value.trim()||'';
@@ -415,6 +445,7 @@ function create(host,config) {
   };
   page.querySelector('[data-bl-prev]').onclick=()=>navigate(-1);page.querySelector('[data-bl-next]').onclick=()=>navigate(1);
   d.querySelector('.mw-dialog-body').scrollTop=0;
+  wireBlFieldActions(page,record,editing?'edit':'read');
   if(!editing){d.querySelector('#mw-dialog-title').focus({preventScroll:true});return;}
   const form=page.querySelector('#mw-bl-page-form');blDraft=form;recordsTools?.wireForm(form);
   const baseline=formValues(form),mark=()=>{form.dataset.dirty=String(formValues(form)!==baseline)};
@@ -429,7 +460,7 @@ function create(host,config) {
    e.preventDefault();if(blBusy||!permitted('edit'))return;
    const error=form.querySelector('.mw-form-error');error.hidden=true;
    if(!form.checkValidity()){sections.forEach(x=>x.querySelector('details').open=true);error.textContent='Review the highlighted fields before saving.';error.hidden=false;form.reportValidity();return}
-   const values=new FormData(form),payload={version:record.version,name:String(values.get('name')||'').trim(),code:String(values.get('code')||'').trim(),description:String(values.get('description')||'').trim()};
+   const values=new FormData(form),payload={version:record.version,name:String(values.get('name')||'').trim(),code:String(values.get('code')||'').trim(),description:String(values.get('description')||'').trim(),timeZone:actionTimeZone()};
    if(statusField.value!==record.status){const text=reason.value.trim();if(!text){error.textContent='Reason is mandatory for status changes.';error.hidden=false;reason.focus();return}payload.status=statusField.value;payload.reason=text;}
    blBusy=true;dialogSaving=true;
    const controls=[...d.querySelectorAll('input,select,textarea,button')].map(el=>[el,el.disabled]);controls.forEach(([el])=>el.disabled=true);d.setAttribute('aria-busy','true');d.querySelector('#bl-save').textContent='Saving...';
@@ -464,7 +495,7 @@ function create(host,config) {
    const ownerId=d.querySelector('#mw-new-owner').value,error=d.querySelector('.mw-form-error');
    if(!ownerId){error.textContent='Select an eligible owner.';error.hidden=false;return}
    dialogSaving=true;d.querySelector('#mw-archive-confirm').disabled=true;
-   try{await api(config.endpoint+'/'+encodeURIComponent(record.id),'PUT',{version:record.version,ownerId});if(dead||dialog!==d)return;dialogSaving=false;closeDialog(true);announce('Business Line owner updated.');await load()}
+   try{await api(config.endpoint+'/'+encodeURIComponent(record.id),'PUT',{version:record.version,ownerId,timeZone:actionTimeZone()});if(dead||dialog!==d)return;dialogSaving=false;closeDialog(true);announce('Business Line owner updated.');await load()}
    catch(e){if(dead||dialog!==d)return;dialogSaving=false;error.textContent=e.message;error.hidden=false;d.querySelector('#mw-archive-confirm').disabled=false}
   };
  }
@@ -478,7 +509,7 @@ function create(host,config) {
    const reason=d.querySelector('#mw-lifecycle-reason').value.trim(),error=d.querySelector('.mw-form-error');
    if(!reason){error.textContent='A reason is required.';error.hidden=false;return}
    dialogSaving=true;d.querySelector('#mw-archive-confirm').disabled=true;
-   try{await api(config.endpoint+'/'+encodeURIComponent(record.id),'PUT',{version:record.version,status:next,reason});if(dead||dialog!==d)return;dialogSaving=false;closeDialog(true);announce('Business Line '+(next==='Active'?'reactivated.':'deactivated.'));await load()}
+   try{await api(config.endpoint+'/'+encodeURIComponent(record.id),'PUT',{version:record.version,status:next,reason,timeZone:actionTimeZone()});if(dead||dialog!==d)return;dialogSaving=false;closeDialog(true);announce('Business Line '+(next==='Active'?'reactivated.':'deactivated.'));await load()}
    catch(e){if(dead||dialog!==d)return;dialogSaving=false;error.textContent=e.message;error.hidden=false;d.querySelector('#mw-archive-confirm').disabled=false}
   };
  }
@@ -497,7 +528,7 @@ function create(host,config) {
    const reason=d.querySelector('#mw-lifecycle-reason').value.trim(),error=d.querySelector('.mw-form-error');
    if(!reason){error.textContent='A reason is required.';error.hidden=false;return}
    dialogSaving=true;d.querySelector('#mw-archive-confirm').disabled=true;
-   try{await api(config.endpoint+'/'+encodeURIComponent(record.id)+'/'+action,'POST',{version:record.version,reason});if(dead||dialog!==d)return;dialogSaving=false;closeDialog(true);announce('Business Line '+op.label+'.');await load()}
+   try{await api(config.endpoint+'/'+encodeURIComponent(record.id)+'/'+action,'POST',{version:record.version,reason,timeZone:actionTimeZone()});if(dead||dialog!==d)return;dialogSaving=false;closeDialog(true);announce('Business Line '+op.label+'.');await load()}
    catch(e){if(dead||dialog!==d)return;dialogSaving=false;error.textContent=e.message;error.hidden=false;d.querySelector('#mw-archive-confirm').disabled=false}
   };
  }

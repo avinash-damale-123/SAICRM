@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { businessLineResource, businessLinePermissions } from './resources.mjs';
+import { sourceTimeZone } from './time-zone.mjs';
 
 const fail=(status,message)=>{const error=new Error(message);error.status=status;throw error;};
 const uuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
@@ -157,8 +158,12 @@ const changesFor=(before,after)=>{
   if((before?.[key]??null)!==(after?.[key]??null))changes[key]={before:before?.[key]??null,after:after?.[key]??null};
  return changes;
 };
-async function event(client,user,id,action,before,after,reason=null){
- await client.query('INSERT INTO business_line_events(business_line_id,actor_id,action,changes,reason) VALUES($1,$2,$3,$4,$5)',[id,user.id,action,changesFor(before,after),reason]);
+async function event(client,user,id,action,before,after,reason=null,timeZone=null){
+ const changes=changesFor(before,after);
+ // Reserved audit context is immutable with this event. Business timestamps stay
+ // UTC instants; subsequent edits never change a prior event's origin zone.
+ if(timeZone!==null)changes._context={timeZone};
+ await client.query('INSERT INTO business_line_events(business_line_id,actor_id,action,changes,reason) VALUES($1,$2,$3,$4,$5)',[id,user.id,action,changes,reason]);
  await client.query('INSERT INTO audit(actor,action,module,record_id) VALUES($1,$2,$3,$4)',[user.id,action,'business-lines',id]);
 }
 function csvCell(value){
@@ -222,14 +227,15 @@ export async function businessLines({client,user,path,method,url,body}){
   if(path.length===2&&path[1]==='export'&&method==='POST')return await exportRecords(client,user,body,permissions);
   if(path.length===1&&method==='POST'){
    requirePermission(permissions,'create');
-   onlyKeys(body,['name','code','description']);
+   onlyKeys(body,['name','code','description','timeZone']);
+   const timeZone=sourceTimeZone(body.timeZone);
    const name=businessName(body.name);
    const code=businessCode(body.code);
    const description=body.description===undefined?'':text(body.description,'Business Line Description',500);
    const id=randomUUID();
    await client.query('INSERT INTO business_lines(id,name,code,description,owner_id,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$5,$5)',[id,name,code,description,user.id]);
    const created=businessLineView(await record(client,id));
-   await event(client,user,id,'Created',null,created);
+   await event(client,user,id,'Created',null,created,null,timeZone);
    return {record:created};
   }
   if(path.length===2&&method==='GET'){
@@ -240,11 +246,12 @@ export async function businessLines({client,user,path,method,url,body}){
    requirePermission(permissions,'history');
    await record(client,path[1]);
    const rows=(await client.query('SELECT e.id,u.display_id AS actor_display_id,u.name AS actor,e.action,e.changes,e.reason,e.created_at FROM business_line_events e JOIN users u ON u.id=e.actor_id WHERE e.business_line_id=$1 ORDER BY e.id DESC LIMIT 200',[path[1]])).rows;
-   return {history:rows.map(row=>({id:row.id,actorId:row.actor_display_id,actor:row.actor,action:row.action,changes:row.changes,reason:row.reason,createdAt:date(row.created_at)}))};
+   return {history:rows.map(row=>{const {_context,...changes}=row.changes;return {id:row.id,actorId:row.actor_display_id,actor:row.actor,action:row.action,changes,timeZone:typeof _context?.timeZone==='string'?_context.timeZone:null,reason:row.reason,createdAt:date(row.created_at)};})};
   }
   if((path.length===2&&method==='PUT')||(path.length===3&&['archive','restore','soft-delete','restore-deleted'].includes(path[2])&&method==='POST')){
    requirePermission(permissions,path.length===2?'edit':({'soft-delete':'softDelete','restore-deleted':'restoreDeleted'}[path[2]]||path[2]));
-   onlyKeys(body,path.length===2?['name','code','description','status','ownerId','version','reason']:['version','reason']);
+   onlyKeys(body,path.length===2?['name','code','description','status','ownerId','version','reason','timeZone']:['version','reason','timeZone']);
+   const timeZone=sourceTimeZone(body.timeZone);
    version(body.version);
    const existing=await record(client,path[1],true),before=businessLineView(existing);
    if(existing.version!==body.version)fail(409,'This record changed. Refresh and try again.');
@@ -263,7 +270,7 @@ export async function businessLines({client,user,path,method,url,body}){
      await client.query('UPDATE business_lines SET archived_at=$2,archived_by=$3,updated_by=$4,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,archive?new Date():null,archive?user.id:null,user.id]);
     }
     const after=businessLineView(await record(client,existing.id));
-    await event(client,user,existing.id,softDelete?'Soft Deleted':undelete?'Restored Deleted':archive?'Archived':'Restored',before,after,reason);
+    await event(client,user,existing.id,softDelete?'Soft Deleted':undelete?'Restored Deleted':archive?'Archived':'Restored',before,after,reason,timeZone);
     return {record:after};
    }
    if(existing.archived_at||existing.deleted_at)fail(409,'Restore this Business Line before editing');
@@ -287,7 +294,7 @@ export async function businessLines({client,user,path,method,url,body}){
    if(name===existing.name&&code===existing.code&&description===existing.description&&status===existing.status&&ownerTechnicalId===existing.owner_id)return {record:before};
    await client.query('UPDATE business_lines SET name=$2,code=$3,status=$4,description=$5,owner_id=$6,updated_by=$7,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,name,code,status,description,ownerTechnicalId,user.id]);
    const after=businessLineView(await record(client,existing.id));
-   await event(client,user,existing.id,status!==existing.status?(status==='Inactive'?'Deactivated':'Reactivated'):'Updated',before,after,reason);
+   await event(client,user,existing.id,status!==existing.status?(status==='Inactive'?'Deactivated':'Reactivated'):'Updated',before,after,reason,timeZone);
    return {record:after};
   }
   fail(405,'Unsupported Business Line action');

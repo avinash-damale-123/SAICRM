@@ -5,10 +5,11 @@ import assert from 'node:assert/strict';
 import {chromium} from 'playwright';
 import {baseline,effectivePolicy,reconcilePreferences} from '../server/records-policy.mjs';
 import {publicColumns,queryOptions} from '../server/records-schema.mjs';
-import {fileBytes,template,fileResponse} from '../server/records-files.mjs';
+import {fileBytes,template,fileResponse,importFields,fileLimits} from '../server/records-files.mjs';
 const base=process.cwd(),headers=JSON.parse(await readFile('vercel.json','utf8')).headers[0].headers;
 const server=createServer(async(req,res)=>{try{for(const h of headers)res.setHeader(h.key,h.value);const path=new URL(req.url,'http://localhost').pathname,file=resolve(base,'.'+(path==='/'?'/index.html':path));if(!file.startsWith(base+'/')){res.writeHead(403);res.end();return}res.setHeader('Content-Type',({'.html':'text/html','.js':'text/javascript','.css':'text/css'})[extname(file)]||'text/plain');res.end(await readFile(file));}catch{res.writeHead(404);res.end();}});
-await new Promise(r=>server.listen(4190,'127.0.0.1',r));
+await new Promise(r=>server.listen(0,'127.0.0.1',r));
+const testOrigin='http://127.0.0.1:'+server.address().port;
 const browser=await chromium.launch({headless:true});
 const user={id:'11111111-1111-4111-8111-111111111111',name:'QA Super Admin',email:'qa@example.org',role:'admin',systemRole:'super_admin',status:'approved',emailVerified:true};
 const serverUser={...user,system_role:'super_admin',email_verified:true};
@@ -28,6 +29,7 @@ try{
  else if(path==='audit')response={audit:[]};
  else if(path==='access')response={users:[]};
  else if(path.startsWith('records/'))response={records:[],next:null};
+ else if(path==='business-lines/framework')response={version:1,fields:publicColumns(),importFields,limits:fileLimits,policy:effective(),preferences:prefs(),permissions};
  else if(path==='business-lines'&&method==='GET'){if(nextListFailure){nextListFailure=false;await route.fulfill({status:503,json:{error:'List refresh temporarily unavailable'}});return;}const q=Object.fromEntries(url.searchParams),rows=matching(q),size=Number(q.pageSize||25),n=Number(q.page||1);response={records:rows.slice((n-1)*size,n*size),total:rows.length,totalPages:Math.max(1,Math.ceil(rows.length/size)),page:n,pageSize:size,counts:{total:30,active:25,inactive:5,archived:0},owners:[{id:user.id,ownerId:'UID-000001',name:user.name}],permissions,resource:{frameworkVersion:1,columns:publicColumns(),limits:{}},ui:{policy:effective(),preferences:prefs()}};}
  else if(path==='business-lines/preferences'){if(method==='PUT'){if(body.version!==preferenceVersion){status=409;response={error:'View preferences changed elsewhere'};}else{storedPrefs=body.data;preferenceVersion++;}}if(status===200)response={policy:effective(),preferences:prefs()};}
  else if(path==='business-lines/configuration'){if(method==='PUT'){assert.equal(body.version,configuration.version);configuration.version++;if(body.action==='publish'){configuration.config=body.config;configuration.publishedVersion++;configuration.draft=null;}else configuration.draft=body.config;}response={...configuration,history:[]};}
@@ -49,7 +51,7 @@ try{
  const ready=()=>page.waitForFunction(()=>document.querySelector('.mw-results')?.getAttribute('aria-busy')==='false'&&!!document.querySelector('.rf-table'));
  const open=async()=>{await page.locator('[data-nav="businesslines"]').waitFor({state:'attached'});await page.evaluate(()=>document.querySelector('[data-nav="businesslines"]').click());await ready();};
 
- await page.goto('http://127.0.0.1:4190');await open();
+ await page.goto(testOrigin);await open();
  const checks=[],presentation=[];
  const modal=()=>page.locator('dialog[open]');
  const assertModal=async mode=>{
@@ -61,15 +63,22 @@ try{
   const rowStyles=await modal().evaluate(d=>[...d.querySelectorAll('.mw-bl-field')].filter(el=>el.getClientRects().length).map(el=>{
    const label=el.querySelector(':scope>label'),value=el.querySelector(':scope>.mw-bl-value-cell');
    const l=label.getBoundingClientRect(),v=value.getBoundingClientRect();
-   return {left:l.left,right:l.right,top:l.top,bottom:l.bottom,valueLeft:v.left,valueTop:v.top,labelBackground:getComputedStyle(label).backgroundColor,valueBackground:getComputedStyle(value).backgroundColor,labelSize:parseFloat(getComputedStyle(label).fontSize),width:innerWidth,overflow:el.scrollWidth>el.clientWidth+1};
+   const content=value.querySelector('.mw-bl-read-value,input,select,textarea'),action=value.querySelector('[data-bl-field-edit]');
+   return {left:l.left,right:l.right,top:l.top,bottom:l.bottom,valueLeft:v.left,valueTop:v.top,labelBackground:getComputedStyle(label).backgroundColor,valueBackground:getComputedStyle(value).backgroundColor,labelSize:parseFloat(getComputedStyle(label).fontSize),valueWeight:getComputedStyle(content).fontWeight,actionFits:!action||content.getBoundingClientRect().right<=action.getBoundingClientRect().left-1,width:innerWidth,overflow:el.scrollWidth>el.clientWidth+1};
   }));
   assert.ok(rowStyles.length,mode+' visible label/value rows');
   for(const row of rowStyles){
    assert.notEqual(row.labelBackground,row.valueBackground,mode+' distinguishes label and value surfaces');
+   assert.equal(row.valueWeight,'400',mode+' regular-weight field values');assert.equal(row.valueBackground,'rgb(251, 253, 252)',mode+' almost-white green value surface');
+   assert.equal(row.actionFits,true,mode+' edit shortcut never covers the field value');
    assert.ok(row.labelSize>=12,mode+' readable labels');assert.equal(row.overflow,false,mode+' no overflowing field text');
    if(row.width>480){assert.ok(row.valueLeft>=row.right-1,mode+' label on left and value on right');assert.ok(Math.abs(row.top-row.valueTop)<2,mode+' label and value share a row');}
    else assert.ok(row.valueTop>=row.bottom-1,mode+' readable stacked fallback on narrow screens');
   }
+  const shortcuts=await modal().locator('[data-bl-field-edit]').evaluateAll(buttons=>buttons.map(b=>b.dataset.blFieldEdit).sort());
+  assert.deepEqual(shortcuts,mode.startsWith('create')?['code','description','name']:['code','description','name','status'],mode+' shortcuts only for editable fields');
+  const sections=await modal().locator('.mw-bl-section>details>summary:visible').evaluateAll(items=>items.map(el=>getComputedStyle(el).backgroundColor));
+  for(const color of sections)assert.ok(['rgb(207, 223, 213)','rgb(191, 213, 200)'].includes(color),mode+' darker section headers');
   if(!mode.includes('long values')&&await page.evaluate(()=>innerWidth>760)){
    const pair=await modal().evaluate(d=>{const first=d.querySelector('.mw-bl-field-name'),id=d.querySelector('.mw-bl-field-displayId');if(!first||!id||!first.getClientRects().length)return null;const a=first.getBoundingClientRect(),b=id.getBoundingClientRect();return {top:Math.abs(a.top-b.top),height:Math.abs(a.height-b.height)};});
    if(pair){assert.ok(pair.top<2,mode+' paired fields align at top');assert.ok(pair.height<2,mode+' paired fields have consistent row height');}
@@ -109,6 +118,8 @@ try{
  assert.ok(card.height<=96&&card.padding>=10&&parseFloat(card.title)>=20,'Compact padded title card '+JSON.stringify(card));
  await page.locator('[data-mw="create"]').click();await assertModal('create');
  assert.equal(await page.locator('#mw-record-form .mw-bl-field').count(),3);assert.equal(await beforeUnloadBlocked(),false);
+ for(const key of ['name','code','description']){await modal().locator('[data-bl-field-edit="'+key+'"]').click();assert.equal(await page.evaluate(()=>document.activeElement.name),key,'Create shortcut focuses '+key);}
+ assert.equal(requests.filter(r=>r.method==='POST'&&r.path==='business-lines').length,0,'Field shortcuts never submit the form');
  await page.locator('#mw-save').click();assert.equal(await page.locator('#mw-record-form').count(),1);assert.ok(await page.locator('.rf-field-error:visible').count()>=2);
  await page.locator('#mw-record-form [name="name"]').fill('Popup Created');await page.locator('#mw-record-form [name="code"]').fill('POPUP-NEW');await page.locator('#mw-record-form [name="description"]').fill('Create remains compact.');
  assert.equal(await beforeUnloadBlocked(),true);
@@ -120,6 +131,22 @@ try{
  assert.equal(await page.locator('.mw-bl-detail-page input,.mw-bl-detail-page textarea,.mw-bl-detail-page select').count(),0,'Read has values, not editable form controls');
  assert.equal(await page.locator('#bl-edit').isVisible(),true,'Footer Edit retained alongside top shortcut');
  assert.equal(await page.locator('#bl-edit-top').getAttribute('aria-label'),'Edit Business Line');
+ const shortcutWrites=requests.filter(r=>r.method==='PUT'&&/^business-lines\/[0-9]/.test(r.path)).length;
+ for(const key of ['name','code','status','description']){
+  await modal().locator('[data-bl-field-edit="'+key+'"]').click();await page.locator('#mw-bl-page-form').waitFor();
+  assert.equal(await page.evaluate(()=>document.activeElement.name),key,'Read shortcut opens existing Edit form at '+key);
+  assert.equal(await beforeUnloadBlocked(),false,'Opening a field does not dirty the form');
+  await page.locator('#bl-cancel').click();await page.locator('#bl-edit').waitFor();
+ }
+ assert.equal(requests.filter(r=>r.method==='PUT'&&/^business-lines\/[0-9]/.test(r.path)).length,shortcutWrites,'Read field shortcuts never write');
+ const horizontal=await modal().locator('.mw-dialog-body').evaluate(body=>{
+  const probe=document.createElement('div');probe.style.width=(body.clientWidth+320)+'px';probe.style.height='1px';body.append(probe);body.scrollLeft=body.scrollWidth;
+  const header=body.parentElement.querySelector(':scope>header').getBoundingClientRect();
+  const result={scroll:body.scrollLeft,overflow:document.documentElement.scrollWidth>innerWidth+1,headerVisible:header.left>=0&&header.right<=innerWidth+1};
+  probe.remove();body.scrollLeft=0;return result;
+ });
+ assert.ok(horizontal.scroll>0,'Oversized content scrolls horizontally inside popup');assert.equal(horizontal.overflow,false,'Horizontal content does not widen page');assert.equal(horizontal.headerVisible,true,'Popup header stays visible while scrolling horizontally');
+ checks.push('Field shortcuts open/focus the existing form without writes or dirty state; oversized content scrolls inside popup');
  const disclosure=page.locator('.mw-bl-detail-content .mw-bl-section').first().locator('summary');
  const chevron=await disclosure.locator('.mw-bl-chevron').boundingBox();assert.ok(chevron.width>=30&&chevron.height>=30,'Section indicator has a clear button-like target');
  assert.ok((await disclosure.boundingBox()).height>=40);await disclosure.focus();await page.keyboard.press('Space');
@@ -143,6 +170,7 @@ try{
  for(const name of ['owner','ownerId','displayId','createdAt','createdById','updatedById'])assert.equal(await page.locator('#mw-bl-page-form [name="'+name+'"]').count(),0,'Protected '+name);
  assert.equal(await beforeUnloadBlocked(),false);
  const first=page.locator('#mw-bl-page-form [name="name"]');await first.fill('Keep my unsaved text');
+ await modal().locator('[data-bl-field-edit="code"]').click();assert.equal(await page.evaluate(()=>document.activeElement.name),'code');assert.equal(await first.inputValue(),'Keep my unsaved text','Edit shortcut retains the existing draft');
  let prompts=0;page.once('dialog',async d=>{prompts++;await d.dismiss();});await page.keyboard.press('Escape');assert.equal(await first.inputValue(),'Keep my unsaved text');assert.equal(prompts,1);
  page.once('dialog',async d=>{prompts++;await d.dismiss();});await page.locator('.mw-dialog-close').click();assert.equal(prompts,2);
  page.once('dialog',d=>d.accept());await page.locator('#bl-cancel').click();await page.locator('#bl-edit').waitFor();assert.equal(await modal().count(),1);checks.push('Read/Edit stay in one modal; protected fields read-only; Cancel/X/Escape preserve dirty work until confirmed');
@@ -155,6 +183,7 @@ try{
  await page.screenshot({path:'work/browser/popup-edit-conflict-desktop.png'});
  holdSave=true;await page.locator('#bl-save').click();await page.waitForFunction(()=>document.querySelector('dialog')?.getAttribute('aria-busy')==='true');
  assert.equal(await page.locator('#bl-save').isDisabled(),true);assert.equal(await page.locator('#bl-cancel').isDisabled(),true);await page.keyboard.press('Escape');assert.equal(await modal().count(),1);
+ assert.equal(await modal().locator('[data-bl-field-edit]:not(:disabled)').count(),0,'Field shortcuts are disabled during a write');
  assert.ok(releaseSave);releaseSave();await modal().waitFor({state:'detached'});await ready();assert.match(await page.locator('.mw-feedback').innerText(),/saved successfully/);assert.equal(await beforeUnloadBlocked(),false);assert.equal(await page.locator('[data-mw="home"]').getAttribute('aria-current'),'page');await openFirst();assert.match(await page.locator('.mw-bl-detail-heading').innerText(),/Inactive/);await page.waitForFunction(()=>document.querySelector('[data-bl-history]')?.textContent.includes('Popup regression evidence'));checks.push('Required lifecycle reason; 409 keeps draft; save controls and Escape locked in-flight; successful Save closes and reopening confirms values/audit');
  await page.locator('#bl-back').click();await modal().waitFor({state:'detached'});assert.equal(await page.evaluate(()=>document.activeElement!==document.body),true);assert.equal(await page.evaluate(()=>document.documentElement.classList.contains('mw-modal-open')),false);
  // Record loading failures and independent audit errors are recoverable.
@@ -210,10 +239,14 @@ try{
  await edit();await assertModal('edit long values');assert.equal(await page.locator('#mw-bl-page-form [name="name"]').inputValue(),records[0].name);
  await page.locator('#bl-cancel').click();await page.locator('#bl-back').click();Object.assign(records[0],longRecord);
  checks.push('Long values and multiline descriptions remain complete; protected fields stay plain read-only values');
+ for(const lifecycle of ['archivedAt','deletedAt']){
+  records[0][lifecycle]=now;await page.locator('.mw-record-link:visible').first().click();await page.locator('.mw-bl-field-name').waitFor();
+  assert.equal(await modal().locator('[data-bl-field-edit]').count(),0,'No field editing for '+lifecycle);assert.equal(await page.locator('#bl-edit').count(),0);await page.locator('#bl-back').click();records[0][lifecycle]=null;
+ }
  await page.setViewportSize({width:1366,height:768});
  permissions.create=false;permissions.edit=false;permissions.import=false;permissions.export=false;permissions.settings=false;
  await page.reload();await open();for(const tab of ['home','dashboard']){await page.locator('[data-mw="'+tab+'"]').click();await page.waitForTimeout(80);for(const selector of ['[data-mw="import"]','[data-mw="export"]','.mw-settings-menu','[data-mw="create"]'])assert.equal(await page.locator(selector+':visible').count(),0,'Denied actions remain hidden in '+tab);}
- await page.locator('[data-mw="home"]').click();await ready();await page.locator('.mw-record-link:visible').first().click();await page.locator('.mw-bl-field-name').waitFor();assert.equal(await page.locator('#bl-edit').count(),0);assert.equal(await page.locator('#bl-edit-top').count(),0);await page.locator('#bl-back').click();checks.push('Permission-denied controls stay hidden on both tabs and Read has no Edit action');
+ await page.locator('[data-mw="home"]').click();await ready();await page.locator('.mw-record-link:visible').first().click();await page.locator('.mw-bl-field-name').waitFor();assert.equal(await page.locator('#bl-edit').count(),0);assert.equal(await page.locator('#bl-edit-top').count(),0);assert.equal(await modal().locator('[data-bl-field-edit]').count(),0);await page.locator('#bl-back').click();checks.push('Permission-denied controls stay hidden on both tabs and Read has no Edit action');
  assert.deepEqual(errors,[]);
  await import('node:fs/promises').then(fs=>fs.writeFile('work/browser/popup-review-report.json',JSON.stringify({status:'passed',checks,presentation},null,2)));
  console.log('PASS Business Lines popup review: '+checks.join('; '));
