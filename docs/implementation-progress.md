@@ -1,33 +1,26 @@
-# Issue #22 - Consolidated Business Lines release progress
+# Issue #22 - Business Lines delivery and acceptance
 
-The seven feature workstreams are implemented. Production release verification is the final gate. This tracker covers Issue #22 and Business Lines; it does not claim that unrelated CRM modules or the future permission engine are complete.
+The feature baseline was delivered in PR #23 (`c50c4e70`). PR #24 is the acceptance follow-up: real HTTPS/PostgreSQL browser testing, fixes discovered through that testing, isolated scale verification, accurate import-limit documentation and secret-safe warning diagnostics. Read the PR/Actions state and Issue #22 for current deployment status; a commit alone is not acceptance.
 
-| Workstream | Implementation | Acceptance evidence |
+| Workstream | Engineering status | Acceptance evidence |
 | --- | --- | --- |
-| Secure CSV/XLSX import | Complete | Templates, mapping, dry-run, partial success, atomic rollback, duplicate retry and XLSX integration tests |
-| Advanced CSV/XLSX export | Complete | Current-page and other scopes, authenticated files, ordered multipart exports, permission and policy-revision tests |
-| Typed filters and saved view contexts | Complete | Safe SQL parameters, typed operators, AND/OR groups, invalid-input handling, independent Records/Overview persistence |
-| Super Admin column policy | Complete | Nineteen-field master, protected identity, four user-type display policies, role preview, versioned draft/publish and immutable audit |
-| Personal column preferences | Complete | Database-backed Default/My/All state, sections, widths, compare-and-swap conflict protection and cross-session UI tests |
-| Table interaction framework | Complete | Multi-sort, frozen Actions, left freeze policy, row text expansion, current-page/all-matching selection and mobile cards |
-| Business Lines UI fine-tuning | Complete | All nineteen Read/Edit fields, compact title/controls, blur/submit validation, field errors and summary, responsiveness and existing behavior regression |
-| Integrated release and production verification | Final release gate | Green official CI; isolated migration and runtime-role checks completed; production migration, merge and live alias verification follow |
+| Secure CSV/XLSX import | Implemented | Dry-run, duplicate, atomic/partial rollback, real XLSX tests; 10,000-row isolated import and retry checks |
+| Advanced CSV/XLSX export | Implemented | Scope, owned download, ordered parts and policy checks; full 500,000-row synthetic CSV export |
+| Filters and per-view contexts | Implemented | Typed parameterized queries, AND/OR, persistence and larger-table pagination/sort |
+| Super Admin column policy | Implemented | Locked identity, nineteen-field All pool, draft/publish and audit tests |
+| Personal column preferences | Implemented | Database revision control plus new-browser-context My View acceptance |
+| Tables | Implemented | Resizing, sort priority, frozen Actions, Read More, bulk selection and responsive cards |
+| Business Lines UI | Implemented with follow-up corrections | Visible Back, genuine backdrop dismissal and protected login initialization; all nineteen fields preserved |
+| Final production-user acceptance | Still distinct from automated QA | Do not label the whole CRM or actual production-user sign-off complete based only on local/CI tests |
 
-## Verified before production
+## Progress interpretation
 
-- Official GitHub security workflow 39572660431 passed at 3278357d56f8d800caf5474d25b939870842946b, including all 66 Node/API/database tests, authentication browser tests and the complete Business Lines/header/Records Framework browser command.
-- Fixed the Overview export audit reference discovered by database testing; its successful export is tested rather than inferred from a build.
-- Isolated Neon validation branch: migration 007 applied and repeated without deleting existing data. Real authenticated register/verify/login, import dry-run and processing, duplicate-upload protection, lifecycle-reason rejection and Overview XLSX export exercised against the clone. Verification email delivery was captured only in the test harness, never sent to a real recipient.
-- Verified the existing restricted `saicrm_runtime` role needs explicit access to the new tables. Migration 007 now grants only the required new-table operations. Staging SELECT/INSERT checks passed; audit UPDATE and table TRUNCATE remain ungranted. Production runtime credentials and authorization rules are unchanged.
-- The separate authenticated staging browser test did not finish: its navigation helper was incompatible with the existing application. Browser coverage above is the passing automated browser suite; do not describe it as manual production UAT.
-- A recovery branch was created before modifying production. The production baseline before release is seven Business Lines and two user accounts.
+The earlier 7/8 (87.5%) figure counts the original Business Lines workstream checklist, not development hours or the whole CRM. It must not be changed to 100% actual-user acceptance without the required production-account confirmation. Automated engineering checks and deployment can be complete while this remains open.
 
-## Operational boundaries
+## Limits and evidence
 
-- Import accepts CSV/XLSX up to 2 MiB and 10,000 data rows, with ZIP expansion and cell limits. Atomic mode is limited to 1,000 rows.
-- Export supports up to 500,000 authorized rows through resumable jobs, delivered as ordered files of up to 1,000 rows each. Actual multipart regression exercised 1,201 records; a 500,000-row load certification has not been performed.
-- Jobs and downloads expire after 24 hours. If background continuation is interrupted, Transfer History provides Resume without reapplying committed import rows.
-- User-type column configuration is presentation policy, not a new permission engine. Existing verified Super Admin-only Business Lines API authorization remains intact; other user types are not silently granted access.
-- Common machinery is introduced with Business Lines as its first module adapter. It does not silently enable imports or change field contracts in other modules.
+Atomic import is **250 rows**; the earlier Issue #22 text and chat saying 1,000 were incorrect. Overall import remains 2 MiB / 10,000 rows. Export remains 500,000 records in ordered 1,000-row parts. `docs/records-acceptance.md` identifies the tested data, real-versus-mocked boundaries, benchmark timings, and remaining runtime-warning investigation.
 
-Final merge SHA, deployment, live checks and completion percentage are recorded in PR #23 and Issue #22 after verification. Detailed user workflow and limits: `docs/records-framework.md`.
+## Scope separation
+
+Business Lines is the first framework adapter. Other modules need their own field schema, permissions and business rules connected to the shared controls. The current backend still limits Business Lines to approved, verified Super Admins. Configuring Admin/Manager/Standard column pools does not grant module access and must not be presented as a new permission engine.

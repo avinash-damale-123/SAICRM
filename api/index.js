@@ -1,3 +1,4 @@
+import '../server/runtime-diagnostics.mjs';
 import {waitUntil} from '@vercel/functions';
 import {enqueueTransfer,workerRequest} from '../server/records-worker.mjs';
 import { database } from '../server/db.mjs';
