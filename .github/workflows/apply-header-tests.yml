@@ -1,0 +1,33 @@
+name: Align selected tab regression assertions
+on:
+  push:
+    branches: [ui/business-lines-top-search-tabs-20261021]
+    paths: ['.github/workflows/apply-header-tests.yml']
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: github.repository == 'avinash-damale-123/SAICRM'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ui/business-lines-top-search-tabs-20261021
+      - shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('test/business-lines-browser.mjs');s=p.read_text()
+          assert s.count('rgb(7, 111, 67)')==3
+          s=s.replace('rgb(7, 111, 67)','rgb(255, 255, 255)').replace('Records selected tab must be highlighted in Satguru green','Selected Records tab must use a readable white label on green')
+          s=s.replace(' const homeActive=await'," await page.waitForFunction(()=>getComputedStyle(document.querySelector('[data-mw=\"home\"]')).backgroundColor==='rgb(8, 123, 64)');\n const homeActive=await")
+          s=s.replace(" assert.equal(homeActive.color,", " assert.equal(homeActive.bg,'rgb(8, 123, 64)','Selected tab has a filled green background');\n assert.equal(homeActive.color,")
+          p.write_text(s)
+          Path('.github/workflows/apply-header-tests.yml').unlink()
+          PY
+          node --check test/business-lines-browser.mjs
+          git add test/business-lines-browser.mjs .github/workflows/apply-header-tests.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Assert selected-tab white text and filled-green background in legacy browser regression'
+          git push origin HEAD:ui/business-lines-top-search-tabs-20261021
