@@ -118,9 +118,11 @@ try{
  assert.equal(await page.locator('.scrm-bl-primary [data-mw="create"]').count(),1,'Add Business Line must remain a real button in the primary row');
  assert.equal(await page.locator('.scrm-tabs [data-mw="home"] .scrm-view-title').innerText(),'Records');
  assert.ok(Math.abs(headerLayout.tabsY-headerLayout.actionsY)<24,'Module actions are disconnected from tabs: '+JSON.stringify(headerLayout));
+ await page.waitForFunction(()=>getComputedStyle(document.querySelector('[data-mw="home"]')).backgroundColor==='rgb(8, 123, 64)');
  const homeActive=await page.locator('[data-mw="home"]').evaluate(el=>({bg:getComputedStyle(el).backgroundColor,color:getComputedStyle(el).color}));
  assert.equal(await page.locator('[data-mw="home"]').evaluate(el=>el.classList.contains('mw-active-tab')),true);
- assert.equal(homeActive.color,'rgb(7, 111, 67)','Records selected tab must be highlighted in Satguru green');
+ assert.equal(homeActive.bg,'rgb(8, 123, 64)','Selected tab has a filled green background');
+ assert.equal(homeActive.color,'rgb(255, 255, 255)','Selected Records tab must use a readable white label on green');
 
  assert.ok((await page.locator('.crm-profile-trigger').innerText()).includes(user.name));
  await page.locator('#notifBtn').click();await page.locator('#crmNoticeMenu:not([hidden])').waitFor();
@@ -138,7 +140,7 @@ try{
  await page.mouse.move(0,0);
  await page.waitForFunction(()=>{
   const button=document.querySelector('.crm-business-module [data-mw="dashboard"]');
-  return button?.classList.contains('mw-active-tab') && document.querySelector('.mw-dashboard')?.hidden===false && getComputedStyle(button).color==='rgb(7, 111, 67)';
+  return button?.classList.contains('mw-active-tab') && document.querySelector('.mw-dashboard')?.hidden===false && getComputedStyle(button).color==='rgb(255, 255, 255)';
  });
  assert.equal(await page.locator('.mw-table').isVisible(),false);
  const dashboard=page.locator('.mw-dashboard');
@@ -151,7 +153,7 @@ try{
  await page.mouse.move(0,0);
  await page.waitForFunction(()=>{
   const button=document.querySelector('.crm-business-module [data-mw="home"]');
-  return button?.classList.contains('mw-active-tab') && getComputedStyle(button).color==='rgb(7, 111, 67)';
+  return button?.classList.contains('mw-active-tab') && getComputedStyle(button).color==='rgb(255, 255, 255)';
  });
  await page.screenshot({animations:'disabled',path:'work/browser/header-home-1440.jpg',type:'jpeg',quality:40});
  await page.screenshot({animations:'disabled',path:'work/browser/header-home-crop.jpg',type:'jpeg',quality:30,clip:{x:0,y:0,width:1440,height:240}});
