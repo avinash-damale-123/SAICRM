@@ -46,7 +46,7 @@ jobs:
       - name: Real PostgreSQL authenticated browser acceptance
         run: node --trace-deprecation test/records-authenticated-browser.mjs
       - name: Isolated scale and recovery acceptance
-        if: matrix.node == 24
+        if: ${{ !cancelled() && matrix.node == 24 }}
         run: node test/records-load.mjs
         env:
           RECORDS_LOAD_ROWS: 500000
