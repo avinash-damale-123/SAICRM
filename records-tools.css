@@ -109,3 +109,14 @@
 
 .rf-sort-open{margin-left:auto;background:#fff;border:1px solid #cbded1;border-radius:5px;color:#1e5d3e;cursor:pointer;font:inherit;padding:3px 9px;min-height:26px}.rf-sort-open:hover{background:#eaf5ee}.rf-overview-toolbar .mw-settings-menu{display:none!important}
 @media(max-width:700px){.rf-sort-help{display:none}.rf-sort-open{min-height:38px}.rf-mobile-cards>.rf-check{padding:8px}.rf-mobile-cards>.rf-check input{width:18px;height:18px;accent-color:#087b40}}
+
+/* Final visual QA: header child spans must not inherit the old muted sort color.
+   Pagination belongs after the scroll viewport, never over the table body. */
+.mw-framework .rf-table thead th,.mw-framework .rf-table thead th>button,.mw-framework .rf-table thead th>button>span,.mw-framework .rf-table thead th>button>span small{color:#fff!important}
+.mw-framework .rf-table thead th>button>span:first-child{font-size:12px!important;font-weight:650!important}
+.mw-framework .rf-table thead .rf-sort-arrows{font-size:14px!important}
+.mw-framework .mw-footer{position:static!important;bottom:auto!important;clear:both;flex-shrink:0;z-index:auto}
+.mw-framework .mw-results{height:auto!important;overflow:visible;flex-shrink:0}
+.mw-framework .rf-table-wrap{max-height:min(60dvh,620px);overscroll-behavior:contain}
+.mw-framework .rf-table .rf-long-text:not(.rf-expanded){display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;max-height:3em}
+@media(max-width:700px){.mw-framework .mw-footer{position:static!important}.mw-framework .rf-mobile-cards{max-height:none}}
