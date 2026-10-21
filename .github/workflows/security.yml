@@ -8,6 +8,11 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
     services:
       postgres:
         image: postgres:17
@@ -27,18 +32,27 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ matrix.node }}
       - run: npm ci --ignore-scripts
+      - run: npm audit --omit=dev --audit-level=high
       - run: node scripts/build.mjs
       - run: node --check app.js && node --check auth.js && node --check responsive.js
-      - run: node --check module-workspace.js
+      - run: node --check module-workspace.js && node --check records-tools.js
       - run: node --check business-lines-ui.js
       - run: npm test
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
       - run: npm run test:business-browser
+      - name: Real PostgreSQL authenticated browser acceptance
+        run: node --trace-deprecation test/records-authenticated-browser.mjs
+      - name: Isolated scale and recovery acceptance
+        if: matrix.node == 24
+        run: node test/records-load.mjs
+        env:
+          RECORDS_LOAD_ROWS: 500000
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: browser-checks
+          name: browser-checks-node${{ matrix.node }}
           path: work/browser/
+          retention-days: 14
