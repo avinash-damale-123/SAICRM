@@ -18,7 +18,7 @@ const effective=()=>effectivePolicy(configuration,serverUser),prefs=()=>({versio
 const now='2026-10-21T08:00:00Z';
 const records=Array.from({length:30},(_,i)=>({id:'20000000-0000-4000-8000-'+String(i+1).padStart(12,'0'),displayId:'BL-'+String(i+1).padStart(3,'0'),code:'RF-'+(i+1),name:'Framework Line '+String(i+1).padStart(2,'0'),description:'A detailed description for this Business Line. '.repeat(8),status:i<25?'Active':'Inactive',owner:'QA Super Admin',ownerId:'UID-000001',createdBy:'QA Super Admin',createdById:'UID-000001',createdAt:now,updatedBy:'QA Super Admin',updatedById:'UID-000001',updatedAt:now,isArchived:false,archivedAt:null,archivedById:null,isDeleted:false,deletedAt:null,deletedById:null,version:1}));
 const jobs=new Map(),requests=[],errors=[];
-let readError=false,saveError=false,historyError=false,holdRead=false,holdSave=false,releaseRead,releaseSave;
+let nextListFailure=false,readError=false,saveError=false,historyError=false,holdRead=false,holdSave=false,releaseRead,releaseSave;
 function matching(q){let rows=records.filter(r=>!q.q||r.name.toLowerCase().includes(q.q.toLowerCase()));const test=(r,node)=>node.conditions?node.conditions.length===0||node.logic==='or'?node.conditions.length===0||node.conditions.some(n=>test(r,n)):node.conditions.every(n=>test(r,n)):node.operator==='contains'?String(r[node.field]||'').toLowerCase().includes(String(node.value).toLowerCase()):node.operator==='equals'?String(r[node.field])===String(node.value):true;if(q.filters)rows=rows.filter(r=>test(r,typeof q.filters==='string'?JSON.parse(q.filters):q.filters));if(q.status&&q.status!=='all')rows=rows.filter(r=>r.status===q.status);return rows;}
 try{
  await mkdir('work/browser',{recursive:true});const page=await browser.newPage({viewport:{width:1366,height:768}});page.on('pageerror',e=>errors.push(e.message));
@@ -28,7 +28,7 @@ try{
  else if(path==='audit')response={audit:[]};
  else if(path==='access')response={users:[]};
  else if(path.startsWith('records/'))response={records:[],next:null};
- else if(path==='business-lines'&&method==='GET'){const q=Object.fromEntries(url.searchParams),rows=matching(q),size=Number(q.pageSize||25),n=Number(q.page||1);response={records:rows.slice((n-1)*size,n*size),total:rows.length,totalPages:Math.max(1,Math.ceil(rows.length/size)),page:n,pageSize:size,counts:{total:30,active:25,inactive:5,archived:0},owners:[{id:user.id,ownerId:'UID-000001',name:user.name}],permissions,resource:{frameworkVersion:1,columns:publicColumns(),limits:{}},ui:{policy:effective(),preferences:prefs()}};}
+ else if(path==='business-lines'&&method==='GET'){if(nextListFailure){nextListFailure=false;await route.fulfill({status:503,json:{error:'List refresh temporarily unavailable'}});return;}const q=Object.fromEntries(url.searchParams),rows=matching(q),size=Number(q.pageSize||25),n=Number(q.page||1);response={records:rows.slice((n-1)*size,n*size),total:rows.length,totalPages:Math.max(1,Math.ceil(rows.length/size)),page:n,pageSize:size,counts:{total:30,active:25,inactive:5,archived:0},owners:[{id:user.id,ownerId:'UID-000001',name:user.name}],permissions,resource:{frameworkVersion:1,columns:publicColumns(),limits:{}},ui:{policy:effective(),preferences:prefs()}};}
  else if(path==='business-lines/preferences'){if(method==='PUT'){if(body.version!==preferenceVersion){status=409;response={error:'View preferences changed elsewhere'};}else{storedPrefs=body.data;preferenceVersion++;}}if(status===200)response={policy:effective(),preferences:prefs()};}
  else if(path==='business-lines/configuration'){if(method==='PUT'){assert.equal(body.version,configuration.version);configuration.version++;if(body.action==='publish'){configuration.config=body.config;configuration.publishedVersion++;configuration.draft=null;}else configuration.draft=body.config;}response={...configuration,history:[]};}
  else if(path==='business-lines/imports/template')response=fileResponse(await template(url.searchParams.get('format')),'template.'+url.searchParams.get('format'));
@@ -58,6 +58,25 @@ try{
   assert.equal(await page.locator('.mw-workspace').isVisible(),true,mode+': underlying workspace remains mounted');
   assert.equal(await page.locator('.crm-module-host').isVisible(),true,mode+': module header remains visible behind backdrop');
   assert.equal(await page.locator('#content>.mw-bl-detail-page').count(),0,'No dedicated record page');
+  const rowStyles=await modal().evaluate(d=>[...d.querySelectorAll('.mw-bl-field')].filter(el=>el.getClientRects().length).map(el=>{
+   const label=el.querySelector(':scope>label'),value=el.querySelector(':scope>.mw-bl-value-cell');
+   const l=label.getBoundingClientRect(),v=value.getBoundingClientRect();
+   return {left:l.left,right:l.right,top:l.top,bottom:l.bottom,valueLeft:v.left,valueTop:v.top,labelBackground:getComputedStyle(label).backgroundColor,valueBackground:getComputedStyle(value).backgroundColor,labelSize:parseFloat(getComputedStyle(label).fontSize),width:innerWidth,overflow:el.scrollWidth>el.clientWidth+1};
+  }));
+  assert.ok(rowStyles.length,mode+' visible label/value rows');
+  for(const row of rowStyles){
+   assert.notEqual(row.labelBackground,row.valueBackground,mode+' distinguishes label and value surfaces');
+   assert.ok(row.labelSize>=12,mode+' readable labels');assert.equal(row.overflow,false,mode+' no overflowing field text');
+   if(row.width>480){assert.ok(row.valueLeft>=row.right-1,mode+' label on left and value on right');assert.ok(Math.abs(row.top-row.valueTop)<2,mode+' label and value share a row');}
+   else assert.ok(row.valueTop>=row.bottom-1,mode+' readable stacked fallback on narrow screens');
+  }
+  if(!mode.includes('long values')&&await page.evaluate(()=>innerWidth>760)){
+   const pair=await modal().evaluate(d=>{const first=d.querySelector('.mw-bl-field-name'),id=d.querySelector('.mw-bl-field-displayId');if(!first||!id||!first.getClientRects().length)return null;const a=first.getBoundingClientRect(),b=id.getBoundingClientRect();return {top:Math.abs(a.top-b.top),height:Math.abs(a.height-b.height)};});
+   if(pair){assert.ok(pair.top<2,mode+' paired fields align at top');assert.ok(pair.height<2,mode+' paired fields have consistent row height');}
+  }
+  const dismissColors=await modal().evaluate(d=>[...d.querySelectorAll('.mw-dialog-close,#mw-cancel,#bl-cancel')].map(el=>({bg:getComputedStyle(el).backgroundColor,color:getComputedStyle(el).color})));
+  for(const style of dismissColors){assert.ok(['rgb(180, 35, 44)','rgb(148, 29, 38)'].includes(style.bg),mode+' red dismiss control');assert.equal(style.color,'rgb(255, 255, 255)',mode+' readable white action label');}
+
   const v=await modal().evaluate(d=>{
    const box=e=>{const r=e.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height};};
    const header=d.querySelector(':scope>header'),title=d.querySelector('#mw-dialog-title'),actions=d.querySelector('.mw-bl-title-actions'),close=d.querySelector('.mw-dialog-close'),body=d.querySelector('.mw-dialog-body'),section=d.querySelector('.mw-bl-detail-content .mw-bl-section');
@@ -68,7 +87,7 @@ try{
   assert.ok(v.title.right<=v.actions.left+1,mode+' title does not overlap actions');assert.ok(v.close.width>=35&&v.close.height>=35,mode+' clear Close target');
   assert.ok(v.titleSize>=17,mode+' title readable');
   assert.equal(await page.locator('#bl-edit-top').count(),mode.startsWith('read')?1:0,mode+' header Edit available only in Read');
-  if(v.firstSection&&v.innerWidth>=1024&&mode.startsWith('read'))assert.ok(v.firstSection.top-v.body.top<125,'No excessive blank toolbar stack before fields');
+  if(v.firstSection&&v.innerWidth>=1024&&mode.startsWith('read')&&mode!=='read long values')assert.ok(v.firstSection.top-v.body.top<125,'No excessive blank toolbar stack before fields');
 
   const g=await modal().evaluate(d=>{const r=d.getBoundingClientRect(),h=d.querySelector(':scope>header').getBoundingClientRect(),f=d.querySelector(':scope>footer').getBoundingClientRect();return {x:r.left,y:r.top,right:r.right,bottom:r.bottom,width:innerWidth,height:innerHeight,headerTop:h.top,footerBottom:f.bottom,overflow:document.documentElement.scrollWidth>innerWidth+1}});
   assert.ok(g.x>=0&&g.y>=0&&g.right<=g.width+1&&g.bottom<=g.height+1,mode+' fits viewport '+JSON.stringify(g));
@@ -136,14 +155,42 @@ try{
  await page.screenshot({path:'work/browser/popup-edit-conflict-desktop.png'});
  holdSave=true;await page.locator('#bl-save').click();await page.waitForFunction(()=>document.querySelector('dialog')?.getAttribute('aria-busy')==='true');
  assert.equal(await page.locator('#bl-save').isDisabled(),true);assert.equal(await page.locator('#bl-cancel').isDisabled(),true);await page.keyboard.press('Escape');assert.equal(await modal().count(),1);
- assert.ok(releaseSave);releaseSave();await page.locator('#bl-edit').waitFor();await ready();assert.match(await page.locator('.mw-bl-detail-heading').innerText(),/Inactive/);assert.equal(await page.locator('.mw-bl-record-notice').isVisible(),true);await page.waitForFunction(()=>document.querySelector('[data-bl-history]')?.textContent.includes('Popup regression evidence'));checks.push('Required lifecycle reason; 409 keeps draft; save controls and Escape locked in-flight; success returns Read and refreshes audit');
+ assert.ok(releaseSave);releaseSave();await modal().waitFor({state:'detached'});await ready();assert.match(await page.locator('.mw-feedback').innerText(),/saved successfully/);assert.equal(await beforeUnloadBlocked(),false);assert.equal(await page.locator('[data-mw="home"]').getAttribute('aria-current'),'page');await openFirst();assert.match(await page.locator('.mw-bl-detail-heading').innerText(),/Inactive/);await page.waitForFunction(()=>document.querySelector('[data-bl-history]')?.textContent.includes('Popup regression evidence'));checks.push('Required lifecycle reason; 409 keeps draft; save controls and Escape locked in-flight; successful Save closes and reopening confirms values/audit');
  await page.locator('#bl-back').click();await modal().waitFor({state:'detached'});assert.equal(await page.evaluate(()=>document.activeElement!==document.body),true);assert.equal(await page.evaluate(()=>document.documentElement.classList.contains('mw-modal-open')),false);
  // Record loading failures and independent audit errors are recoverable.
  readError=true;await page.locator('.mw-record-link:visible').first().click();await page.locator('[data-bl-retry]').waitFor();await page.locator('[data-bl-retry]').click();await page.locator('#bl-edit').waitFor();await page.locator('#bl-back').click();
  historyError=true;await openFirst();await page.locator('[data-bl-expand="1"]').click();await page.locator('[data-audit-retry]').waitFor();await assertFields();historyError=false;await page.locator('[data-audit-retry]').click();await page.waitForFunction(()=>document.querySelector('[data-bl-history]')?.textContent.includes('Popup regression evidence'));await page.locator('#bl-back').click();
  holdRead=true;await page.locator('.mw-record-link:visible').first().click();await modal().waitFor();await page.locator('.mw-dialog-close').click();while(!releaseRead)await new Promise(r=>setTimeout(r,5));releaseRead();await page.waitForTimeout(80);assert.equal(await modal().count(),0,'Late response cannot reopen a closed popup');checks.push('Record retry, audit-only failure and late-response-after-close handled safely');
+ // Saving returns to the exact filtered/sorted page and preserves column choices.
+ await page.locator('#crmSearchInput').fill('Framework');await page.locator('.scrm-identity').click({position:{x:5,y:5}});
+ await page.waitForFunction(()=>document.querySelector('#mw-search')?.value==='Framework'&&document.querySelector('.mw-results')?.getAttribute('aria-busy')==='false');
+ await page.locator('[data-mw="sort"][data-column="name"]').click();await ready();
+ await page.getByRole('button',{name:'Next page',exact:true}).click();await ready();
+ const beforeQuery={...requests.filter(r=>r.path==='business-lines'&&r.method==='GET').at(-1).query};
+ const beforeColumns=await page.locator('.rf-table th[data-column-key]').evaluateAll(els=>els.map(e=>e.dataset.columnKey));
+ await openFirst();await edit();await page.locator('#mw-bl-page-form [name="description"]').fill('Preserve page, search and sorting after save.');
+ await page.locator('#bl-save').click();await modal().waitFor({state:'detached'});await ready();
+ assert.equal(await page.locator('#crmSearchInput').inputValue(),'Framework');
+ assert.deepEqual(requests.filter(r=>r.path==='business-lines'&&r.method==='GET').at(-1).query,beforeQuery);
+ assert.deepEqual(await page.locator('.rf-table th[data-column-key]').evaluateAll(els=>els.map(e=>e.dataset.columnKey)),beforeColumns);
+ assert.equal(await page.locator('.mw-feedback').isVisible(),true);assert.equal(await beforeUnloadBlocked(),false);
+ // List refresh failure must not report a committed save as failed or repeat it.
+ await openFirst();await edit();await page.locator('#mw-bl-page-form [name="description"]').fill('Write succeeds even when refresh fails.');
+ const putsBeforeRefresh=puts();nextListFailure=true;await page.locator('#bl-save').click();await modal().waitFor({state:'detached'});
+ await page.locator('.mw-results [data-mw="refresh"]').waitFor();assert.equal(puts(),putsBeforeRefresh+1);
+ assert.match(await page.locator('.mw-feedback').innerText(),/saved successfully/);
+ await page.locator('.mw-results [data-mw="refresh"]').click();await ready();assert.equal(puts(),putsBeforeRefresh+1);
+ await page.locator('#crmSearchInput').fill('');await page.keyboard.press('Escape');
+ await page.waitForFunction(()=>document.querySelector('#mw-search')?.value===''&&document.querySelector('.mw-results')?.getAttribute('aria-busy')==='false');
+ // Create from Overview also returns to Overview and exposes success feedback.
+ await page.locator('[data-mw="dashboard"]').click();await page.waitForFunction(()=>document.querySelector('[data-mw="dashboard"]')?.getAttribute('aria-current')==='page');
+ await page.locator('[data-mw="create"]').click();await page.locator('#mw-record-form [name="name"]').fill('Created from Overview');await page.locator('#mw-record-form [name="code"]').fill('FROM-OVERVIEW');
+ await page.locator('#mw-save').click();await modal().waitFor({state:'detached'});await ready();
+ assert.equal(await page.locator('[data-mw="dashboard"]').getAttribute('aria-current'),'page');assert.equal(await page.locator('.mw-feedback').isVisible(),true);
+ await page.locator('[data-mw="home"]').click();await ready();
+ checks.push('Successful Save auto-closes, preserves filtered/sorted page/columns, distinguishes refresh failure; Create returns to Overview');
  // Realistic viewport constraints: footer stays visible with a scrolling content region.
- for(const {width,height} of [{width:1366,height:768},{width:1024,height:768},{width:390,height:844},{width:320,height:568},{width:844,height:390}]){
+ for(const {width,height} of [{width:1366,height:768},{width:1024,height:768},{width:1366,height:627},{width:700,height:800},{width:390,height:844},{width:320,height:568},{width:844,height:390}]){
   await page.setViewportSize({width,height});await page.waitForTimeout(100);
   await page.locator('[data-mw="create"]').click();await assertModal('create '+width);await page.locator('#mw-cancel').click();
   await openFirst();await assertModal('read '+width);await page.locator('[data-bl-expand="1"]').click();
@@ -155,7 +202,14 @@ try{
   if(width===1366){await page.locator('.mw-dialog-body').evaluate(el=>el.scrollTop=0);await page.screenshot({path:'work/browser/popup-edit-desktop.png'});}
   await page.locator('#bl-cancel').click();await page.locator('#bl-back').click();
  }
- checks.push('Create/Read/Edit at five desktop, mobile and landscape sizes; no overflow; header and footer always visible');
+ checks.push('Create/Read/Edit at seven desktop, mobile and landscape sizes; inline or stacked field rows, red dismiss controls, no overflow and accessible footer');
+ // Values at field limits, line breaks and unbroken text must wrap without data loss.
+ const longRecord={...records[0]};records[0].name='LongBusinessLine'.repeat(10).slice(0,150);records[0].description=('First line\n'+ 'W'.repeat(480)).slice(0,500);
+ await page.setViewportSize({width:1024,height:768});await openFirst();await page.locator('[data-bl-expand="1"]').click();await assertModal('read long values');
+ assert.equal(await page.locator('.mw-bl-field-description .mw-bl-read-value').textContent(),records[0].description);
+ await edit();await assertModal('edit long values');assert.equal(await page.locator('#mw-bl-page-form [name="name"]').inputValue(),records[0].name);
+ await page.locator('#bl-cancel').click();await page.locator('#bl-back').click();Object.assign(records[0],longRecord);
+ checks.push('Long values and multiline descriptions remain complete; protected fields stay plain read-only values');
  await page.setViewportSize({width:1366,height:768});
  permissions.create=false;permissions.edit=false;permissions.import=false;permissions.export=false;permissions.settings=false;
  await page.reload();await open();for(const tab of ['home','dashboard']){await page.locator('[data-mw="'+tab+'"]').click();await page.waitForTimeout(80);for(const selector of ['[data-mw="import"]','[data-mw="export"]','.mw-settings-menu','[data-mw="create"]'])assert.equal(await page.locator(selector+':visible').count(),0,'Denied actions remain hidden in '+tab);}
