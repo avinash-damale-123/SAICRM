@@ -177,8 +177,8 @@ try{
   if(width===320)await page.screenshot({animations:'disabled',path:'work/browser/header-home-320.jpg',type:'jpeg',quality:40});
  }
  await page.setViewportSize({width:1440,height:900});
- await page.locator('#focusModeBtn').click();assert.equal(await page.evaluate(()=>Boolean(document.fullscreenElement)),true);
- await page.locator('#focusModeBtn').click();assert.equal(await page.evaluate(()=>Boolean(document.fullscreenElement)),false);
+ await page.locator('#focusModeBtn').click();await page.waitForFunction(()=>!!document.fullscreenElement);assert.equal(await page.evaluate(()=>Boolean(document.fullscreenElement)),true);
+ await page.locator('#focusModeBtn').click();await page.waitForFunction(()=>!document.fullscreenElement);assert.equal(await page.evaluate(()=>Boolean(document.fullscreenElement)),false);
  await page.setViewportSize({width:1440,height:900});
  await page.locator('[data-select]').first().check();
  await page.getByRole('button',{name:'Next page',exact:true}).click();await waitReady();
@@ -241,7 +241,9 @@ try{
  await page.locator('#mw-bl-page-form [name="name"]').fill('Line Bravo Updated');
  await page.locator('#mw-bl-page-form [name="description"]').fill('Saved UI context');
  await page.locator('#bl-save').click();await page.locator('#mw-bl-page-form').waitFor({state:'detached'});await waitReady();
- assert.equal(await page.locator('.mw-bl-detail-page .mw-bl-field').count(),19,'Saved record retains all fields');
+ assert.equal(await page.locator('dialog[open]').count(),0,'Successful Edit closes the popup automatically');
+ await page.locator('.mw-record-link').click();await page.locator('#bl-edit').waitFor();
+ assert.equal(await page.locator('.mw-bl-detail-page .mw-bl-field').count(),19,'Reopened saved record retains all fields');
  await page.locator('#bl-back').click();
  assert.equal(await page.locator('#mw-search').inputValue(),'Line Bravo');
  assert.equal(await page.locator('.mw-record-link').innerText(),'Line Bravo Updated');
@@ -322,7 +324,7 @@ try{
   for(const selector of ['#notifBtn','#focusModeBtn','#logoutBtn','.top-avatar'])assert.equal(await page.locator(selector).count(),1);
   await page.evaluate(()=>document.querySelector('[data-nav="overview"]').click());await headerRestored();
  }
- await page.locator('#focusModeBtn').click();assert.equal(await page.evaluate(()=>Boolean(document.fullscreenElement)),true);
+ await page.locator('#focusModeBtn').click();await page.waitForFunction(()=>!!document.fullscreenElement);assert.equal(await page.evaluate(()=>Boolean(document.fullscreenElement)),true);
  await page.locator('#focusModeBtn').click();
  await openBusiness();
  // A slower Audit fetch cannot overwrite a newer navigation decision.
@@ -362,6 +364,7 @@ try{
  // Permission fixtures exercise the UI contract without changing backend policy.
  permissions={read:true,history:false,search:true,create:false,edit:false,archive:false,restore:false,export:false,filter:false,settings:false,dashboard:false,import:false,delete:false};
  await page.reload();await openBusiness();
+ await page.waitForFunction(()=>document.querySelector('.scrm-bl-clean.scrm-no-tabs'));
  assert.equal(await page.locator('.scrm-bl-clean.scrm-no-tabs').count(),1,'Restricted view must reclaim tab bar space');
  for(const selector of ['[data-mw="create"]','[data-mw="export"]','[data-mw="filter-toggle"]','.mw-settings-menu','[data-mw="dashboard"]','[data-mw="import"]'])assert.equal(await page.locator(selector+':visible').count(),0,selector+' should be denied');
  const historyRequests=requests.filter(request=>request.path.endsWith('/history')).length;

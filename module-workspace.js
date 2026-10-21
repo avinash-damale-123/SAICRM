@@ -62,6 +62,8 @@ function create(host,config) {
  }
  function shell(){
  host.innerHTML='<section class="mw-workspace" aria-label="'+esc(config.title)+'"><h1 class="mw-sr-only">'+esc(config.title)+'</h1><section class="mw-dashboard" aria-label="'+esc(config.title)+' Dashboard" hidden></section><div class="mw-home" aria-label="'+esc(config.title)+' Home"><div class="mw-panel"><section id="mw-filter-controls" class="mw-filter-controls" aria-label="Filter '+esc(config.title)+'" hidden><label>Status<select id="mw-status"><option value="all">All statuses</option><option value="Active">Active</option><option value="Inactive">Inactive</option></select></label><label>Record state<select id="mw-archived"><option value="exclude">Current records</option><option value="only">Archived records</option><option value="all">Current & archived</option>'+(config.key==='business-lines'?'<option value="deleted">Deleted records</option>':'')+'</select></label>'+button('Advanced filters','filters','','filter')+'</section><div class="mw-query-summary" hidden></div><div class="mw-selection" hidden></div><p class="mw-feedback" role="status" hidden></p><div class="mw-results" aria-live="polite"></div><footer class="mw-footer"></footer></div></div></section>';
+ // Save confirmations must remain visible after returning to either view.
+ if(config.key==='business-lines'){const feedback=find('.mw-feedback');find('.mw-workspace').insertBefore(feedback,find('.mw-dashboard'));}
  mountHeader();
  find('#mw-status').value=state.status;find('#mw-archived').value=state.archived;
  find('#mw-status').onchange=e=>{if(!permitted('filter'))return;state.status=e.target.value;state.page=1;load()};
@@ -259,9 +261,10 @@ function create(host,config) {
   const controlId='mw-bl-'+mode+'-'+key;
  const attrs=editable?(' id="'+controlId+'" name="'+esc(key)+'"'+(required?' required':'')+(limit?' maxlength="'+limit+'"':'')):' readonly aria-readonly="true"';
   let control=key==='status'&&editable?'<select id="'+controlId+'" name="status" aria-label="Business Line Status"><option value="Active"'+(shown==='Active'?' selected':'')+'>Active</option><option value="Inactive"'+(shown==='Inactive'?' selected':'')+'>Inactive</option></select>':full?'<textarea rows="2"'+attrs+'>'+esc(shown)+'</textarea>':'<input type="text"'+attrs+' value="'+esc(shown)+'"'+(editable?' autocomplete="off"':'')+'>';
-  if(mode==='read'||mode==='edit'&&!editable)control='<div class="mw-bl-read-value'+(full?' mw-bl-read-description':'')+'" aria-readonly="true">'+esc(value)+'</div>';
+  if(mode==='read'||mode==='edit'&&!editable)control='<div class="mw-bl-read-value'+(full?' mw-bl-read-description':'')+'" aria-labelledby="'+controlId+'-label">'+esc(value)+'</div>';
   const hint=editable&&key==='status'?'<small class="mw-bl-hint">Changing status requires a reason and may be blocked when records depend on this line.</small>':editable&&key==='code'?'<small class="mw-bl-hint">Uppercase letters, digits and hyphens; maximum 20 characters.</small>':editable&&key==='description'?'<small class="mw-bl-hint">Maximum 500 characters. <span data-count-for="description">'+shown.length+'</span> / 500</small>':'';
-  return '<div class="mw-bl-field mw-bl-field-'+esc(key)+(full?' mw-bl-full':'')+'"><label'+(editable?' for="'+controlId+'"':'')+'>'+esc(label)+(required?' <span class="mw-required">*</span>':'')+'</label>'+control+hint+'</div>';
+  // Separate label and value surfaces without turning protected values into inputs.
+  return '<div class="mw-bl-field mw-bl-field-'+esc(key)+(full?' mw-bl-full':'')+(editable?' mw-bl-editable':' mw-bl-readonly')+'"><label id="'+controlId+'-label"'+(editable?' for="'+controlId+'"':'')+'>'+esc(label)+(required?' <span class="mw-required">*</span>':'')+'</label><div class="mw-bl-value-cell">'+control+hint+'</div></div>';
  }
  function blFormSections(record,mode){
   if(mode==='create'){
@@ -430,12 +433,22 @@ function create(host,config) {
    if(statusField.value!==record.status){const text=reason.value.trim();if(!text){error.textContent='Reason is mandatory for status changes.';error.hidden=false;reason.focus();return}payload.status=statusField.value;payload.reason=text;}
    blBusy=true;dialogSaving=true;
    const controls=[...d.querySelectorAll('input,select,textarea,button')].map(el=>[el,el.disabled]);controls.forEach(([el])=>el.disabled=true);d.setAttribute('aria-busy','true');d.querySelector('#bl-save').textContent='Saving...';
-   try{const response=await api(config.endpoint+'/'+encodeURIComponent(record.id),'PUT',payload);
+   try{await api(config.endpoint+'/'+encodeURIComponent(record.id),'PUT',payload);
     if(dead||dialog!==d||blDetail!==page)return;
-    blBusy=false;dialogSaving=false;blDraft=null;d.removeAttribute('aria-busy');d.querySelector('.mw-dialog-close').disabled=false;
-    renderBlRecordPage(response.record||{...record,...payload},'read');refreshBlAudit(d,record.id);
-    const notice=page.querySelector('.mw-bl-record-notice');notice.textContent='Business Line saved successfully.';notice.hidden=false;announce('Business Line updated.');await load();
-   }catch(e){if(dead||dialog!==d||blDetail!==page)return;blBusy=false;dialogSaving=false;d.removeAttribute('aria-busy');controls.forEach(([el,disabled])=>el.disabled=disabled);error.textContent=e.message;error.hidden=false;error.tabIndex=-1;error.focus();d.querySelector('#bl-save').textContent='Save';error.scrollIntoView({block:'nearest'});}
+   }catch(e){
+    if(dead||dialog!==d||blDetail!==page)return;
+    blBusy=false;dialogSaving=false;d.removeAttribute('aria-busy');
+    controls.forEach(([el,disabled])=>el.disabled=disabled);
+    error.textContent=e.message;error.hidden=false;error.tabIndex=-1;error.focus();
+    d.querySelector('#bl-save').textContent='Save';error.scrollIntoView({block:'nearest'});return;
+   }
+   // A successful write is complete: close only this popup, not the workspace.
+   // Keep the tab/query/sort/page and column preferences; refresh failures must
+   // never be presented as failed writes or reopen the completed form.
+   blBusy=false;dialogSaving=false;blDraft=null;dialogDirty=null;
+   closeDialog(true);announce('Business Line saved successfully.');
+   await load();
+   if(!dead&&!dialog&&(document.activeElement===document.body||!document.activeElement?.isConnected))restoreDialogFocus();
   };
   const first=form.querySelector('input:not([readonly]),select,textarea');if(first){first.closest('details').open=true;first.focus({preventScroll:true})}
  }

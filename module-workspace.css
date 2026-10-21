@@ -526,3 +526,66 @@ dialog.mw-bl-create-dialog .mw-bl-field textarea{min-height:64px}
  dialog.mw-bl-create-dialog .mw-bl-section-content{padding:6px 0 10px!important}
 }
 @media(prefers-reduced-motion:reduce){dialog.mw-bl-record-dialog .mw-bl-chevron svg{transition:none}}
+
+/* Business Lines review: label/value rows and unambiguous dismiss controls. */
+dialog.mw-bl-dialog.mw-bl-record-dialog{width:min(920px,calc(100vw - 40px))!important}
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-field{
+ --bl-label-width:144px;display:grid!important;grid-template-columns:var(--bl-label-width) minmax(0,1fr);
+ gap:0!important;align-items:stretch;padding:0!important;min-width:0;border:1px solid #d7e2dc;border-radius:6px;
+ background:#fff;overflow:visible;
+}
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-field>label{
+ display:flex;align-items:center;flex-wrap:wrap;align-content:center;gap:0 3px;margin:0!important;
+ padding:8px 10px!important;background:#edf4ef!important;border-right:1px solid #d7e2dc;border-radius:5px 0 0 5px;
+ color:#274737!important;font-size:12px!important;font-weight:700!important;line-height:1.45;overflow-wrap:anywhere;
+}
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-value-cell{
+ min-width:0;padding:6px 8px;display:flex;flex-direction:column;justify-content:center;gap:4px;
+ background:#fff;border-radius:0 5px 5px 0;
+}
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-readonly>.mw-bl-value-cell{background:#f8fafb}
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-read-value{
+ display:block;padding:3px 1px!important;min-height:20px!important;border:0!important;border-radius:0!important;
+ color:#172e43!important;font-size:13px!important;font-weight:500;line-height:1.5!important;
+ white-space:pre-wrap;overflow-wrap:anywhere;background:transparent!important;
+}
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-field :is(input,select,textarea){
+ width:100%;min-width:0;max-width:100%;min-height:36px!important;margin:0;box-sizing:border-box;
+ border:1px solid #abbfc9!important;background:#fff!important;color:#172e43!important;
+ font-size:13px!important;line-height:1.45;padding:6px 8px!important;border-radius:5px;
+}
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-field textarea{min-height:58px!important;resize:vertical}
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-field :is(input,select,textarea):focus{
+ border-color:#087b40!important;box-shadow:0 0 0 2px #087b401c!important;
+}
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-field [aria-invalid="true"]{border-color:#b4232c!important}
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-field .mw-bl-hint{
+ color:#586e7b;font-size:11px!important;line-height:1.4;display:block;overflow-wrap:anywhere;
+}
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-field .rf-field-error{
+ font-size:12px;line-height:1.4;overflow-wrap:anywhere;
+}
+dialog.mw-bl-dialog.mw-bl-record-dialog .mw-bl-grid{gap:8px 14px!important;align-items:start}
+dialog.mw-bl-dialog.mw-bl-create-dialog .mw-bl-grid{gap:10px!important}
+dialog.mw-bl-dialog.mw-bl-create-dialog .mw-bl-field{--bl-label-width:154px}
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-field-description>label{align-items:flex-start;align-content:start;padding-top:11px!important}
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-title-actions>.mw-dialog-close,
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) :is(#mw-cancel,#bl-cancel){
+ background:#b4232c!important;border-color:#b4232c!important;color:#fff!important;
+}
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-title-actions>.mw-dialog-close:hover:not(:disabled),
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) :is(#mw-cancel,#bl-cancel):hover:not(:disabled){background:#941d26!important;border-color:#941d26!important}
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) :is(#mw-cancel,#bl-cancel):disabled{opacity:.5;cursor:wait}
+@media(min-width:481px) and (max-width:760px){
+ dialog.mw-bl-dialog.mw-bl-record-dialog .mw-bl-grid{grid-template-columns:minmax(0,1fr)!important}
+ dialog.mw-bl-dialog.mw-bl-record-dialog .mw-bl-grid>.mw-bl-field{grid-column:1/-1!important;--bl-label-width:154px}
+}
+@media(max-width:480px){
+ dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-field{grid-template-columns:minmax(0,1fr)!important}
+ dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-field>label{border-right:0;border-bottom:1px solid #d7e2dc;border-radius:5px 5px 0 0;padding:6px 9px!important}
+ dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-value-cell{border-radius:0 0 5px 5px;padding:7px 9px}
+}
+@media(max-width:600px){
+ dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog){width:calc(100% - 16px)!important;max-width:calc(100% - 16px)!important}
+ dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-field :is(input,select,textarea){font-size:16px!important;min-height:40px!important}
+}
