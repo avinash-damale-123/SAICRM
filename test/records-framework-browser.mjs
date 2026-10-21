@@ -42,6 +42,26 @@ try{
  const ready=()=>page.waitForFunction(()=>document.querySelector('.mw-results')?.getAttribute('aria-busy')==='false'&&!!document.querySelector('.rf-table'));
  const open=async()=>{await page.locator('[data-nav="businesslines"]').waitFor({state:'attached'});await page.evaluate(()=>document.querySelector('[data-nav="businesslines"]').click());await ready();};
  await page.goto('http://127.0.0.1:4190');await open();
+ // Review round: same live search in the top bar, independent per-view queries.
+ assert.equal(await page.locator('.topbar #crmSearchInput').count(),1);
+ assert.equal(await page.locator('.scrm-workbar #crmSearchInput').count(),0);
+ await page.evaluate(()=>window.__headerSearchNode=document.getElementById('crmSearchInput'));
+ await page.locator('#crmSearchInput').fill('Framework Line 01');
+ await page.waitForFunction(()=>document.querySelector('.mw-results')?.getAttribute('aria-busy')==='false'&&document.querySelectorAll('.rf-table tbody tr').length===1);
+ await page.keyboard.press('Escape');
+ await page.locator('[data-mw="dashboard"]').click();
+ await page.waitForFunction(()=>document.querySelector('[data-mw="dashboard"]')?.getAttribute('aria-current')==='page');
+ assert.equal(await page.locator('#crmSearchInput').inputValue(),'','Overview restores its own search');
+ await page.waitForFunction(()=>getComputedStyle(document.querySelector('[data-mw="dashboard"]')).backgroundColor==='rgb(8, 123, 64)');
+ assert.equal(await page.locator('[data-mw="dashboard"]').evaluate(e=>getComputedStyle(e).backgroundColor),'rgb(8, 123, 64)');
+ await page.locator('[data-mw="home"]').click();
+ await page.waitForFunction(()=>document.querySelector('[data-mw="home"]')?.getAttribute('aria-current')==='page'&&document.querySelector('#crmSearchInput')?.value==='Framework Line 01');
+ await page.waitForFunction(()=>getComputedStyle(document.querySelector('[data-mw="home"]')).backgroundColor==='rgb(8, 123, 64)');
+ assert.equal(await page.locator('[data-mw="home"]').evaluate(e=>getComputedStyle(e).backgroundColor),'rgb(8, 123, 64)');
+ assert.ok(await page.evaluate(()=>window.__headerSearchNode===document.getElementById('crmSearchInput')),'Search handlers stay on the original DOM element');
+ await page.locator('#crmSearchInput').fill('');await page.keyboard.press('Escape');
+ await page.waitForFunction(()=>document.querySelector('.mw-results')?.getAttribute('aria-busy')==='false'&&document.querySelectorAll('.rf-table tbody tr').length===25);
+
  assert.equal(await page.locator('[data-mw="import"]').isVisible(),true,'Import must be a working visible action');
  await page.locator('.mw-settings-menu>summary').click();await page.locator('[data-mw="columns"]').click();await page.locator('[data-preset="all"]').click();assert.equal(await page.locator('[data-column-check]:checked').count(),19);assert.equal(await page.locator('[data-column-check="displayId"]').isDisabled(),true);await page.locator('#rf-save-my').check();await page.locator('[data-rf="apply"]').click();await page.locator('dialog').waitFor({state:'detached'});assert.equal(storedPrefs.myColumns.length,19);
  await page.locator('.rf-read-more').first().click();assert.equal(await page.locator('.rf-expanded:visible').count(),1,'Only one selected description should expand');
