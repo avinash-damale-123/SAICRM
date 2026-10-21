@@ -8,6 +8,7 @@ import {randomBytes} from 'node:crypto';
 import pg from 'pg';
 import {chromium,request} from 'playwright';
 import {configuration,createHandler} from '../server/api.mjs';
+import {processTransfer} from '../server/records-worker.mjs';
 
 // Never run this write-capable fixture harness against production or a remote database.
 const db=new URL(process.env.TEST_DATABASE_URL||'');
@@ -18,7 +19,8 @@ const privateDir=await mkdtemp(join(tmpdir(),'scrm-acceptance-'));
 execFileSync('openssl',['req','-x509','-newkey','rsa:2048','-nodes','-keyout',join(privateDir,'key.pem'),'-out',join(privateDir,'cert.pem'),'-days','1','-subj','/CN=localhost'],{stdio:'ignore'});
 const origin='https://localhost:8445',mail=[],checks=[],browserErrors=[],responses=[];
 const config=configuration({DATABASE_URL:db.href,APP_ORIGIN:origin,TOKEN_SECRET:randomBytes(48).toString('hex'),SMTP_HOST:'smtp.invalid',SMTP_PORT:'587',SMTP_USER:'fixture@example.org',SMTP_PASSWORD:'isolated-fixture-only',EMAIL_FROM:'SCRM Test <fixture@example.org>'});
-const handler=createHandler({pool,config,deliver:async message=>mail.push(message)});
+const pending=new Set();
+const handler=createHandler({pool,config,deliver:async message=>mail.push(message),enqueue:id=>{const task=processTransfer(pool,id,{budgetMs:60000});pending.add(task);task.finally(()=>pending.delete(task));}});
 const publicRoot=resolve('public');
 const headers=JSON.parse(await readFile('vercel.json','utf8')).headers[0].headers;
 const server=createServer({key:await readFile(join(privateDir,'key.pem')),cert:await readFile(join(privateDir,'cert.pem'))},async(req,res)=>{
@@ -62,4 +64,4 @@ try{
  await browserAPI('auth/logout','POST',{});await context.close();context=await browser.newContext({ignoreHTTPSErrors:true});page=await context.newPage();await login(restrictedEmail);const blocked=await context.request.get(origin+'/api/business-lines/configuration');assert.equal(blocked.status(),403);assert.equal((await context.request.get(origin+'/api/business-lines/framework')).status(),403);checks.push('Real restricted-user login cannot bypass module or configuration authorization');
  assert.deepEqual(browserErrors,[]);await writeFile('work/browser/authenticated-postgres-results.json',JSON.stringify({status:'passed',database:'isolated PostgreSQL; no production credentials',checks,apiRequests:responses.length},null,2));console.log('PASS authenticated PostgreSQL browser acceptance: '+checks.length+' checks');
 }catch(error){await mkdir('work/browser',{recursive:true});await writeFile('work/browser/authenticated-postgres-results.json',JSON.stringify({status:'failed',checks,error:error.message},null,2));if(page&&!page.isClosed())await page.screenshot({path:'work/browser/authenticated-postgres-failure.png'}).catch(()=>{});throw error;}
-finally{await browser?.close();await setup.dispose();await new Promise(r=>server.close(r));await pool.end();await rm(privateDir,{recursive:true,force:true});}
+finally{await browser?.close();await setup.dispose();await new Promise(r=>server.close(r));await Promise.allSettled([...pending]);await pool.end();await rm(privateDir,{recursive:true,force:true});}

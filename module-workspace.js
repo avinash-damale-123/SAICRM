@@ -285,6 +285,9 @@ function create(host,config) {
    +'<div class="mw-bl-detail-layout">'+sectionNavigation+'<div class="mw-bl-detail-content">'+(editing?'<form id="mw-bl-page-form" class="mw-bl-form">'+blFormSections(record,'edit')+'<div class="mw-bl-status-reason" hidden><label for="mw-bl-page-reason">Reason for status change <span class="mw-required">*</span></label><textarea id="mw-bl-page-reason" maxlength="500" rows="2"></textarea></div><p class="mw-form-error" role="alert" hidden></p></form>':'<div class="mw-bl-read">'+blFormSections(record,'read')+'</div>')+(permitted('history')?'<section class="mw-bl-section"><details><summary>Audit History <span class="mw-bl-chevron">⌄</span></summary><div class="mw-bl-section-content mw-history">'+(history.length?history.map(h=>'<article><strong>'+esc(h.action)+'</strong> · '+esc(date(h.createdAt))+' · '+esc(h.actor||'System')+(h.reason?' · '+esc(h.reason):'')+'</article>').join(''):'<p>No history available.</p>')+'</div></details></section>':'')+'</div></div>'
    +(editing?'<footer class="mw-bl-page-save"><span>* Required fields</span><div><button type="button" class="mw-btn" id="bl-cancel">Cancel</button><button type="submit" form="mw-bl-page-form" class="mw-btn mw-primary" id="bl-save">Save</button></div></footer>':'');
   const page=blDetail,detailSections=[...page.querySelectorAll('.mw-bl-detail-content .mw-bl-section')];
+  // Keep Back usable when the redundant detail breadcrumb is hidden.
+  if(recordsTools?.enabled){const back=page.querySelector('#bl-back');back.className='mw-btn';back.textContent='Back to Records';page.querySelector('.mw-bl-detail-actions').prepend(back);}
+
   const sectionKey='scrm:bl-sections:'+user.id;
   let savedSections=recordsTools?.sections()||{};if(!recordsTools?.enabled)try{savedSections=JSON.parse(localStorage.getItem(sectionKey)||'{}')||{}}catch{}
   detailSections.slice(0,blGroups.length).forEach((section,index)=>{
