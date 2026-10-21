@@ -1,0 +1,31 @@
+name: Apply verified Business Lines field-row review
+on:
+  push:
+    branches: [ui/business-lines-field-rows-save-close-20261021]
+    paths: [.github/workflows/apply-bl-field-rows.yml]
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: github.ref == 'refs/heads/ui/business-lines-field-rows-save-close-20261021'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ui/business-lines-field-rows-save-close-20261021
+      - name: Fetch and verify reviewed public-source patch
+        run: |
+          curl --fail --silent --show-error --retry 2 --max-time 30 https://sb-21zixu64kyfi.vercel.run/bl-field-rows-6259558a.patch -o /tmp/field-rows.patch
+          echo '6259558a99ac73efe4af60c2697c5f379830fcb867bb650448491725e871d61d  /tmp/field-rows.patch' | sha256sum -c -
+          git apply --check /tmp/field-rows.patch
+          git apply /tmp/field-rows.patch
+          git diff --check
+      - name: Commit only approved source and tests, remove temporary workflow
+        run: |
+          git rm .github/workflows/apply-bl-field-rows.yml
+          git add docs/business-lines-field-rows-save-close.md index.html module-workspace.css module-workspace.js test/business-lines-browser.mjs test/business-lines-modal-browser.mjs test/records-authenticated-browser.mjs
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Business Lines: distinct inline field rows and close on successful save'
+          git push origin HEAD:ui/business-lines-field-rows-save-close-20261021
