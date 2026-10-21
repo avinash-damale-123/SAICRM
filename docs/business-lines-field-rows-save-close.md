@@ -19,3 +19,7 @@ This user-approved review applies to Business Lines Create, Read and Edit. It su
 ## Verification gate
 
 Retain existing API/permission/authenticated-PostgreSQL and browser suites. Test automatic close only on successful writes, persisted values on reopening, stale-write drafts, mandatory reasons, one submission while saving, saved search/sort/page/columns, Overview create, refresh failure without duplicate writes, labels vs value surfaces, inline and stacked alignment, red action contrast, all fields, long values and seven desktop/mobile/landscape sizes. Full CI on Node 22/24 and actual screenshot inspection required before deployment. No migration required.
+
+## Screenshot refinement
+
+The first CI artifact was inspected for desktop Create, Read and Edit. The final refinement widens the label region to 154px so the required marker stays beside Business Line Name, and aligns paired field-card heights. Added explicit paired-field geometry assertions; the focused suite passed locally after refinement. Final-head CI and screenshot review are still required, rather than relying on the earlier artifact.
