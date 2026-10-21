@@ -452,3 +452,8 @@ html.mw-modal-open{overflow:hidden}
  .mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog)>footer .mw-btn{min-width:68px;height:40px}
 }
 @media(prefers-reduced-motion:reduce){.mw-bl-record-dialog *{scroll-behavior:auto!important;transition:none!important}}
+
+/* Restore the section index inside popups and separate section cards. */
+.mw-bl-record-dialog .mw-bl-detail-index{display:flex!important}
+.mw-bl-record-dialog :is(.mw-bl-form,.mw-bl-read){display:grid;grid-template-columns:minmax(0,1fr);gap:9px}
+@media(max-width:600px){.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog){width:calc(100% - 16px)!important;max-width:calc(100% - 16px)!important}}

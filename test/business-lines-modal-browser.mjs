@@ -85,6 +85,7 @@ try{
  await page.locator('#mw-save').click();await modal().waitFor({state:'detached'});await ready();
  assert.equal(requests.filter(r=>r.method==='POST'&&r.path==='business-lines').length,1);checks.push('Create popup: required validation, safe Save, unload warning and return to unchanged Records context');
  await openFirst();await assertModal('read');await assertFields();await page.locator('[data-bl-expand="1"]').click();
+ assert.equal(await page.locator('.mw-bl-detail-index').isVisible(),true);await page.locator('[data-bl-jump="3"]').click();assert.equal(await page.locator('.mw-bl-detail-content .mw-bl-section').nth(3).locator('details').getAttribute('open'),'');await page.locator('.mw-dialog-body').evaluate(el=>el.scrollTop=0);
  assert.equal(await page.locator('.mw-bl-detail-page input,.mw-bl-detail-page textarea,.mw-bl-detail-page select').count(),0,'Read has values, not editable form controls');
  await page.screenshot({path:'work/browser/popup-read-desktop.png'});
  const originalDialog=await modal().evaluate(d=>{window.__recordPopup=d;return true});
