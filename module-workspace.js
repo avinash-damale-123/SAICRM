@@ -10,7 +10,7 @@ function create(host,config) {
  let prefs={columns:defaults,freeze:true,pageSize:25};
  try{const p=JSON.parse(localStorage.getItem(storageKey));if(p&&Array.isArray(p.columns)){prefs.columns=[...new Set([...allColumns.filter(c=>c.locked).map(c=>c.key),...p.columns.filter(k=>allColumns.some(c=>c.key===k&&!c.locked))])];prefs.freeze=p.freeze!==false;if([25,50,75,100].includes(p.pageSize))prefs.pageSize=p.pageSize}}catch{}
  const state={q:'',status:'all',archived:'exclude',filters:[],sort:'updatedAt',direction:'desc',page:1,pageSize:prefs.pageSize,records:[],total:0,totalPages:1,counts:null,owners:[],limits:{selectedExport:250},selected:new Set(),loading:true,error:'',message:'',view:'home',filtersOpen:false,permissions:{},permissionsKnown:false};
- let dead=false,sequence=0,timer=null,dialog=null,dialogDirty=null,dialogSaving=false,previousFocus=null,moduleHeader=null,headerRestore=null,blDetail=null,blDraft=null,blBusy=false,blRecord=null,blRecordMode='read',recordsTools=null;
+ let dead=false,sequence=0,timer=null,dialog=null,dialogDirty=null,dialogSaving=false,previousFocus=null,moduleHeader=null,headerRestore=null,blDetail=null,blDraft=null,blBusy=false,blRecord=null,blRecordMode='read',blLoadSequence=0,dialogReturnTarget=null,recordsTools=null;
  const find=selector=>host.querySelector(selector)||moduleHeader?.querySelector(selector);
  const permitted=action=>state.permissions[action]===true;
  const visibleColumns=()=>prefs.columns.map(k=>allColumns.find(c=>c.key===k)).filter(Boolean);
@@ -152,8 +152,57 @@ function create(host,config) {
  host.addEventListener('pointerup',()=>{if(!resizing)return;resizing=null;try{localStorage.setItem(columnWidthKey,JSON.stringify(columnWidths))}catch{}});
  host.addEventListener('keydown',event=>{const grip=event.target.closest('[data-resize]');if(!grip||!['ArrowLeft','ArrowRight'].includes(event.key))return;event.preventDefault();const th=grip.closest('th');const width=Math.min(650,Math.max(90,Math.round(th.getBoundingClientRect().width+(event.key==='ArrowRight'?16:-16))));columnWidths[grip.dataset.resize]=width;try{localStorage.setItem(columnWidthKey,JSON.stringify(columnWidths))}catch{}render()});
  function change(event){if(event.target.id==='mw-page-size'){state.pageSize=Number(event.target.value);prefs.pageSize=state.pageSize;savePrefs();state.page=1;load()}if(event.target.id==='mw-select-page'){state.records.forEach(r=>event.target.checked?state.selected.add(r.id):state.selected.delete(r.id));render()}if(event.target.matches('[data-select]')){event.target.checked?state.selected.add(event.target.dataset.select):state.selected.delete(event.target.dataset.select);render()}}
- function closeDialog(force=false){if(!dialog)return true;if(!force&&(dialogSaving||(dialogDirty&&dialogDirty()&&!window.confirm('Discard your unsaved changes?'))))return false;dialog.close();dialog.remove();document.documentElement.classList.remove('mw-modal-open');dialog=null;dialogDirty=null;dialogSaving=false;previousFocus?.focus();return true}
- function openDialog(title,body,footer='',wide=false){if(dead||!closeDialog())return null;previousFocus=document.activeElement;if(previousFocus?.closest('.mw-settings-menu'))previousFocus=previousFocus.closest('.mw-settings-menu').querySelector('summary');dialog=document.createElement('dialog');dialog.className='mw-dialog'+(wide?' mw-dialog-wide':'')+(config.key==='business-lines'?' mw-bl-dialog':'');dialog.setAttribute('aria-labelledby','mw-dialog-title');dialog.innerHTML='<header><div><p class="mw-eyebrow">'+esc(config.title)+'</p><h2 id="mw-dialog-title">'+esc(title)+'</h2></div><button type="button" class="mw-icon-btn mw-dialog-close" aria-label="Close">'+icon('close')+'</button></header><div class="mw-dialog-body">'+body+'</div>'+(footer?'<footer>'+footer+'</footer>':'');document.body.append(dialog);dialog.querySelector('.mw-dialog-close').onclick=()=>closeDialog();dialog.addEventListener('cancel',e=>{e.preventDefault();closeDialog()});let backdropPointer=false;const onBackdrop=e=>{const r=dialog.getBoundingClientRect();return e.target===dialog&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)};dialog.addEventListener('pointerdown',e=>{backdropPointer=onBackdrop(e)});dialog.addEventListener('click',e=>{const dismiss=backdropPointer&&onBackdrop(e);backdropPointer=false;if(dismiss)closeDialog()});dialog.showModal();document.documentElement.classList.add('mw-modal-open');return dialog}
+ function hasUnsavedDialog(){return !!((dialogDirty&&dialogDirty())||(blDraft&&blDraft.dataset.dirty==='true'));}
+ function beforeDialogUnload(event){if(dialog&&(dialogSaving||blBusy||hasUnsavedDialog())){event.preventDefault();event.returnValue='';}}
+ window.addEventListener('beforeunload',beforeDialogUnload);
+ function restoreDialogFocus(){
+  let target=previousFocus;
+  if(!target?.isConnected||!target.getClientRects().length){
+   target=null;
+   if(dialogReturnTarget){const {id,action}=dialogReturnTarget;target=[...host.querySelectorAll('[data-id]')].find(el=>el.dataset.id===id&&el.dataset.mw===action&&el.getClientRects().length);}
+   target=target||moduleHeader?.querySelector('[aria-current="page"]')||moduleHeader?.querySelector('[data-mw="create"]')||host;
+  }
+  target?.focus({preventScroll:true});
+ }
+ function closeDialog(force=false){
+  if(!dialog)return true;
+  if(!force&&(dialogSaving||blBusy||(hasUnsavedDialog()&&!window.confirm('Discard your unsaved changes?'))))return false;
+  const closing=dialog;dialog=null;dialogDirty=null;dialogSaving=false;blBusy=false;
+  ++blLoadSequence;blDetail=null;blDraft=null;blRecord=null;blRecordMode='read';
+  closing.close();closing.remove();document.documentElement.classList.remove('mw-modal-open');restoreDialogFocus();return true;
+ }
+ function openDialog(title,body,footer='',wide=false){
+  if(dead||!closeDialog())return null;
+  previousFocus=document.activeElement;
+  const opener=previousFocus?.closest('[data-id]');dialogReturnTarget=opener?{id:opener.dataset.id,action:opener.dataset.mw}:null;
+  if(previousFocus?.closest('.mw-settings-menu'))previousFocus=previousFocus.closest('.mw-settings-menu').querySelector('summary');
+  const d=document.createElement('dialog');dialog=d;
+  d.className='mw-dialog'+(wide?' mw-dialog-wide':'')+(config.key==='business-lines'?' mw-bl-dialog':'');
+  d.setAttribute('aria-labelledby','mw-dialog-title');d.setAttribute('aria-modal','true');
+  d.innerHTML='<header><div><p class="mw-eyebrow">'+esc(config.title)+'</p><h2 id="mw-dialog-title" tabindex="-1">'+esc(title)+'</h2></div><button type="button" class="mw-icon-btn mw-dialog-close" aria-label="Close">'+icon('close')+'</button></header><div class="mw-dialog-body">'+body+'</div>'+(footer?'<footer>'+footer+'</footer>':'');
+  document.body.append(d);d.querySelector('.mw-dialog-close').onclick=()=>closeDialog();
+  d.addEventListener('cancel',e=>{e.preventDefault();closeDialog()});
+  d.addEventListener('keydown',event=>{
+   if(event.key==='Escape')event.stopPropagation();
+   if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='k'){event.preventDefault();event.stopPropagation();return;}
+   if(event.key!=='Tab')return;
+   const items=[...d.querySelectorAll('button,input,select,textarea,a[href],summary,[tabindex]')].filter(el=>el.tabIndex>=0&&!el.disabled&&el.getClientRects().length&&!el.closest('[hidden]'));
+   const first=items[0],last=items.at(-1),active=document.activeElement;
+   if(!first){event.preventDefault();d.querySelector('#mw-dialog-title').focus();}
+   else if(event.shiftKey&&(active===first||!items.includes(active))){event.preventDefault();last.focus();}
+   else if(!event.shiftKey&&(active===last||!items.includes(active))){event.preventDefault();first.focus();}
+  });
+  let backdropPointer=false;
+  const onBackdrop=e=>{const r=d.getBoundingClientRect();return e.target===d&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)};
+  d.addEventListener('pointerdown',e=>{backdropPointer=onBackdrop(e);
+   // A footer click must not be displaced by blur validation recentering the modal.
+   // Keyboard focus is unaffected; validation still runs on blur and submit.
+   if(e.button===0&&e.target.closest('footer button,.mw-dialog-close'))e.preventDefault();
+  });
+  d.addEventListener('pointercancel',()=>{backdropPointer=false});
+  d.addEventListener('click',e=>{const dismiss=backdropPointer&&onBackdrop(e);backdropPointer=false;if(dismiss)closeDialog()});
+  d.showModal();document.documentElement.classList.add('mw-modal-open');return d;
+ }
 
  function blValue(record,key){
   const value=record?.[key];
@@ -174,11 +223,12 @@ function create(host,config) {
   const value=mode==='create'?'':blValue(record,key),shown=value==='—'?'':value;
   const required=editable&&['name','code'].includes(key)&&!(key==='code'&&mode==='edit'&&!record?.code),full=key==='description';
   const limit={name:150,code:20,description:500}[key];
-  const attrs=editable?(' name="'+esc(key)+'"'+(required?' required':'')+(limit?' maxlength="'+limit+'"':'')):' readonly aria-readonly="true"';
-  let control=key==='status'&&editable?'<select name="status" aria-label="Business Line Status"><option value="Active"'+(shown==='Active'?' selected':'')+'>Active</option><option value="Inactive"'+(shown==='Inactive'?' selected':'')+'>Inactive</option></select>':full?'<textarea rows="2"'+attrs+'>'+esc(shown)+'</textarea>':'<input type="text"'+attrs+' value="'+esc(shown)+'"'+(editable?' autocomplete="off"':'')+'>';
+  const controlId='mw-bl-'+mode+'-'+key;
+ const attrs=editable?(' id="'+controlId+'" name="'+esc(key)+'"'+(required?' required':'')+(limit?' maxlength="'+limit+'"':'')):' readonly aria-readonly="true"';
+  let control=key==='status'&&editable?'<select id="'+controlId+'" name="status" aria-label="Business Line Status"><option value="Active"'+(shown==='Active'?' selected':'')+'>Active</option><option value="Inactive"'+(shown==='Inactive'?' selected':'')+'>Inactive</option></select>':full?'<textarea rows="2"'+attrs+'>'+esc(shown)+'</textarea>':'<input type="text"'+attrs+' value="'+esc(shown)+'"'+(editable?' autocomplete="off"':'')+'>';
   if(mode==='read'||mode==='edit'&&!editable)control='<div class="mw-bl-read-value'+(full?' mw-bl-read-description':'')+'" aria-readonly="true">'+esc(value)+'</div>';
   const hint=editable&&key==='status'?'<small class="mw-bl-hint">Changing status requires a reason and may be blocked when records depend on this line.</small>':editable&&key==='code'?'<small class="mw-bl-hint">Uppercase letters, digits and hyphens; maximum 20 characters.</small>':editable&&key==='description'?'<small class="mw-bl-hint">Maximum 500 characters. <span data-count-for="description">'+shown.length+'</span> / 500</small>':'';
-  return '<div class="mw-bl-field mw-bl-field-'+esc(key)+(full?' mw-bl-full':'')+'"><label>'+esc(label)+(required?' <span class="mw-required">*</span>':'')+'</label>'+control+hint+'</div>';
+  return '<div class="mw-bl-field mw-bl-field-'+esc(key)+(full?' mw-bl-full':'')+'"><label'+(editable?' for="'+controlId+'"':'')+'>'+esc(label)+(required?' <span class="mw-required">*</span>':'')+'</label>'+control+hint+'</div>';
  }
  function blFormSections(record,mode){
   if(mode==='create'){
@@ -210,6 +260,7 @@ function create(host,config) {
  return label+'<input '+attrs+'type="'+esc(f.type||'text')+'" autocomplete="off" value="'+esc(value)+'"></label>'};
  const body=config.key==='business-lines'?'<form id="mw-record-form" class="mw-bl-form">'+blFormSections(record,editing?'edit':'create')+(editing?'<div class="mw-bl-status-reason" hidden><label for="mw-bl-status-reason">Reason for status change <span class="mw-required">*</span></label><textarea id="mw-bl-status-reason" maxlength="500" rows="2" placeholder="Explain why the status is changing"></textarea><small>Required only when changing Active / Inactive.</small></div>':'')+'<p class="mw-form-error" role="alert" hidden></p></form>':'<form id="mw-record-form"><p class="mw-form-intro">'+(editing?'Update details. Record identifiers and audit fields are protected.':'Create this record. The record owner will be you.')+'</p><h3>Basic information</h3><div class="mw-form-grid">'+fields.map(fieldHTML).join('')+'</div>'+(editing?'<h3>System information</h3><dl class="mw-details-grid"><div><dt>'+esc(allColumns.find(c=>c.key==='displayId')?.label||'Record ID')+'</dt><dd>'+esc(record.displayId)+'</dd></div><div><dt>Last modified</dt><dd>'+esc(date(record.updatedAt))+'</dd></div></dl>':'')+'<p class="mw-form-error" role="alert" hidden></p></form>';
  const d=openDialog(config.key==='business-lines'?(editing?'Edit Business Line':'New Business Line'):(editing?'Edit ':'Create ')+config.singular,body,'<button type="button" class="mw-btn" id="mw-cancel">Cancel</button><button type="submit" form="mw-record-form" class="mw-btn mw-primary" id="mw-save">'+(config.key==='business-lines'?'Save':editing?'Save changes':'Create '+esc(config.singular))+'</button>');if(!d)return;
+ if(config.key==='business-lines')d.classList.add('mw-bl-create-dialog');
  const form=d.querySelector('form'),base=formValues(form);dialogDirty=()=>formValues(form)!==base;recordsTools?.wireForm(form);
  if(config.key==='business-lines'){wireBlSections(d);form.addEventListener('invalid',event=>{const section=event.target.closest('.mw-bl-section details');if(section)section.open=true},true);if(editing){const status=form.querySelector('[name="status"]'),reasonWrap=form.querySelector('.mw-bl-status-reason'),reasonField=form.querySelector('#mw-bl-status-reason');const sync=()=>{const changed=status?.value!==record.status;reasonWrap.hidden=!changed;reasonField.required=changed;if(!changed)reasonField.value='';};status?.addEventListener('change',sync);sync()}}
  d.querySelector('#mw-cancel').onclick=()=>closeDialog();
@@ -224,9 +275,10 @@ function create(host,config) {
   }
  }
  const missing=fields.find(f=>f.required&&!body[f.key]);if(missing){error.textContent='Enter '+missing.label.toLowerCase()+'.';error.hidden=false;form.elements[missing.key].focus();return}
- dialogSaving=true;d.querySelector('#mw-save').disabled=true;d.querySelector('#mw-save').textContent='Saving…';
+ const saveControls=[...d.querySelectorAll('input,select,textarea,button')].map(el=>[el,el.disabled]);
+ dialogSaving=true;d.setAttribute('aria-busy','true');saveControls.forEach(([el])=>el.disabled=true);d.querySelector('#mw-save').textContent='Saving…';
  try{await api(config.endpoint+(editing?'/'+encodeURIComponent(record.id):''),editing?'PUT':'POST',body);if(dead||dialog!==d)return;dialogSaving=false;closeDialog(true);announce(config.singular+(editing?' updated.':' created.'));await load()}
- catch(e){if(dead||dialog!==d)return;dialogSaving=false;error.textContent=e.message;error.hidden=false;d.querySelector('#mw-save').disabled=false;d.querySelector('#mw-save').textContent=config.key==='business-lines'?'Save':editing?'Save changes':'Create '+config.singular;error.scrollIntoView({block:'nearest'})}
+ catch(e){if(dead||dialog!==d)return;dialogSaving=false;d.removeAttribute('aria-busy');saveControls.forEach(([el,disabled])=>el.disabled=disabled);error.textContent=e.message;error.hidden=false;d.querySelector('#mw-save').disabled=false;d.querySelector('#mw-save').textContent=config.key==='business-lines'?'Save':editing?'Save changes':'Create '+config.singular;error.scrollIntoView({block:'nearest'})}
  };
  form.querySelector('input:not([readonly]),select,textarea')?.focus();
  }
@@ -239,117 +291,113 @@ function create(host,config) {
 
 
 
- // Dedicated Business Lines record workspace. Uses the same nineteen approved
- // fields as the existing dialogs, without changing backend authorization.
- function leaveBlAllowed(){
-  if(blBusy)return false;
-  if(!blDraft)return true;
-  if(blDraft.dataset.dirty==='true'&&!window.confirm('Discard your unsaved changes?'))return false;
-  return true;
+ // Create, Read and Edit share the native modal service. The Records/Overview
+ // workspace remains mounted behind it, preserving query, selection and scroll.
+ function leaveBlAllowed(){return !blBusy&&!(blDraft?.dataset.dirty==='true'&&!window.confirm('Discard your unsaved changes?'));}
+ function closeBlRecord(force=false){return !blDetail||closeDialog(force);}
+ function blAuditMarkup(history){
+  if(history===null)return '<p role="status">Loading audit history...</p>';
+  return history.length?history.map(h=>'<article><strong>'+esc(h.action)+'</strong> &middot; '+esc(date(h.createdAt))+' &middot; '+esc(h.actor||'System')+(h.reason?' &middot; '+esc(h.reason):'')+'</article>').join(''):'<p>No history available.</p>';
  }
- function closeBlRecord(){
-  if(!blDetail)return true;
-  if(!leaveBlAllowed())return false;
-  blDetail.remove();blDetail=null;blDraft=null;blRecord=null;blRecordMode='read';
-  host.querySelector('.mw-workspace').hidden=false;
-  if(moduleHeader)moduleHeader.hidden=false;
-  host.classList.remove('mw-bl-detail-active');
-  return true;
+ async function refreshBlAudit(d,id){
+  if(!permitted('history'))return;
+  try{const result=await api(config.endpoint+'/'+encodeURIComponent(id)+'/history');
+   if(dead||dialog!==d||blRecord?.id!==id)return;
+   d.querySelector('[data-bl-history]')?.replaceChildren();
+   const area=d.querySelector('[data-bl-history]');if(area)area.innerHTML=blAuditMarkup(result.history||[]);
+  }catch(e){if(dead||dialog!==d||blRecord?.id!==id)return;const area=d.querySelector('[data-bl-history]');if(area){area.innerHTML='<p role="status">Audit history could not be loaded. Record details are still available.</p><button type="button" class="mw-btn" data-audit-retry>Retry history</button>';area.querySelector('[data-audit-retry]').onclick=()=>refreshBlAudit(d,id);}}
  }
- async function openBlRecord(id,startEdit=false){
+ async function openBlRecord(id,startEdit=false,discardChecked=false){
   if(dead||!permitted('read')||(startEdit&&!permitted('edit')))return;
-  if(blDetail&&!closeBlRecord())return;
-  const page=document.createElement('section');page.className='mw-bl-detail-page';
-  page.setAttribute('aria-label','Business Line record details');page.innerHTML='<div class="mw-state"><span class="mw-spinner"></span> Loading record…</div>';
-  blDetail=page;host.append(page);host.querySelector('.mw-workspace').hidden=true;
-  if(moduleHeader)moduleHeader.hidden=true;
-  host.classList.add('mw-bl-detail-active');
-  try{
-   const [{record},audit]=await Promise.all([api(config.endpoint+'/'+encodeURIComponent(id)),permitted('history')?api(config.endpoint+'/'+encodeURIComponent(id)+'/history'):Promise.resolve({history:[]})]);
-   if(dead||blDetail!==page)return;
-   blRecord=record;
-   renderBlRecordPage(record,startEdit?'edit':'read',audit.history||[]);
-  }catch(e){if(blDetail===page)page.innerHTML='<p class="mw-form-error" role="alert">'+esc(e.message)+'</p><button type="button" class="mw-btn" id="bl-back">Back to Records</button>';page.querySelector('#bl-back')?.addEventListener('click',()=>closeBlRecord())}
+  let d=dialog;
+  if(blDetail){if(!discardChecked&&!leaveBlAllowed())return;blDraft=null;dialogDirty=null;}
+  else{
+   d=openDialog(startEdit?'Edit Business Line':'View Business Line','','<button type="button" class="mw-btn" id="bl-back">Close</button>',true);
+   if(!d)return;d.classList.add('mw-bl-record-dialog');
+  }
+  const request=++blLoadSequence;
+  const page=document.createElement('section');page.className='mw-bl-detail-page';page.setAttribute('aria-label','Business Line record details');
+  page.innerHTML='<div class="mw-state" role="status"><span class="mw-spinner"></span> Loading record...</div>';
+  blDetail=page;blRecord=null;d.querySelector('.mw-dialog-body').replaceChildren(page);
+  d.querySelector('footer').innerHTML='<button type="button" class="mw-btn" id="bl-back">Close</button>';d.querySelector('#bl-back').onclick=()=>closeDialog();
+  d.querySelector('#mw-dialog-title').textContent=startEdit?'Edit Business Line':'View Business Line';d.querySelector('#mw-dialog-title').focus({preventScroll:true});
+  try{const {record}=await api(config.endpoint+'/'+encodeURIComponent(id));
+   if(dead||dialog!==d||request!==blLoadSequence)return;
+   renderBlRecordPage(record,startEdit?'edit':'read');refreshBlAudit(d,record.id);
+  }catch(e){if(dead||dialog!==d||request!==blLoadSequence)return;page.innerHTML='<div class="mw-state"><p class="mw-form-error" role="alert">'+esc(e.message)+'</p><button type="button" class="mw-btn" data-bl-retry>Try again</button></div>';page.querySelector('[data-bl-retry]').onclick=()=>openBlRecord(id,startEdit);}
  }
- function renderBlRecordPage(record,mode='read',history=[]){
-  if(!blDetail)return;
-  blRecord=record;blRecordMode=mode;blDraft=null;
+ function renderBlRecordPage(record,mode='read'){
+  if(!blDetail||!dialog)return;
+  const d=dialog,page=blDetail;blRecord=record;blRecordMode=mode;blDraft=null;dialogDirty=null;
   const editing=mode==='edit'&&permitted('edit')&&!record.archivedAt&&!record.deletedAt;
-  const order=state.records.findIndex(r=>r.id===record.id),previous=order>0?state.records[order-1]:null,next=order>=0&&order<state.records.length-1?state.records[order+1]:null,hasPrevious=!!previous||order===0&&state.page>1,hasNext=!!next||order===state.records.length-1&&state.page<state.totalPages;
-  const status=record.archivedAt?'Archived':record.status;
-  const sectionNavigation='<nav class="mw-bl-detail-index" aria-label="Jump to section"><span>Sections</span>'+blGroups.map((g,i)=>'<button type="button" data-bl-jump="'+i+'">'+esc(g.name)+'</button>').join('')+'</nav>';
-  blDetail.innerHTML='<div class="mw-bl-detail-breadcrumb"><button type="button" id="bl-back">'+esc(config.title)+'</button><span>›</span><span>'+esc(record.displayId||record.name)+'</span></div>'
-   +'<header class="mw-bl-detail-heading"><div><h2>'+esc(record.name)+'</h2><div class="mw-bl-detail-meta"><span>'+esc(record.displayId||'')+'</span><span class="mw-status '+(status==='Active'?'mw-active':'mw-inactive')+'">'+esc(status)+'</span>'+(editing?'<span class="mw-bl-edit-tag">Editing</span>':'')+'</div></div>'
-   +'<div class="mw-bl-detail-actions"><button type="button" class="mw-btn" data-bl-prev'+(!hasPrevious?' disabled':'')+'>‹ Previous</button><button type="button" class="mw-btn" data-bl-next'+(!hasNext?' disabled':'')+'>Next ›</button>'+(!editing&&permitted('edit')&&!record.archivedAt&&!record.deletedAt?'<button type="button" class="mw-btn mw-primary" id="bl-edit">Edit</button>':'')+'</div></header>'
+  const editable=permitted('edit')&&!record.archivedAt&&!record.deletedAt;
+  d.dataset.recordMode=editing?'edit':'read';d.querySelector('#mw-dialog-title').textContent=editing?'Edit Business Line':'View Business Line';
+  const index=state.records.findIndex(r=>r.id===record.id),previous=index>0?state.records[index-1]:null,next=index>=0&&index<state.records.length-1?state.records[index+1]:null;
+  const hasPrevious=!!previous||index===0&&state.page>1,hasNext=!!next||index>=0&&index===state.records.length-1&&state.page<state.totalPages;
+  const status=record.deletedAt?'Deleted':record.archivedAt?'Archived':record.status;
+  page.innerHTML='<header class="mw-bl-detail-heading"><div><h2>'+esc(record.name)+'</h2><div class="mw-bl-detail-meta"><span>'+esc(record.displayId||'')+'</span><span class="mw-status '+(status==='Active'?'mw-active':'mw-inactive')+'">'+esc(status)+'</span></div></div><div class="mw-bl-detail-actions"><button type="button" class="mw-btn" data-bl-prev'+(!hasPrevious?' disabled':'')+'>Previous</button><button type="button" class="mw-btn" data-bl-next'+(!hasNext?' disabled':'')+'>Next</button></div></header>'
+   +'<p class="mw-bl-record-notice" role="status" hidden></p>'
    +'<div class="mw-bl-detail-tools"><span>Details</span><button type="button" data-bl-expand="1">Expand all</button><button type="button" data-bl-expand="0">Collapse all</button></div>'
-   +'<div class="mw-bl-detail-layout">'+sectionNavigation+'<div class="mw-bl-detail-content">'+(editing?'<form id="mw-bl-page-form" class="mw-bl-form">'+blFormSections(record,'edit')+'<div class="mw-bl-status-reason" hidden><label for="mw-bl-page-reason">Reason for status change <span class="mw-required">*</span></label><textarea id="mw-bl-page-reason" maxlength="500" rows="2"></textarea></div><p class="mw-form-error" role="alert" hidden></p></form>':'<div class="mw-bl-read">'+blFormSections(record,'read')+'</div>')+(permitted('history')?'<section class="mw-bl-section"><details><summary>Audit History <span class="mw-bl-chevron">⌄</span></summary><div class="mw-bl-section-content mw-history">'+(history.length?history.map(h=>'<article><strong>'+esc(h.action)+'</strong> · '+esc(date(h.createdAt))+' · '+esc(h.actor||'System')+(h.reason?' · '+esc(h.reason):'')+'</article>').join(''):'<p>No history available.</p>')+'</div></details></section>':'')+'</div></div>'
-   +(editing?'<footer class="mw-bl-page-save"><span>* Required fields</span><div><button type="button" class="mw-btn" id="bl-cancel">Cancel</button><button type="submit" form="mw-bl-page-form" class="mw-btn mw-primary" id="bl-save">Save</button></div></footer>':'');
-  const page=blDetail,detailSections=[...page.querySelectorAll('.mw-bl-detail-content .mw-bl-section')];
-  // Keep Back usable when the redundant detail breadcrumb is hidden.
-  if(recordsTools?.enabled){const back=page.querySelector('#bl-back');back.className='mw-btn';back.textContent='Back to Records';page.querySelector('.mw-bl-detail-actions').prepend(back);}
-
+   +'<div class="mw-bl-detail-layout"><nav class="mw-bl-detail-index" aria-label="Jump to section">'+blGroups.map((g,i)=>'<button type="button" data-bl-jump="'+i+'">'+esc(g.name)+'</button>').join('')+'</nav><div class="mw-bl-detail-content">'
+   +(editing?'<form id="mw-bl-page-form" class="mw-bl-form">'+blFormSections(record,'edit')+'<div class="mw-bl-status-reason" hidden><label for="mw-bl-page-reason">Reason for status change <span class="mw-required">*</span></label><textarea id="mw-bl-page-reason" name="lifecycleReason" maxlength="500" rows="2"></textarea></div><p class="mw-form-error" role="alert" hidden></p></form>':'<div class="mw-bl-read">'+blFormSections(record,'read')+'</div>')
+   +(permitted('history')?'<section class="mw-bl-section"><details><summary>Audit History <span class="mw-bl-chevron" aria-hidden="true">&#8964;</span></summary><div class="mw-bl-section-content mw-history" data-bl-history>'+blAuditMarkup(null)+'</div></details></section>':'')+'</div></div>';
+  const footer=d.querySelector('footer');
+  footer.innerHTML='<button type="button" class="mw-btn" id="bl-back">Close</button>'+(editing?'<span class="mw-bl-footer-hint">* Required fields</span><button type="button" class="mw-btn mw-bl-cancel" id="bl-cancel">Cancel</button><button type="submit" form="mw-bl-page-form" class="mw-btn mw-primary" id="bl-save">Save</button>':editable?'<button type="button" class="mw-btn mw-primary" id="bl-edit">Edit</button>':'');
+  footer.querySelector('#bl-back').onclick=()=>closeDialog();
+  footer.querySelector('#bl-edit')?.addEventListener('click',()=>{renderBlRecordPage(record,'edit');refreshBlAudit(d,record.id)});
+  footer.querySelector('#bl-cancel')?.addEventListener('click',()=>{if(leaveBlAllowed()){renderBlRecordPage(record,'read');refreshBlAudit(d,record.id)}});
+  const sections=[...page.querySelectorAll('.mw-bl-detail-content .mw-bl-section')];
   const sectionKey='scrm:bl-sections:'+user.id;
-  let savedSections=recordsTools?.sections()||{};if(!recordsTools?.enabled)try{savedSections=JSON.parse(localStorage.getItem(sectionKey)||'{}')||{}}catch{}
-  detailSections.slice(0,blGroups.length).forEach((section,index)=>{
-   const details=section.querySelector('details'),name=blGroups[index].name;
-   if(typeof savedSections[name]==='boolean')details.open=savedSections[name];
-   details.addEventListener('toggle',()=>{if(blDetail!==page)return;try{
-    const all=Object.fromEntries(detailSections.slice(0,blGroups.length).map((item,i)=>[blGroups[i].name,item.querySelector('details').open]));
-    localStorage.setItem(sectionKey,JSON.stringify(all));for(const [key,open]of Object.entries(all))recordsTools?.section(key,open);
-   }catch{}});
+  let saved=recordsTools?.sections()||{};if(!recordsTools?.enabled)try{saved=JSON.parse(localStorage.getItem(sectionKey)||'{}')||{}}catch{}
+  sections.slice(0,blGroups.length).forEach((section,i)=>{const details=section.querySelector('details'),name=blGroups[i].name;
+   if(typeof saved[name]==='boolean')details.open=saved[name];
+   details.addEventListener('toggle',()=>{if(!section.isConnected||dialog!==d)return;try{const all=Object.fromEntries(sections.slice(0,blGroups.length).map((item,j)=>[blGroups[j].name,item.querySelector('details').open]));localStorage.setItem(sectionKey,JSON.stringify(all));for(const [key,open]of Object.entries(all))recordsTools?.section(key,open);}catch{}});
   });
-  page.querySelector('#bl-back').onclick=()=>closeBlRecord();
+  page.querySelectorAll('[data-bl-expand]').forEach(b=>b.onclick=()=>sections.forEach(section=>{section.querySelector('details').open=b.dataset.blExpand==='1'}));
+  page.querySelectorAll('[data-bl-jump]').forEach(b=>b.onclick=()=>{const section=sections[Number(b.dataset.blJump)];if(section){section.querySelector('details').open=true;section.scrollIntoView({block:'start',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});section.querySelector('summary').focus({preventScroll:true})}});
+  page.querySelectorAll('.mw-bl-section-tools').forEach(el=>el.remove());
   const navigate=async direction=>{
+   if(!leaveBlAllowed())return;
    const adjacent=direction<0?previous:next;
-   if(adjacent){openBlRecord(adjacent.id);return}
-   const newPage=state.page+(direction<0?-1:1);
-   if(newPage<1||newPage>state.totalPages||!leaveBlAllowed())return;
-   const searchParams=new URLSearchParams(params());searchParams.set('page',String(newPage));
-   const prevPage=state.page,prevRecords=state.records;
-   try{
-    const result=await api(config.endpoint+'?'+searchParams.toString());
-    if(dead||blDetail!==page||result.permissions?.read!==true||!result.records?.length)return;
-    const nextRecord=direction<0?result.records[result.records.length-1]:result.records[0];
-    state.page=newPage;state.records=result.records;
-    await openBlRecord(nextRecord.id);
-    render();
-   }catch(e){state.page=prevPage;state.records=prevRecords;announce('Unable to load adjacent records: '+e.message)}
+   if(adjacent){await openBlRecord(adjacent.id,false,true);return;}
+   const nextPage=state.page+(direction<0?-1:1);if(nextPage<1||nextPage>state.totalPages)return;
+   const request=++blLoadSequence;
+   page.querySelectorAll('[data-bl-prev],[data-bl-next]').forEach(b=>b.disabled=true);
+   try{const query=new URLSearchParams(params());query.set('page',String(nextPage));const result=await api(config.endpoint+'?'+query.toString());
+    if(dead||dialog!==d||request!==blLoadSequence)return;
+    if(result.permissions?.read!==true||!result.records?.length)throw Error('Adjacent records are no longer available. Close and review the current results.');
+    state.page=nextPage;state.records=result.records;state.total=result.total;state.totalPages=result.totalPages;
+    await openBlRecord((direction<0?result.records.at(-1):result.records[0]).id,false,true);render();
+   }catch(e){if(dialog!==d||request!==blLoadSequence)return;const notice=page.querySelector('.mw-bl-record-notice');notice.textContent=e.message;notice.hidden=false;page.querySelector('[data-bl-prev]').disabled=!hasPrevious;page.querySelector('[data-bl-next]').disabled=!hasNext;}
   };
-  page.querySelector('[data-bl-prev]').onclick=()=>navigate(-1);
-  page.querySelector('[data-bl-next]').onclick=()=>navigate(1);
-  page.querySelector('#bl-edit')?.addEventListener('click',()=>renderBlRecordPage(record,'edit',history));
-  page.querySelector('#bl-cancel')?.addEventListener('click',()=>{if(leaveBlAllowed())renderBlRecordPage(record,'read',history)});
-  page.querySelectorAll('[data-bl-expand]').forEach(b=>b.onclick=()=>detailSections.forEach(section=>{section.querySelector('details').open=b.dataset.blExpand==='1'}));
-  page.querySelectorAll('[data-bl-jump]').forEach(b=>b.onclick=()=>{const section=detailSections[Number(b.dataset.blJump)];if(section){section.querySelector('details').open=true;section.scrollIntoView({block:'start',behavior:'smooth'})}});
-  // Display only the page-level expand/collapse controls, not duplicate field-list controls.
-  page.querySelectorAll('.mw-bl-detail-content>.mw-bl-read>.mw-bl-section-tools,.mw-bl-detail-content>form>.mw-bl-section-tools').forEach(el=>el.remove());
-  if(!editing)return;
+  page.querySelector('[data-bl-prev]').onclick=()=>navigate(-1);page.querySelector('[data-bl-next]').onclick=()=>navigate(1);
+  d.querySelector('.mw-dialog-body').scrollTop=0;
+  if(!editing){d.querySelector('#mw-dialog-title').focus({preventScroll:true});return;}
   const form=page.querySelector('#mw-bl-page-form');blDraft=form;recordsTools?.wireForm(form);
-  const baseline=formValues(form);
-  const mark=()=>{form.dataset.dirty=String(formValues(form)!==baseline)};
+  const baseline=formValues(form),mark=()=>{form.dataset.dirty=String(formValues(form)!==baseline)};
   form.addEventListener('input',mark);form.addEventListener('change',mark);
   const code=form.elements.code;if(code)code.addEventListener('input',()=>{const caret=code.selectionStart;code.value=code.value.toUpperCase();code.setSelectionRange(caret,caret);mark()});
-  const statusField=form.elements.status,reason=page.querySelector('#mw-bl-page-reason'),reasonWrap=reason.parentElement;
-  const syncStatus=()=>{const changed=statusField.value!==record.status;reasonWrap.hidden=!changed;reason.required=changed;if(!changed)reason.value='';mark()};
-  statusField?.addEventListener('change',syncStatus);syncStatus();
-  form.querySelectorAll('input,select,textarea').forEach(field=>{
-   field.addEventListener('blur',()=>{if(field.willValidate&&!field.checkValidity()){const section=field.closest('details');if(section)section.open=true;}},true);
-  });
+  const description=form.elements.description;description?.addEventListener('input',()=>{const count=form.querySelector('[data-count-for="description"]');if(count)count.textContent=description.value.length});
+  const statusField=form.elements.status,reason=form.querySelector('#mw-bl-page-reason'),reasonWrap=reason.parentElement;
+  const syncStatus=()=>{const changed=statusField.value!==record.status;reasonWrap.hidden=!changed;reason.required=changed;if(!changed){reason.value='';reason.setCustomValidity('');reason.dispatchEvent(new Event('input',{bubbles:true}));}mark()};
+  statusField.addEventListener('change',syncStatus);syncStatus();
   form.addEventListener('invalid',e=>{const section=e.target.closest('details');if(section)section.open=true},true);
   form.onsubmit=async e=>{
    e.preventDefault();if(blBusy||!permitted('edit'))return;
-   const error=page.querySelector('.mw-form-error');error.hidden=true;
-   if(!form.checkValidity()){detailSections.forEach(x=>x.querySelector('details').open=true);error.textContent='Review the highlighted required fields before saving.';error.hidden=false;form.reportValidity();return}
-   const values=new FormData(form);
-   const payload={version:record.version,name:String(values.get('name')||'').trim(),code:String(values.get('code')||'').trim(),description:String(values.get('description')||'').trim()};
-   if(statusField.value!==record.status){const reasonText=reason.value.trim();if(!reasonText){error.textContent='Reason is mandatory for status changes.';error.hidden=false;reason.focus();return}payload.status=statusField.value;payload.reason=reasonText}
-   blBusy=true;page.querySelector('#bl-save').disabled=true;page.querySelector('#bl-save').textContent='Saving…';
+   const error=form.querySelector('.mw-form-error');error.hidden=true;
+   if(!form.checkValidity()){sections.forEach(x=>x.querySelector('details').open=true);error.textContent='Review the highlighted fields before saving.';error.hidden=false;form.reportValidity();return}
+   const values=new FormData(form),payload={version:record.version,name:String(values.get('name')||'').trim(),code:String(values.get('code')||'').trim(),description:String(values.get('description')||'').trim()};
+   if(statusField.value!==record.status){const text=reason.value.trim();if(!text){error.textContent='Reason is mandatory for status changes.';error.hidden=false;reason.focus();return}payload.status=statusField.value;payload.reason=text;}
+   blBusy=true;dialogSaving=true;
+   const controls=[...d.querySelectorAll('input,select,textarea,button')].map(el=>[el,el.disabled]);controls.forEach(([el])=>el.disabled=true);d.setAttribute('aria-busy','true');d.querySelector('#bl-save').textContent='Saving...';
    try{const response=await api(config.endpoint+'/'+encodeURIComponent(record.id),'PUT',payload);
-    if(dead||blDetail!==page)return;blBusy=false;blDraft=null;
-    const updated=response.record||{...record,...payload};
-    renderBlRecordPage(updated,'read',history);announce('Business Line updated.');await load();
-   }catch(err){if(dead||blDetail!==page)return;blBusy=false;error.textContent=err.message;error.hidden=false;page.querySelector('#bl-save').disabled=false;page.querySelector('#bl-save').textContent='Save';error.scrollIntoView({block:'nearest'})}
+    if(dead||dialog!==d||blDetail!==page)return;
+    blBusy=false;dialogSaving=false;blDraft=null;d.removeAttribute('aria-busy');d.querySelector('.mw-dialog-close').disabled=false;
+    renderBlRecordPage(response.record||{...record,...payload},'read');refreshBlAudit(d,record.id);
+    const notice=page.querySelector('.mw-bl-record-notice');notice.textContent='Business Line saved successfully.';notice.hidden=false;announce('Business Line updated.');await load();
+   }catch(e){if(dead||dialog!==d||blDetail!==page)return;blBusy=false;dialogSaving=false;d.removeAttribute('aria-busy');controls.forEach(([el,disabled])=>el.disabled=disabled);error.textContent=e.message;error.hidden=false;error.tabIndex=-1;error.focus();d.querySelector('#bl-save').textContent='Save';error.scrollIntoView({block:'nearest'});}
   };
+  const first=form.querySelector('input:not([readonly]),select,textarea');if(first){first.closest('details').open=true;first.focus({preventScroll:true})}
  }
 
  function ownerRecord(record){
@@ -459,8 +507,8 @@ function create(host,config) {
  if(config.key==='business-lines'&&window.SCRMRecords)recordsTools=window.SCRMRecords.attach({api,state,prefs,columns:allColumns,host,find,render,reload:load,announce,openDialog,closeDialog,permitted,user,widths:columnWidths,header:()=>moduleHeader});
  shell();load();
  return {
-  canLeave(){return dead||(leaveBlAllowed()&&closeDialog())},
-  destroy(force=false){if(dead)return true;if(!force&&(!leaveBlAllowed()||!closeDialog()))return false;closeBlRecord();recordsTools?.destroy();dead=true;++sequence;clearTimeout(timer);closeDialog(true);host.removeEventListener('click',click);host.removeEventListener('change',change);moduleHeader?.removeEventListener('click',click);headerRestore?.();return true},
+  canLeave(){return dead||closeDialog()},
+  destroy(force=false){if(dead)return true;if(!closeDialog(force))return false;window.removeEventListener('beforeunload',beforeDialogUnload);recordsTools?.destroy();dead=true;++sequence;clearTimeout(timer);closeDialog(true);host.removeEventListener('click',click);host.removeEventListener('change',change);moduleHeader?.removeEventListener('click',click);headerRestore?.();return true},
   reload:load,
   setSearch(q){if(dead||!permitted('search'))return false;state.q=String(q??'').trim().slice(0,100);state.view='home';state.page=1;const field=find('#mw-search');if(field)field.value=state.q;renderViews();clearTimeout(timer);timer=setTimeout(()=>{rememberSearch(state.q);load()},300);return true},
   openResult(id,label){if(dead||!permitted('read'))return false;state.view='home';renderViews();readRecord(id);return true},

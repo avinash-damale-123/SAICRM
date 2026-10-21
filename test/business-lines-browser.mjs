@@ -227,11 +227,11 @@ try{
  await page.locator('.mw-bl-section summary').filter({hasText:'Audit History'}).waitFor();
  await page.locator('[data-bl-expand="1"]').click();
  assert.ok((await page.locator('.mw-bl-detail-page').innerText()).includes('UI Super Admin'));
- assert.equal(await page.locator('.mw-bl-detail-page .mw-bl-field').count(),19,'Dedicated Read must display all 19 master fields');
+ assert.equal(await page.locator('.mw-bl-detail-page .mw-bl-field').count(),19,'Read popup must display all 19 master fields');
  for(const width of [320,360,768,1440]){await page.setViewportSize({width,height:850});await noOverflow('read '+width)}
  await page.locator('#bl-edit').click();
  assert.equal(await page.locator('#mw-bl-page-form [name="name"]').inputValue(),'Line Bravo');
- assert.equal(await page.locator('.mw-bl-detail-page .mw-bl-field').count(),19,'Inline Edit retains all nineteen fields');
+ assert.equal(await page.locator('.mw-bl-detail-page .mw-bl-field').count(),19,'Edit popup retains all nineteen fields');
  const updatesBefore=requests.filter(request=>request.method==='PUT'&&request.path.startsWith('business-lines/')).length;
  await page.locator('#mw-bl-page-form [name="status"]').selectOption('Inactive');
  assert.equal(await page.locator('#mw-bl-page-reason').isVisible(),true);
