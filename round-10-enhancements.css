@@ -1,0 +1,61 @@
+
+/* Round 10 CRM usability layer: dense but readable, cross-device and accessible. */
+:root{--r10-green:#176346;--r10-green-soft:#eef7f1;--r10-amber:#9a641d;--r10-amber-soft:#fff6e6;--r10-red:#b4232a;--r10-red-soft:#fff1f1;--r10-blue:#295f8a;--r10-blue-soft:#eef6fd}
+.topbar .breadcrumb{scrollbar-width:thin;scrollbar-color:#b8c9c0 transparent;cursor:grab;overscroll-behavior-inline:contain;touch-action:pan-x}
+.topbar .breadcrumb:active{cursor:grabbing}
+.topbar .breadcrumb::-webkit-scrollbar{display:block;height:4px}
+.topbar .breadcrumb::-webkit-scrollbar-thumb{background:#b8c9c0;border-radius:99px}
+.topbar .breadcrumb .crm-crumb:first-child{font-size:13px;font-weight:650}
+.topbar .breadcrumb .crm-crumb:first-child::first-letter{font-size:19px}
+.scrm-workbar.scrm-bl-clean.scrm-search-in-topbar .scrm-identity :is(.mw-module-identity-icon,.crm-module-glyph){width:32px!important;height:32px!important;flex-basis:32px!important}
+.scrm-workbar.scrm-bl-clean.scrm-search-in-topbar .scrm-identity :is(h1,h2){font-size:19px!important}
+@media(max-width:520px){.scrm-workbar.scrm-bl-clean.scrm-search-in-topbar .scrm-identity :is(h1,h2){font-size:17px!important}}
+/* Profile popover */
+.crm-profile-menu.r10-profile-menu{width:min(360px,calc(100vw - 24px));padding:0!important;overflow:hidden}
+.r10-profile-head{display:flex;gap:11px;align-items:center;padding:14px;border-bottom:1px solid #e5ece8;background:#f7fbf8}
+.r10-profile-avatar{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:#176346;color:#fff;font-size:13px;font-weight:750;flex:none}
+.r10-profile-meta{min-width:0}.r10-profile-meta strong,.r10-profile-meta small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.r10-profile-meta small{margin-top:3px;color:#617568}
+.r10-profile-actions{display:grid;gap:6px;padding:10px}
+.r10-profile-actions button,.r10-profile-actions summary{width:100%;min-height:38px;border:1px solid #dbe5df;border-radius:7px;background:#fff;color:#234838;padding:8px 10px;text-align:left;font:inherit;cursor:pointer}
+.r10-profile-actions button:hover,.r10-profile-actions summary:hover{background:#edf6f0;border-color:#bad3c3}
+.r10-password{border:0}.r10-password summary{list-style:none}.r10-password summary::-webkit-details-marker{display:none}
+.r10-password-form{display:grid;gap:8px;padding:9px 2px 2px}.r10-password-form label{display:grid;gap:4px;font-size:11px;color:#466154}.r10-password-form input{height:36px;border:1px solid #cddbd2;border-radius:6px;padding:7px 9px;font-size:13px}
+.r10-password-form button{background:#176346;color:#fff;border-color:#176346;text-align:center;font-weight:650}.r10-password-message{font-size:11px;line-height:1.4;margin:0}
+.r10-profile-logout{background:#fff5f5!important;color:#a42128!important;border-color:#e8b9bc!important;font-weight:650!important}
+.r10-profile-logout:hover{background:#fdebec!important}
+.r10-profile-menu .crm-profile-logout-slot{display:none}
+/* My Profile lightweight page */
+.r10-profile-page{max-width:840px;margin:0 auto;padding:22px}.r10-profile-page h1{margin:0 0 4px;font-size:24px}.r10-profile-card{margin-top:16px;border:1px solid #dfe9e3;border-radius:10px;background:#fff;padding:18px}.r10-profile-card dl{display:grid;grid-template-columns:160px 1fr;gap:10px 16px}.r10-profile-card dt{font-weight:650;color:#395448}.r10-profile-card dd{margin:0;color:#203f31;overflow-wrap:anywhere}
+@media(max-width:600px){.r10-profile-page{padding:14px}.r10-profile-card dl{grid-template-columns:1fr;gap:3px}.r10-profile-card dd{margin-bottom:10px}}
+/* Status feedback */
+.mw-feedback.r10-success,.toast.r10-success{color:#176346!important;background:#eef8f1!important;border-color:#cce2d3!important}
+.mw-feedback.r10-warning,.toast.r10-warning{color:#80531c!important;background:#fff7e8!important;border-color:#ead6ad!important}
+.mw-feedback.r10-error,.toast.r10-error{color:#9f252c!important;background:#fff1f1!important;border-color:#e9c0c3!important}
+.mw-feedback.r10-info,.toast.r10-info{color:#285b80!important;background:#eef6fd!important;border-color:#c9deef!important}
+#r10-progress{position:fixed;left:0;top:0;right:0;height:3px;z-index:99999;pointer-events:none;opacity:0;transition:opacity .15s;background:linear-gradient(90deg,#176346 0 35%,#7fba96 50%,#176346 65%);background-size:200% 100%;animation:r10-progress 1.1s linear infinite}
+#r10-progress.r10-visible{opacity:1}@keyframes r10-progress{to{background-position:-200% 0}}
+/* Customize menu */
+.mw-settings-menu>div{padding:5px!important;max-height:min(70vh,480px);overflow:auto}
+.mw-settings-menu .mw-menu-item{padding:7px 9px!important;min-height:34px!important;border-radius:6px!important}
+.mw-settings-menu .mw-menu-item:hover,.mw-settings-menu .mw-menu-item:focus-visible{background:#eaf4ee!important;color:#174f34}
+.r10-menu-desc{display:block;font-size:10px;color:#718177;margin-top:2px;font-weight:400}
+.r10-custom-group{border:0;margin:0}.r10-custom-group>summary{list-style:none;padding:7px 9px;border-radius:6px;font-size:12px;font-weight:650;color:#274c3a;cursor:pointer}.r10-custom-group>summary::-webkit-details-marker{display:none}.r10-custom-group[open]>summary{background:#f1f7f3}.r10-custom-sub{padding:2px 0 2px 8px;border-left:1px solid #dce8e0;margin-left:8px}
+/* Field forms */
+.mw-bl-dialog .mw-bl-section>details>summary{background:#c5d9cc!important}
+.mw-bl-dialog .mw-bl-field{border-color:#e2e9e5!important;box-shadow:none!important}
+.mw-bl-dialog .mw-bl-field>label{background:#f3f7f4!important;border-color:#e6ece8!important}
+.mw-bl-dialog .mw-bl-value-cell{background:#fcfefd!important;border-color:#e7ece9!important}
+.mw-bl-dialog form .mw-bl-value-cell:has(input:not([readonly]),select:not([disabled]),textarea:not([readonly])){background:#f2faf5!important;border-color:#a9ccb5!important;box-shadow:inset 3px 0 0 #4f9a68}
+.mw-bl-dialog form input:not([readonly]),.mw-bl-dialog form select:not([disabled]),.mw-bl-dialog form textarea:not([readonly]){border-color:#c8ddd0!important;background:#fff!important}
+/* Table density and alignment */
+.mw-framework .rf-table tbody td{padding:6px 10px!important;height:38px!important;line-height:1.35}
+.mw-framework .rf-table thead th{height:38px!important}.mw-framework .rf-table thead th>button{min-height:37px!important;padding:7px 9px!important}
+.mw-framework .rf-table [data-cell-key="displayId"],.mw-framework .rf-table [data-cell-key="code"],.mw-framework .rf-table [data-cell-key="status"],.mw-framework .rf-table th[data-column-key="displayId"],.mw-framework .rf-table th[data-column-key="code"],.mw-framework .rf-table th[data-column-key="status"]{text-align:center}
+.mw-framework .rf-table th[data-column-key="displayId"]>button,.mw-framework .rf-table th[data-column-key="code"]>button,.mw-framework .rf-table th[data-column-key="status"]>button{justify-content:center}
+.rf-lifecycle-badge{display:inline-flex;margin-left:5px;padding:2px 6px;border-radius:10px;font-size:9px;font-weight:700;vertical-align:middle}.rf-lifecycle-archived{background:#fff0d9;color:#87551a}.rf-lifecycle-deleted{background:#fde8e9;color:#a5232b}
+.mw-framework .mw-selection{padding:6px 10px!important;gap:7px!important}.mw-framework .rf-bulk-actions{gap:5px!important}.mw-framework .rf-bulk-actions .mw-btn{min-height:30px!important;padding:5px 8px!important}
+.mw-framework .mw-footer{padding:6px 10px!important;gap:8px!important;min-height:40px}.mw-framework .mw-pagination button,.mw-framework .mw-jump button{height:27px!important;min-width:27px!important}.mw-framework .mw-page-size select,.mw-framework .mw-jump input{height:27px!important}
+.mw-framework .mw-panel{margin-bottom:0!important}.mw-framework .mw-home{padding-bottom:0!important}
+/* synchronized upper horizontal scrollbar */
+.r10-hscroll{height:14px;overflow-x:auto;overflow-y:hidden;border-top:1px solid #e1e9e4;border-bottom:1px solid #e1e9e4;background:#f9fbfa;scrollbar-width:thin}.r10-hscroll>div{height:1px}.r10-hscroll::-webkit-scrollbar{height:11px}.r10-hscroll::-webkit-scrollbar-thumb{background:#9fb7a8;border-radius:99px;border:2px solid #f9fbfa}.r10-hscroll[hidden]{display:none!important}
+@media(max-width:700px){.r10-hscroll{height:12px}.mw-framework .rf-table tbody td{height:40px!important;padding:7px 9px!important}}
