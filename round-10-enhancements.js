@@ -4,7 +4,7 @@ const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>[...r.querySelecto
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function user(){return window.SCRM?.user||{}}
 function classify(text=''){const t=text.toLowerCase();if(/fail|error|unable|not permitted|rejected|invalid/.test(t))return'error';if(/partial|warning|some|skipped|attention/.test(t))return'warning';if(/success|saved|created|updated|archived|restored|ready|completed|imported|export/.test(t))return'success';return'info'}
-function styleFeedback(){ $('.mw-feedback:not([hidden]),#toast:not(.hidden)').forEach(el=>{const next='r10-'+classify(el.textContent),states=['r10-success','r10-warning','r10-error','r10-info'];if(el.classList.contains(next)&&states.every(name=>name===next||!el.classList.contains(name)))return;el.classList.remove(...states);el.classList.add(next);});}
+function styleFeedback(){ [...document.querySelectorAll('.mw-feedback:not([hidden]),#toast:not(.hidden)')].forEach(el=>{const next='r10-'+classify(el.textContent),states=['r10-success','r10-warning','r10-error','r10-info'];if(el.classList.contains(next)&&states.every(name=>name===next||!el.classList.contains(name)))return;el.classList.remove(...states);el.classList.add(next);});}
 function progress(){
  if($('#r10-progress'))return;const p=document.createElement('div');p.id='r10-progress';p.setAttribute('aria-hidden','true');document.body.append(p);
  const original=window.fetch;let pending=0,timer;
