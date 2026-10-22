@@ -82,7 +82,7 @@ function create(host,config) {
  moduleHeader?.querySelectorAll('[data-mw]').forEach(control=>{const permission=controlPermission[control.dataset.mw];if(permission){control.hidden=!permitted(permission)||(control.dataset.mw==='import'&&(!recordsTools?.enabled&&(!config.import||typeof config.onImport!=='function')));control.disabled=state.loading&&control.dataset.mw==='export'}});
  const search=find('#mw-search');if(search){search.disabled=!permitted('search');search.closest('.mw-search').hidden=!permitted('search')}
  const settings=moduleHeader?.querySelector('.mw-settings-menu');if(settings)settings.hidden=!permitted('settings');
- const open=state.filtersOpen&&state.view==='home'&&permitted('filter');find('#mw-filter-controls').hidden=!open;
+ const open=state.filtersOpen&&permitted('filter');find('#mw-filter-controls').hidden=!open;
  const toggle=moduleHeader?.querySelector('[data-mw="filter-toggle"]');if(toggle)toggle.setAttribute('aria-expanded',String(open));
  const count=state.filters.length+(state.status!=='all'?1:0)+(state.archived!=='exclude'?1:0),badge=moduleHeader?.querySelector('.mw-filter-count');if(badge){badge.hidden=!count;badge.textContent=count}
  }
@@ -127,7 +127,7 @@ function create(host,config) {
  async function click(event){const b=event.target.closest('[data-mw]');if(dead||!b||(!host.contains(b)&&!moduleHeader?.contains(b)))return;const action=b.dataset.mw;const access={create:'create',read:'read',edit:'edit',archive:'archive',restore:'restore',filters:'filter','filter-toggle':'filter',columns:'settings','column-customization':'settings','filter-customization':'settings',refresh:'read',export:'export','export-selected':'export',dashboard:'dashboard',home:'read',import:'import','clear-filters':'filter','remove-filter':'filter',sort:'read',page:'read','clear-selection':'read'};if(access[action]&&!permitted(access[action])&&!(action==='refresh'&&state.error&&!state.permissionsKnown)){announce('You do not have permission to perform this action.');return}moduleHeader?.querySelectorAll('.mw-settings-menu[open]').forEach(menu=>menu.open=false);
  if(recordsTools?.enabled&&await recordsTools.handle(action,event,b))return;
  if(action==='home'||action==='dashboard'){if(blDetail&&!closeBlRecord())return;if(recordsTools?.enabled){await recordsTools.switchView(action);return;}state.view=action;renderViews();stats();}
- else if(action==='filter-toggle'){state.view='home';state.filtersOpen=!state.filtersOpen;renderViews();}
+ else if(action==='filter-toggle'){state.filtersOpen=!state.filtersOpen;renderViews();}
  else if(action==='import'){if(config.import&&typeof config.onImport==='function')config.onImport();}
  else if(action==='refresh'){clearTimeout(timer);load()}
  else if(action==='create')editForm();
