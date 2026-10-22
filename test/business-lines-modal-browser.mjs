@@ -115,7 +115,7 @@ try{
  await page.screenshot({path:'work/browser/popup-overview-toolbar.png'});
  await page.locator('[data-mw="home"]').click();await ready();
  const card=await page.locator('.scrm-bl-clean').evaluate(e=>({height:e.getBoundingClientRect().height,title:getComputedStyle(e.querySelector('h2')).fontSize,padding:parseFloat(getComputedStyle(e).paddingLeft)}));
- assert.ok(card.height<=96&&card.padding>=10&&parseFloat(card.title)>=20,'Compact padded title card '+JSON.stringify(card));
+ assert.ok(card.height<=96&&card.padding>=10&&parseFloat(card.title)>=18&&parseFloat(card.title)<=20,'Compact padded title card '+JSON.stringify(card));
  await page.locator('[data-mw="create"]').click();await assertModal('create');
  assert.equal(await page.locator('#mw-record-form .mw-bl-field').count(),3);assert.equal(await beforeUnloadBlocked(),false);
  for(const key of ['name','code','description']){await modal().locator('[data-bl-field-edit="'+key+'"]').click();assert.equal(await page.evaluate(()=>document.activeElement.name),key,'Create shortcut focuses '+key);}
