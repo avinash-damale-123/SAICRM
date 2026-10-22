@@ -19,7 +19,9 @@ const staticFiles = [
   'module-workspace.js',
   'business-lines-ui.js',
   'records-tools.js',
-  'records-tools.css'
+  'records-tools.css',
+  'round-10-enhancements.css',
+  'round-10-enhancements.js'
 ];
 const binaryAssets = ['assets/satguru-travel-logo.webp'];
 await mkdir('public/assets', { recursive: true });
