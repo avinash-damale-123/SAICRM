@@ -434,14 +434,14 @@ function create(host,config) {
    const adjacent=direction<0?previous:next;
    if(adjacent){await openBlRecord(adjacent.id,false,true);return;}
    const nextPage=state.page+(direction<0?-1:1);if(nextPage<1||nextPage>state.totalPages)return;
-   const request=++blLoadSequence;
+   const request=++blLoadSequence,priorPage=state.page;
    page.querySelectorAll('[data-bl-prev],[data-bl-next]').forEach(b=>b.disabled=true);
-   try{const query=new URLSearchParams(params());query.set('page',String(nextPage));const result=await api(config.endpoint+'?'+query.toString());
+   try{
+    state.page=nextPage;await load();
     if(dead||dialog!==d||request!==blLoadSequence)return;
-    if(result.permissions?.read!==true||!result.records?.length)throw Error('Adjacent records are no longer available. Close and review the current results.');
-    state.page=nextPage;state.records=result.records;state.total=result.total;state.totalPages=result.totalPages;
-    await openBlRecord((direction<0?result.records.at(-1):result.records[0]).id,false,true);render();
-   }catch(e){if(dialog!==d||request!==blLoadSequence)return;const notice=page.querySelector('.mw-bl-record-notice');notice.textContent=e.message;notice.hidden=false;page.querySelector('[data-bl-prev]').disabled=!hasPrevious;page.querySelector('[data-bl-next]').disabled=!hasNext;}
+    if(state.error||!state.records.length)throw Error(state.error||'Adjacent records are no longer available. Close and review the current results.');
+    await openBlRecord((direction<0?state.records.at(-1):state.records[0]).id,false,true);render();
+   }catch(e){if(dialog!==d||request!==blLoadSequence)return;state.page=priorPage;const notice=page.querySelector('.mw-bl-record-notice');notice.textContent=e.message;notice.hidden=false;page.querySelector('[data-bl-prev]').disabled=!hasPrevious;page.querySelector('[data-bl-next]').disabled=!hasNext;}
   };
   page.querySelector('[data-bl-prev]').onclick=()=>navigate(-1);page.querySelector('[data-bl-next]').onclick=()=>navigate(1);
   d.querySelector('.mw-dialog-body').scrollTop=0;
