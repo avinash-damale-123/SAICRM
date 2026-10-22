@@ -143,6 +143,28 @@ export function createHandler({ pool, config, deliver = message => sendEmail(con
      return reply(200, { user: user ? publicUser(user) : null, csrf: user?.csrf });
     }
     if (method !== 'POST') fail(405, 'Method not allowed');
+    if (action === 'change-password') {
+     const user = await session(pool, req);
+     if (!user) fail(401, 'Sign in required');
+     if (!equal(req.headers['x-csrf-token'], user.csrf)) fail(403, 'Session check failed');
+     if (typeof body.currentPassword !== 'string' || body.currentPassword.length > 128) fail(400, 'Enter your current password');
+     if (!validPassword(body.newPassword)) fail(400, 'Use a new password of 12 to 128 characters');
+     if (body.currentPassword === body.newPassword) fail(400, 'Choose a new password that is different from your current password');
+     await limit(pool, config, 'change-password:' + user.id, 8, 900);
+     const result = await transaction(pool, async client => {
+      const account=(await client.query('SELECT * FROM users WHERE id=$1 FOR UPDATE',[user.id])).rows[0];
+      if(!account || account.status!=='approved' || !account.email_verified)fail(403,'Access is not approved');
+      if((await client.query('SELECT 1 FROM google_identities WHERE user_id=$1',[user.id])).rowCount && !await passwordMatches(body.currentPassword,account.password_hash))fail(400,'This account is signed in with Google. Use password recovery first if you want to create a password.');
+      if(!await passwordMatches(body.currentPassword,account.password_hash))fail(400,'Current password is incorrect');
+      const encoded=await passwordHash(body.newPassword);
+      await client.query('UPDATE users SET password_hash=$2 WHERE id=$1',[user.id,encoded]);
+      await client.query('DELETE FROM sessions WHERE user_id=$1 AND token_hash<>$2',[user.id,user.token_hash]);
+      await client.query('DELETE FROM challenges WHERE user_id=$1 AND kind=$2',[user.id,'reset']);
+      await audit(client,user.id,'Password changed','auth',user.id);
+      return {message:'Password updated successfully. Other signed-in sessions were closed.'};
+     });
+     return reply(200,result);
+    }
     if (action === 'logout') {
      const user = await session(pool, req);
      if (user && !equal(body.csrf, user.csrf)) fail(403, 'Session check failed');
