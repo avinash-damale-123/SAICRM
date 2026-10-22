@@ -64,13 +64,13 @@ try{
    const label=el.querySelector(':scope>label'),value=el.querySelector(':scope>.mw-bl-value-cell');
    const l=label.getBoundingClientRect(),v=value.getBoundingClientRect();
    const content=value.querySelector('.mw-bl-read-value,input,select,textarea'),action=value.querySelector('[data-bl-field-edit]');
-   return {left:l.left,right:l.right,top:l.top,bottom:l.bottom,valueLeft:v.left,valueTop:v.top,labelBackground:getComputedStyle(label).backgroundColor,valueBackground:getComputedStyle(value).backgroundColor,labelSize:parseFloat(getComputedStyle(label).fontSize),valueWeight:getComputedStyle(content).fontWeight,actionFits:!action||content.getBoundingClientRect().right<=action.getBoundingClientRect().left-1,width:innerWidth,overflow:el.scrollWidth>el.clientWidth+1};
+   return {left:l.left,right:l.right,top:l.top,bottom:l.bottom,valueLeft:v.left,valueTop:v.top,labelBackground:getComputedStyle(label).backgroundColor,valueBackground:getComputedStyle(value).backgroundColor,labelSize:parseFloat(getComputedStyle(label).fontSize),valueWeight:getComputedStyle(content).fontWeight,editable:!!content&&((content.matches('input,textarea')&&!content.readOnly)||(content.matches('select')&&!content.disabled)),actionFits:!action||content.getBoundingClientRect().right<=action.getBoundingClientRect().left-1,width:innerWidth,overflow:el.scrollWidth>el.clientWidth+1};
   }));
   assert.ok(rowStyles.length,mode+' visible label/value rows');
-  const expectedValueBackground=/create|edit/.test(mode)?'rgb(242, 250, 245)':'rgb(252, 254, 253)';
   for(const row of rowStyles){
+   const expectedValueBackground=row.editable?'rgb(242, 250, 245)':'rgb(252, 254, 253)';
    assert.notEqual(row.labelBackground,row.valueBackground,mode+' distinguishes label and value surfaces');
-   assert.equal(row.valueWeight,'400',mode+' regular-weight field values');assert.equal(row.valueBackground,expectedValueBackground,mode+(/create|edit/.test(mode)?' subtly highlights editable value surfaces':' keeps read values almost white'));
+   assert.equal(row.valueWeight,'400',mode+' regular-weight field values');assert.equal(row.valueBackground,expectedValueBackground,mode+(row.editable?' subtly highlights editable value surfaces':' keeps read-only values almost white'));
    assert.equal(row.actionFits,true,mode+' edit shortcut never covers the field value');
    assert.ok(row.labelSize>=12,mode+' readable labels');assert.equal(row.overflow,false,mode+' no overflowing field text');
    if(row.width>480){assert.ok(row.valueLeft>=row.right-1,mode+' label on left and value on right');assert.ok(Math.abs(row.top-row.valueTop)<2,mode+' label and value share a row');}
