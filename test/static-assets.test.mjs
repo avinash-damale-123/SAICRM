@@ -5,7 +5,7 @@ import { readFile, stat } from 'node:fs/promises';
 
 test('Vercel build publishes logo and every linked brand stylesheet', async () => {
   execFileSync(process.execPath, ['scripts/build.mjs'], { stdio: 'pipe' });
-  for (const name of ['satguru-brand.css', 'business-lines-theme.css', 'assets/satguru-travel-logo.webp']) {
+  for (const name of ['satguru-brand.css', 'business-lines-theme.css', 'round-10-enhancements.css', 'round-10-enhancements.js', 'assets/satguru-travel-logo.webp']) {
     const file = await stat('public/' + name);
     assert.ok(file.isFile() && file.size > 100, 'static output missing ' + name);
   }
