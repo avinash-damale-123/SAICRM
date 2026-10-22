@@ -100,12 +100,14 @@ function decorate(row,page,label) {
  });
  if(label==='Business Lines'){
   row.classList.add('scrm-bl-clean');
-  // Standard Records action order: Filter, Import, Export, Settings.
+  // Keep visual and keyboard action order consistent with the compact toolbar.
   const filter=actions.querySelector('[data-mw="filter-toggle"]');
   const importer=actions.querySelector('[data-mw="import"]');
   const exporter=actions.querySelector('[data-mw="export"]');
   const settings=actions.querySelector('.mw-settings-menu');
-  for(const node of [filter,importer,exporter,settings])if(node)actions.append(node);
+  for(const node of [importer,exporter,filter,settings])if(node)actions.append(node);
+  const customize=settings?.querySelector('summary');
+  if(customize){customize.setAttribute('aria-label','Customize Business Lines');customize.title='Customize Business Lines';}
 
   const home=tabs.querySelector('[data-mw="home"]');
   if(home)tabs.prepend(home);
@@ -121,7 +123,7 @@ function decorate(row,page,label) {
  const slot=document.createElement('div');slot.className='scrm-search-slot';
  const legacy=document.createElement('div');legacy.hidden=true;legacy.className='scrm-legacy-search';
  const legacySearch=row.querySelector('.mw-search');if(legacySearch)legacy.append(legacySearch);
- if(label==='Business Lines'&&row._scrmBlPrimary)row.replaceChildren(identity,row._scrmBlPrimary,tabs,slot,actions,legacy);else row.replaceChildren(identity,tabs,slot,actions,legacy);
+ if(label==='Business Lines'&&row._scrmBlPrimary)row.replaceChildren(identity,tabs,slot,actions,row._scrmBlPrimary,legacy);else row.replaceChildren(identity,tabs,slot,actions,legacy);
  row.classList.add('scrm-workbar');row.dataset.scrmHeader=page;
 }
 function sync(page,label) {

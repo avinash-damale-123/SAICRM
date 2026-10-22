@@ -324,3 +324,54 @@
  .scrm-workbar.scrm-bl-clean>.scrm-actions{flex-wrap:wrap!important;justify-content:flex-start!important;max-width:100%}
  .scrm-workbar.scrm-bl-clean .scrm-identity h1,.scrm-workbar.scrm-bl-clean .scrm-identity h2{white-space:normal!important;overflow-wrap:normal}
 }
+
+/* With Search in the topbar, Business Lines can use one compact command row.
+   The existing container-based grid remains the narrow-screen fallback. */
+.scrm-workbar.scrm-bl-clean.scrm-search-in-topbar>.scrm-identity{gap:8px!important}
+.scrm-workbar.scrm-bl-clean.scrm-search-in-topbar .scrm-identity :is(h1,h2){font-size:18px!important;line-height:1.25!important}
+.scrm-workbar.scrm-bl-clean.scrm-search-in-topbar .scrm-identity :is(.mw-module-identity-icon,.crm-module-glyph){width:28px!important;height:28px!important;flex-basis:28px!important}
+.scrm-workbar.scrm-bl-clean.scrm-search-in-topbar>.scrm-tabs{
+ width:auto!important;min-height:40px!important;gap:3px!important;padding:3px!important;
+ border:1px solid #c6ddcf!important;border-radius:9px!important;background:#f2f8f4!important;
+}
+.scrm-workbar.scrm-bl-clean.scrm-search-in-topbar .scrm-tabs>.scrm-view{
+ min-height:32px!important;height:32px!important;padding:5px 7px!important;gap:5px!important;
+ border:1px solid #d2e5d9!important;border-radius:6px!important;
+ background:#eaf4ee!important;color:#235d3f!important;box-shadow:none!important;
+}
+.scrm-workbar.scrm-bl-clean.scrm-search-in-topbar .scrm-tabs>.scrm-view:hover{background:#dceee3!important;border-color:#a1c8b0!important;color:#174e32!important}
+.scrm-workbar.scrm-bl-clean.scrm-search-in-topbar .scrm-tabs>.scrm-view:is(.active,.mw-active-tab),
+.scrm-workbar.scrm-bl-clean.scrm-search-in-topbar .scrm-tabs>.scrm-view:is(.active,.mw-active-tab):hover{
+ background:#087b40!important;border-color:#087b40!important;color:#fff!important;box-shadow:0 1px 3px #176d3d1a!important;
+}
+.scrm-workbar.scrm-bl-clean.scrm-search-in-topbar .scrm-bl-primary>.scrm-add{font-size:12px!important;padding:7px 10px!important;gap:5px!important}
+.scrm-workbar.scrm-bl-clean.scrm-search-in-topbar .scrm-bl-primary>.scrm-add .scrm-ui-icon{width:14px;height:14px}
+.scrm-workbar.scrm-bl-clean.scrm-search-in-topbar>.scrm-bl-primary:has(>.scrm-add[hidden]){display:none!important}
+.scrm-workbar.scrm-bl-clean.scrm-search-in-topbar .scrm-actions>.scrm-action,
+.scrm-workbar.scrm-bl-clean.scrm-search-in-topbar .scrm-actions>details>.scrm-action{padding:6px!important;gap:5px!important}
+@container scrm-main (min-width:1024px){
+ .scrm-workbar.scrm-bl-clean.scrm-search-in-topbar{display:flex!important;flex-wrap:nowrap!important;align-items:center!important;gap:10px!important;min-height:54px!important}
+ .scrm-workbar.scrm-bl-clean.scrm-search-in-topbar>.scrm-identity,
+ .scrm-workbar.scrm-bl-clean.scrm-search-in-topbar>.scrm-tabs,
+ .scrm-workbar.scrm-bl-clean.scrm-search-in-topbar>.scrm-bl-primary{flex:0 0 auto!important}
+ .scrm-workbar.scrm-bl-clean.scrm-search-in-topbar>.scrm-actions{flex:0 0 auto!important;margin-left:auto!important;gap:5px!important}
+}
+@container scrm-main (min-width:921px) and (max-width:1023.98px){
+ .scrm-workbar.scrm-bl-clean.scrm-search-in-topbar{grid-template-columns:minmax(0,1fr) auto!important;grid-template-rows:auto auto!important}
+ .scrm-workbar.scrm-bl-clean.scrm-search-in-topbar>.scrm-identity{grid-column:1!important;grid-row:1!important}
+ .scrm-workbar.scrm-bl-clean.scrm-search-in-topbar>.scrm-bl-primary{grid-column:2!important;grid-row:1!important}
+ .scrm-workbar.scrm-bl-clean.scrm-search-in-topbar>.scrm-tabs{grid-column:1!important;grid-row:2!important}
+ .scrm-workbar.scrm-bl-clean.scrm-search-in-topbar>.scrm-actions{grid-column:2!important;grid-row:2!important}
+}
+@container scrm-main (max-width:660px){
+ .scrm-workbar.scrm-bl-clean.scrm-search-in-topbar>.scrm-tabs{grid-column:1 / -1!important;grid-row:2!important;justify-self:start!important}
+ .scrm-workbar.scrm-bl-clean.scrm-search-in-topbar>.scrm-actions{grid-column:1 / -1!important;grid-row:3!important;justify-self:stretch!important;justify-content:flex-start!important;flex-wrap:wrap!important;position:relative}
+ .scrm-workbar.scrm-bl-clean.scrm-search-in-topbar.scrm-no-tabs>.scrm-actions{grid-row:2!important}
+ /* Anchor the menu to the whole action row when Customize wraps. */
+ .scrm-workbar.scrm-bl-clean.scrm-search-in-topbar .scrm-actions>.mw-settings-menu{position:static}
+ .scrm-workbar.scrm-bl-clean.scrm-search-in-topbar .mw-settings-menu>div{right:0;left:auto;max-width:100%;box-sizing:border-box}
+}
+@container scrm-main (max-width:520px){
+ .scrm-workbar.scrm-bl-clean.scrm-search-in-topbar .scrm-identity :is(h1,h2){font-size:16px!important}
+ .scrm-workbar.scrm-bl-clean.scrm-search-in-topbar .scrm-bl-primary>.scrm-add{font-size:11px!important;padding:6px 8px!important}
+}
