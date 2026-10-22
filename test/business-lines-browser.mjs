@@ -106,7 +106,8 @@ try{
  const headerLayout=await page.evaluate(()=>{
   const host=document.querySelector('.crm-module-host'),row=document.querySelector('.crm-business-module');
   const box=selector=>document.querySelector(selector).getBoundingClientRect();
-  return {direction:getComputedStyle(row).flexDirection,height:host.getBoundingClientRect().height,
+  return {direction:getComputedStyle(row).flexDirection,height:host.getBoundingClientRect().height,mainWidth:box('.main').width,
+   groups:['.mw-module-identity','.mw-module-tabs','.mw-header-actions','.scrm-bl-primary'].map(selector=>{const rect=box('.crm-business-module '+selector);return{selector,top:rect.top,bottom:rect.bottom}}),
    identityY:box('.crm-business-module .mw-module-identity').y,
    tabsY:box('.crm-business-module .mw-module-tabs').y,
    actionsY:box('.crm-business-module .mw-header-actions').y,
@@ -114,7 +115,8 @@ try{
  });
  assert.equal(headerLayout.direction,'row','Business Lines must use horizontal flex direction');
  assert.ok(headerLayout.height<140,'Business Lines toolbar is too tall: '+JSON.stringify(headerLayout));
- assert.ok(headerLayout.identityY<headerLayout.tabsY,'Business Lines title should sit above Records/Dashboard toolbar: '+JSON.stringify(headerLayout));
+ assert.ok(headerLayout.mainWidth>=1024,'Desktop fixture must provide enough width for the single-row header: '+JSON.stringify(headerLayout));
+ assert.ok(Math.min(...headerLayout.groups.map(group=>group.bottom))-Math.max(...headerLayout.groups.map(group=>group.top))>=25,'Business Lines title, tabs, actions and Add must share one compact row: '+JSON.stringify(headerLayout));
  assert.equal(await page.locator('.scrm-bl-primary [data-mw="create"]').count(),1,'Add Business Line must remain a real button in the primary row');
  assert.equal(await page.locator('.scrm-tabs [data-mw="home"] .scrm-view-title').innerText(),'Records');
  assert.ok(Math.abs(headerLayout.tabsY-headerLayout.actionsY)<24,'Module actions are disconnected from tabs: '+JSON.stringify(headerLayout));
