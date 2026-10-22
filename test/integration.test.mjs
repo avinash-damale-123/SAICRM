@@ -75,6 +75,20 @@ test('resend replaces prior code; five incorrect OTP attempts invalidate challen
  for(let n=0;n<5;n++)assert.equal((await call('auth/verify','POST',{email,code:wrong})).status,400);
  assert.equal((await call('auth/verify','POST',{email,code})).status,400);
 });
+test('authenticated password change validates current password and closes other sessions', {skip:!enabled},async()=>{
+ const email='change-password@example.org',first=await account(email),second=(await call('auth/login','POST',{email,password}));
+ const secondSession={cookie:second.headers['Set-Cookie']?.split(';')[0],csrf:second.body.csrf};
+ assert.equal((await call('auth/change-password','POST',{currentPassword:'wrong password',newPassword:'replacement passphrase 123456789'},first)).status,400);
+ assert.equal((await call('auth/change-password','POST',{currentPassword:password,newPassword:'short'},first)).status,400);
+ assert.equal((await call('auth/change-password','POST',{currentPassword:password,newPassword:'replacement passphrase 123456789'},{...first,csrf:''})).status,403);
+ const changed=await call('auth/change-password','POST',{currentPassword:password,newPassword:'replacement passphrase 123456789'},first);
+ assert.equal(changed.status,200,JSON.stringify(changed.body));assert.match(changed.body.message,/updated successfully/i);
+ assert.equal((await call('auth/me','GET',undefined,secondSession)).body.user,null);
+ assert.equal((await call('auth/login','POST',{email,password})).status,401);
+ assert.equal((await call('auth/login','POST',{email,password:'replacement passphrase 123456789'})).status,200);
+ const events=await pool.query("SELECT action FROM audit WHERE actor=(SELECT id FROM users WHERE email=$1) AND action='Password changed'",[email]);assert.equal(events.rowCount,1);
+});
+
 test('protected CRUD validates, checks roles, prevents stale writes, audits, and enforces CSRF/origin', {skip:!enabled},async()=>{
  const member=await account('member@example.org'),viewer=await account('viewer@example.org','viewer'),admin=await account('admin@example.org','admin');
  assert.match(member.response.headers['Set-Cookie'],/HttpOnly; Secure; SameSite=Lax/);

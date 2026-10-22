@@ -64,12 +64,13 @@ try{
    const label=el.querySelector(':scope>label'),value=el.querySelector(':scope>.mw-bl-value-cell');
    const l=label.getBoundingClientRect(),v=value.getBoundingClientRect();
    const content=value.querySelector('.mw-bl-read-value,input,select,textarea'),action=value.querySelector('[data-bl-field-edit]');
-   return {left:l.left,right:l.right,top:l.top,bottom:l.bottom,valueLeft:v.left,valueTop:v.top,labelBackground:getComputedStyle(label).backgroundColor,valueBackground:getComputedStyle(value).backgroundColor,labelSize:parseFloat(getComputedStyle(label).fontSize),valueWeight:getComputedStyle(content).fontWeight,actionFits:!action||content.getBoundingClientRect().right<=action.getBoundingClientRect().left-1,width:innerWidth,overflow:el.scrollWidth>el.clientWidth+1};
+   return {left:l.left,right:l.right,top:l.top,bottom:l.bottom,valueLeft:v.left,valueTop:v.top,labelBackground:getComputedStyle(label).backgroundColor,valueBackground:getComputedStyle(value).backgroundColor,labelSize:parseFloat(getComputedStyle(label).fontSize),valueWeight:getComputedStyle(content).fontWeight,editable:!!content&&((content.matches('input,textarea')&&!content.readOnly)||(content.matches('select')&&!content.disabled)),actionFits:!action||content.getBoundingClientRect().right<=action.getBoundingClientRect().left-1,width:innerWidth,overflow:el.scrollWidth>el.clientWidth+1};
   }));
   assert.ok(rowStyles.length,mode+' visible label/value rows');
   for(const row of rowStyles){
+   const expectedValueBackground=row.editable?'rgb(242, 250, 245)':'rgb(252, 254, 253)';
    assert.notEqual(row.labelBackground,row.valueBackground,mode+' distinguishes label and value surfaces');
-   assert.equal(row.valueWeight,'400',mode+' regular-weight field values');assert.equal(row.valueBackground,'rgb(251, 253, 252)',mode+' almost-white green value surface');
+   assert.equal(row.valueWeight,'400',mode+' regular-weight field values');assert.equal(row.valueBackground,expectedValueBackground,mode+(row.editable?' subtly highlights editable value surfaces':' keeps read-only values almost white'));
    assert.equal(row.actionFits,true,mode+' edit shortcut never covers the field value');
    assert.ok(row.labelSize>=12,mode+' readable labels');assert.equal(row.overflow,false,mode+' no overflowing field text');
    if(row.width>480){assert.ok(row.valueLeft>=row.right-1,mode+' label on left and value on right');assert.ok(Math.abs(row.top-row.valueTop)<2,mode+' label and value share a row');}
@@ -78,7 +79,7 @@ try{
   const shortcuts=await modal().locator('[data-bl-field-edit]').evaluateAll(buttons=>buttons.map(b=>b.dataset.blFieldEdit).sort());
   assert.deepEqual(shortcuts,mode.startsWith('create')?['code','description','name']:['code','description','name','status'],mode+' shortcuts only for editable fields');
   const sections=await modal().locator('.mw-bl-section>details>summary:visible').evaluateAll(items=>items.map(el=>getComputedStyle(el).backgroundColor));
-  for(const color of sections)assert.ok(['rgb(207, 223, 213)','rgb(191, 213, 200)'].includes(color),mode+' darker section headers');
+  for(const color of sections)assert.ok(['rgb(197, 217, 204)','rgb(207, 223, 213)','rgb(191, 213, 200)'].includes(color),mode+' darker section headers');
   if(!mode.includes('long values')&&await page.evaluate(()=>innerWidth>760)){
    const pair=await modal().evaluate(d=>{const first=d.querySelector('.mw-bl-field-name'),id=d.querySelector('.mw-bl-field-displayId');if(!first||!id||!first.getClientRects().length)return null;const a=first.getBoundingClientRect(),b=id.getBoundingClientRect();return {top:Math.abs(a.top-b.top),height:Math.abs(a.height-b.height)};});
    if(pair){assert.ok(pair.top<2,mode+' paired fields align at top');assert.ok(pair.height<2,mode+' paired fields have consistent row height');}
