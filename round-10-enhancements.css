@@ -137,3 +137,6 @@
  .mw-settings-menu>div{width:min(310px,calc(100vw - 16px))!important}
  .mw-filter-controls{padding:7px!important}
 }
+
+/* Keep table headers compact but comfortably readable. */
+.mw-framework .rf-table thead th{height:38px!important}.mw-framework .rf-table thead th>button{min-height:37px!important;padding:6px 9px!important}
