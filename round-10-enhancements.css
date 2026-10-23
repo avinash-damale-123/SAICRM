@@ -82,3 +82,25 @@
 .mw-settings-menu .mw-menu-item{width:100%!important;display:block!important;text-align:left!important;white-space:normal!important;overflow-wrap:anywhere!important;padding:6px 9px!important;min-height:32px!important}
 .r10-menu-desc{white-space:normal!important;overflow-wrap:anywhere!important;line-height:1.25!important;margin-top:1px!important}
 .r10-custom-group>summary{padding:6px 9px!important}.r10-custom-sub{padding:1px 0 1px 7px!important}
+
+.rf-dialog .rf-note{line-height:1.4!important;margin:6px 0!important}
+.rf-dialog .rf-config-tools{gap:8px!important;margin-bottom:8px!important}
+.rf-dialog .rf-policy-summary{padding:7px 9px!important;margin:6px 0 8px!important;line-height:1.35!important}
+.rf-dialog .rf-policy-table th,.rf-dialog .rf-policy-table td{padding:6px 8px!important;height:32px!important}
+.rf-dialog .rf-policy-table button{min-width:26px!important;height:26px!important;padding:2px 6px!important}
+.rf-dialog .rf-drag{font-size:15px!important}
+.rf-dialog #rf-column-groups .rf-column-grid{gap:3px 10px!important}
+.rf-dialog #rf-column-groups .rf-check{padding:4px 5px!important}
+.rf-dialog .rf-locked{color:#52675b!important;opacity:.9!important}
+.rf-dialog .rf-locked input{opacity:.75!important}
+.rf-dialog .rf-group>summary{padding:7px 9px!important}
+.rf-filter-sequence{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+.rf-filter-sequence span{display:inline-flex;align-items:center;padding:3px 6px;border-radius:10px;background:#edf5f0;color:#285440;font-size:10px;font-weight:650}
+.rf-filter-sequence i{font-style:normal;color:#82958a;font-size:10px}
+.mw-filter-controls{gap:6px!important;padding:7px 10px!important;align-items:flex-end!important}
+.mw-filter-controls>label{gap:3px!important;font-size:10px!important}
+.mw-filter-controls select,.mw-filter-controls input[type="search"],.mw-filter-controls input[type="date"]{height:31px!important;min-height:31px!important;padding-top:4px!important;padding-bottom:4px!important}
+.mw-filter-controls>.mw-btn{min-height:31px!important;height:31px!important;padding:5px 9px!important}
+.mw-query-summary{padding:6px 10px!important;gap:5px!important}
+.mw-query-summary .mw-chip{padding:4px 6px!important}
+.rf-clear-all{margin-left:auto!important}
