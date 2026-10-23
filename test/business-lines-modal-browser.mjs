@@ -213,13 +213,13 @@ try{
  await page.locator('.mw-results [data-mw="refresh"]').click();await ready();assert.equal(puts(),putsBeforeRefresh+1);
  await page.locator('#crmSearchInput').fill('');await page.keyboard.press('Escape');
  await page.waitForFunction(()=>document.querySelector('#mw-search')?.value===''&&document.querySelector('.mw-results')?.getAttribute('aria-busy')==='false');
- // Create from Overview also returns to Overview and exposes success feedback.
+ // Create from Overview returns to Records and surfaces the newest modified record first.
  await page.locator('[data-mw="dashboard"]').click();await page.waitForFunction(()=>document.querySelector('[data-mw="dashboard"]')?.getAttribute('aria-current')==='page');
  await page.locator('[data-mw="create"]').click();await page.locator('#mw-record-form [name="name"]').fill('Created from Overview');await page.locator('#mw-record-form [name="code"]').fill('FROM-OVERVIEW');
  await page.locator('#mw-save').click();await modal().waitFor({state:'detached'});await ready();
- assert.equal(await page.locator('[data-mw="dashboard"]').getAttribute('aria-current'),'page');assert.equal(await page.locator('.mw-feedback').isVisible(),true);
- await page.locator('[data-mw="home"]').click();await ready();
- checks.push('Successful Save auto-closes, preserves filtered/sorted page/columns, distinguishes refresh failure; Create returns to Overview');
+ assert.equal(await page.locator('[data-mw="home"]').getAttribute('aria-current'),'page');await page.waitForFunction(()=>[...document.querySelectorAll('.r11-toast')].some(node=>/created/i.test(node.textContent)));
+ const latestQuery=requests.filter(r=>r.path==='business-lines'&&r.method==='GET').at(-1).query;assert.match(String(latestQuery.sorts||''),/updatedAt/);assert.match(String(latestQuery.sorts||''),/desc/);
+ checks.push('Successful Save auto-closes, preserves filtered/sorted page/columns, distinguishes refresh failure; Create from Overview returns to Records with Last Modified At descending');
  // Realistic viewport constraints: footer stays visible with a scrolling content region.
  for(const {width,height} of [{width:1366,height:768},{width:1024,height:768},{width:1366,height:627},{width:700,height:800},{width:390,height:844},{width:320,height:568},{width:844,height:390}]){
   await page.setViewportSize({width,height});await page.waitForTimeout(100);
