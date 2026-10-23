@@ -67,3 +67,18 @@
 .mw-filter-controls{gap:8px!important;padding:9px 12px!important}
 .mw-filter-controls label{gap:4px!important;font-size:11px!important}
 @media(max-width:700px){.mw-filter-controls{display:grid!important;grid-template-columns:1fr!important}.mw-filter-controls label,.mw-filter-controls select,.mw-filter-controls input{width:100%!important}}
+
+/* Live review refinements */
+.topbar .breadcrumb .crm-home-icon{display:inline-flex;align-items:center;justify-content:center;font-size:18px;line-height:1;margin-right:5px;transform:translateY(-1px)}
+.topbar .breadcrumb .crm-crumb{touch-action:manipulation}
+.sidebar-bottom .r10-sidebar-profile-link{width:100%;display:flex;align-items:center;gap:9px;min-height:36px;padding:7px 10px;border:1px solid transparent;border-radius:7px;background:transparent;color:#eaf4ee;font:inherit;font-size:12px;font-weight:650;cursor:pointer;text-align:left}
+.sidebar-bottom .r10-sidebar-profile-link:hover,.sidebar-bottom .r10-sidebar-profile-link:focus-visible,.sidebar-bottom .r10-sidebar-profile-link.active{background:#173f30;border-color:#2d5d49}
+.sidebar-bottom .r10-sidebar-profile-link .nav-icon{width:18px;text-align:center;font-size:15px}
+.sidebar.collapsed .sidebar-bottom .r10-sidebar-profile-link span:last-child{display:none}
+.sidebar.collapsed .sidebar-bottom .r10-sidebar-profile-link{justify-content:center;padding-inline:4px}
+.crm-profile-menu.r10-profile-menu{width:min(330px,calc(100vw - 20px))}
+.r10-profile-head{padding:11px 12px}.r10-profile-actions{gap:4px;padding:8px}.r10-profile-actions button,.r10-profile-actions summary{min-height:34px;padding:7px 9px}
+.mw-settings-menu>div{width:min(330px,calc(100vw - 24px))!important;max-width:min(330px,calc(100vw - 24px))!important;overflow-x:hidden!important;overflow-y:auto!important;padding:5px!important}
+.mw-settings-menu .mw-menu-item{width:100%!important;display:block!important;text-align:left!important;white-space:normal!important;overflow-wrap:anywhere!important;padding:6px 9px!important;min-height:32px!important}
+.r10-menu-desc{white-space:normal!important;overflow-wrap:anywhere!important;line-height:1.25!important;margin-top:1px!important}
+.r10-custom-group>summary{padding:6px 9px!important}.r10-custom-sub{padding:1px 0 1px 7px!important}
