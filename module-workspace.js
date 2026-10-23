@@ -23,7 +23,7 @@ function create(host,config) {
  const recents=()=>{try{const v=JSON.parse(sessionStorage.getItem(recentKey));return Array.isArray(v)?v.filter(s=>typeof s==='string').slice(0,5):[]}catch{return[]}};
  function rememberSearch(value){if(!value)return;try{sessionStorage.setItem(recentKey,JSON.stringify([value,...recents().filter(s=>s!==value)].slice(0,5)))}catch{}}
  const button=(label,action,extra='',ico='')=>'<button type="button" class="mw-btn '+extra+'" data-mw="'+action+'" aria-label="'+esc(label)+'">'+(ico?icon(ico):'')+'<span>'+esc(label)+'</span></button>';
- function announce(message){if(dead)return;state.message=message;const el=find('.mw-feedback');if(el){el.textContent=message;el.hidden=!message}}
+ function announce(message,options={}){if(dead||!message)return;state.message=message;const el=find('.mw-feedback');if(el){el.textContent='';el.hidden=true}if(window.SCRMToast)window.SCRMToast(message,options);else if(el){el.textContent=message;el.hidden=false}}
  function mountHeader(){
  const topbar=document.querySelector('.topbar');
  moduleHeader=document.createElement('div');moduleHeader.className='mw-module-header';
@@ -64,7 +64,7 @@ function create(host,config) {
  function shell(){
  host.innerHTML='<section class="mw-workspace" aria-label="'+esc(config.title)+'"><h1 class="mw-sr-only">'+esc(config.title)+'</h1><section class="mw-dashboard" aria-label="'+esc(config.title)+' Dashboard" hidden></section><div class="mw-home" aria-label="'+esc(config.title)+' Home"><div class="mw-panel"><section id="mw-filter-controls" class="mw-filter-controls" aria-label="Filter '+esc(config.title)+'" hidden><label>Status<select id="mw-status"><option value="all">All statuses</option><option value="Active">Active</option><option value="Inactive">Inactive</option></select></label><label>Record state<select id="mw-archived"><option value="exclude">Current records</option><option value="only">Archived records</option><option value="all">Current & archived</option>'+(config.key==='business-lines'?'<option value="deleted">Deleted records</option>':'')+'</select></label>'+button('Advanced filters','filters','','filter')+'</section><div class="mw-query-summary" hidden></div><div class="mw-selection" hidden></div><p class="mw-feedback" role="status" hidden></p><div class="mw-results" aria-live="polite"></div><footer class="mw-footer"></footer></div></div></section>';
  // Save confirmations must remain visible after returning to either view.
- if(config.key==='business-lines'){const feedback=find('.mw-feedback');find('.mw-workspace').insertBefore(feedback,find('.mw-dashboard'));}
+ if(config.key==='business-lines'){const workspace=find('.mw-workspace'),dashboard=find('.mw-dashboard'),feedback=find('.mw-feedback'),filters=find('#mw-filter-controls');workspace.insertBefore(filters,dashboard);workspace.insertBefore(feedback,dashboard);}
  mountHeader();
  find('#mw-status').value=state.status;find('#mw-archived').value=state.archived;
  find('#mw-status').onchange=e=>{if(!permitted('filter'))return;state.status=e.target.value;state.page=1;load()};
@@ -141,7 +141,7 @@ function create(host,config) {
  else if(action==='export')exportDialog();
  else if(action==='export-selected')exportDialog('selected');
  else if(action==='clear-selection'){state.selected.clear();render()}
- else if(action==='clear-filters'){state.filters=[];state.page=1;load()}
+ else if(action==='clear-filters'){state.filters=[];state.filterTree={logic:'and',conditions:[]};state.status='all';state.archived='exclude';state.page=1;load()}
  else if(action==='remove-filter'){state.filters.splice(Number(b.dataset.index),1);state.page=1;load()}
  else if(action==='clear-query'){state.q='';state.filters=[];state.status='all';state.page=1;find('#mw-search').value='';find('#mw-status').value='all';load()}
  else if(action==='sort'){state.sort=b.dataset.column;state.direction=state.sort===b.dataset.column&&b.closest('th').getAttribute('aria-sort')==='ascending'?'desc':'asc';state.page=1;load()}
@@ -343,7 +343,7 @@ function create(host,config) {
  const missing=fields.find(f=>f.required&&!body[f.key]);if(missing){error.textContent='Enter '+missing.label.toLowerCase()+'.';error.hidden=false;form.elements[missing.key].focus();return}
  const saveControls=[...d.querySelectorAll('input,select,textarea,button')].map(el=>[el,el.disabled]);
  dialogSaving=true;d.setAttribute('aria-busy','true');saveControls.forEach(([el])=>el.disabled=true);d.querySelector('#mw-save').textContent='Saving…';
- try{await api(config.endpoint+(editing?'/'+encodeURIComponent(record.id):''),editing?'PUT':'POST',body);if(dead||dialog!==d)return;dialogSaving=false;closeDialog(true);announce(config.singular+(editing?' updated.':' created.'));await load()}
+ try{await api(config.endpoint+(editing?'/'+encodeURIComponent(record.id):''),editing?'PUT':'POST',body);if(dead||dialog!==d)return;const createdFromOverview=!editing&&state.view==='dashboard';dialogSaving=false;closeDialog(true);if(createdFromOverview){state.view='home';state.sort='updatedAt';state.direction='desc';state.sorts=[{field:'updatedAt',direction:'desc'}];state.page=1;renderViews();}announce(config.singular+(editing?' updated.':' created.'));await load()}
  catch(e){if(dead||dialog!==d)return;dialogSaving=false;d.removeAttribute('aria-busy');saveControls.forEach(([el,disabled])=>el.disabled=disabled);error.textContent=e.message;error.hidden=false;d.querySelector('#mw-save').disabled=false;d.querySelector('#mw-save').textContent=config.key==='business-lines'?'Save':editing?'Save changes':'Create '+config.singular;error.scrollIntoView({block:'nearest'})}
  };
  form.querySelector('input:not([readonly]),select,textarea')?.focus();
