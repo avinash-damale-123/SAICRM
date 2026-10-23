@@ -13,7 +13,6 @@ function progress(){
 function breadcrumb(){
  const el=$('.topbar .breadcrumb');if(!el||el.dataset.r10)return;el.dataset.r10='1';el.tabIndex=0;el.title='Scroll horizontally to view the full path';
  el.addEventListener('wheel',e=>{if(el.scrollWidth<=el.clientWidth)return;if(Math.abs(e.deltaX)>Math.abs(e.deltaY))return;el.scrollLeft+=e.deltaY;e.preventDefault()},{passive:false});
- let down=false,x=0,left=0;el.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'&&e.button!==0)return;down=true;x=e.clientX;left=el.scrollLeft;el.setPointerCapture?.(e.pointerId)});el.addEventListener('pointermove',e=>{if(down)el.scrollLeft=left-(e.clientX-x)});el.addEventListener('pointerup',()=>down=false);el.addEventListener('pointercancel',()=>down=false);
 }
 function passwordUI(menu){
  if(menu.querySelector('.r10-profile-actions'))return;const u=user(),logout=$('#logoutBtn');menu.classList.add('r10-profile-menu');menu.innerHTML='<div class="r10-profile-head"><div class="r10-profile-avatar">'+esc((u.name||u.email||'U').split(/\s+/).map(v=>v[0]).slice(0,2).join('').toUpperCase())+'</div><div class="r10-profile-meta"><strong>'+esc(u.name||'User')+'</strong><small>'+esc(u.email||'')+'</small></div></div><div class="r10-profile-actions"><button type="button" data-r10-profile>View Profile</button><details class="r10-password"><summary>Change Password</summary><form class="r10-password-form"><label>Current password<input name="currentPassword" type="password" autocomplete="current-password" minlength="1" maxlength="128" required></label><label>New password<input name="newPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label><button type="submit">Update Password</button><p class="r10-password-message" role="status"></p></form></details><button type="button" class="r10-profile-logout" data-r10-logout>Sign out</button><div class="crm-profile-logout-slot" hidden></div></div>';if(logout)menu.querySelector('.crm-profile-logout-slot').append(logout);
@@ -23,12 +22,12 @@ function passwordUI(menu){
 }
 function profile(){
  const menu=$('.crm-profile-menu');if(menu)passwordUI(menu);
- const nav=$('#navigation');if(nav&&!nav.querySelector('[data-r10-my-profile]')){const sec=document.createElement('div');sec.className='nav-section r10-profile-nav-section';sec.textContent='Profile';const b=document.createElement('button');b.type='button';b.className='nav-item';b.dataset.r10MyProfile='1';b.innerHTML='<span class="nav-icon">◎</span>My Profile';b.onclick=showProfile;nav.append(sec,b)}
+ const bottom=$('.sidebar-bottom');if(bottom&&!bottom.querySelector('[data-r10-my-profile]')){const b=document.createElement('button');b.type='button';b.className='r10-sidebar-profile-link';b.dataset.r10MyProfile='1';b.innerHTML='<span class="nav-icon" aria-hidden="true">◎</span><span>My Profile</span>';b.onclick=showProfile;bottom.insertBefore(b,bottom.firstElementChild)}
 }
 function showProfile(){
  const ws=window.SCRM?.activeWorkspace;if(ws&&!ws.canLeave?.())return;ws?.destroy?.(true);window.SCRM.activeWorkspace=null;
  const u=user(),content=$('#content');if(!content)return;content.className='content';content.innerHTML='<section class="r10-profile-page"><h1>My Profile</h1><p>Account information and personal CRM preferences.</p><div class="r10-profile-card"><dl><dt>Full Name</dt><dd>'+esc(u.name||'—')+'</dd><dt>Email ID</dt><dd>'+esc(u.email||'—')+'</dd><dt>Role</dt><dd>'+esc(u.systemRole==='super_admin'?'Super Admin':u.role||'—')+'</dd><dt>Account Status</dt><dd>'+esc(u.status||'—')+'</dd></dl><p>Additional profile settings will be added after the core CRM modules are completed.</p></div></section>';
- $$('.nav-item').forEach(n=>n.classList.toggle('active',n.hasAttribute('data-r10-my-profile')));$('.crm-profile-menu')?.setAttribute('hidden','');
+ $('.nav-item,[data-r10-my-profile]').forEach(n=>n.classList.toggle('active',n.hasAttribute('data-r10-my-profile')));$('.crm-profile-menu')?.setAttribute('hidden','');
  window.scrollTo(0,0);
 }
 function menus(){
