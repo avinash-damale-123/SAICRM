@@ -110,9 +110,10 @@ try{
  const assertFields=async()=>{assert.equal(await page.locator('.mw-bl-detail-page .mw-bl-field').count(),19);assert.equal(await page.locator('.mw-bl-detail-content .mw-bl-section').count(),5);};
  const toolbar=async()=>{for(const sel of ['[data-mw="filter-toggle"]','[data-mw="import"]','[data-mw="export"]','.mw-settings-menu'])assert.equal(await page.locator(sel).isVisible(),true,'Permitted action '+sel+' visible');};
  await toolbar();await page.locator('[data-mw="dashboard"]').click();await page.waitForFunction(()=>document.querySelector('[data-mw="dashboard"]')?.getAttribute('aria-current')==='page');await toolbar();
+ await page.locator('[data-mw="filter-toggle"]').click();assert.equal(await page.locator('#mw-filter-controls').isVisible(),true,'Filter panel opens from Overview');assert.equal(await page.locator('[data-mw="dashboard"]').getAttribute('aria-current'),'page','Opening filters keeps Overview selected');await page.locator('[data-mw="filter-toggle"]').click();
  await page.locator('[data-mw="import"]').click();await page.locator('#rf-import-file').waitFor();await page.locator('[data-rf="cancel"]').click();
  await page.locator('.mw-settings-menu>summary').click();await page.locator('[data-mw="columns"]').click();await page.locator('#rf-column-search').waitFor();await page.locator('[data-rf="cancel"]').click();
- assert.equal(await page.locator('[data-mw="dashboard"]').getAttribute('aria-current'),'page');checks.push('Same permitted actions in Records and Overview; Import and Column Selection work from Overview');
+ assert.equal(await page.locator('[data-mw="dashboard"]').getAttribute('aria-current'),'page');checks.push('Same permitted actions in Records and Overview; Import, Filter and Choose Columns work from Overview');
  await page.screenshot({path:'work/browser/popup-overview-toolbar.png'});
  await page.locator('[data-mw="home"]').click();await ready();
  const card=await page.locator('.scrm-bl-clean').evaluate(e=>({height:e.getBoundingClientRect().height,title:getComputedStyle(e.querySelector('h2')).fontSize,padding:parseFloat(getComputedStyle(e).paddingLeft)}));
@@ -185,7 +186,7 @@ try{
  holdSave=true;await page.locator('#bl-save').click();await page.waitForFunction(()=>document.querySelector('dialog')?.getAttribute('aria-busy')==='true');
  assert.equal(await page.locator('#bl-save').isDisabled(),true);assert.equal(await page.locator('#bl-cancel').isDisabled(),true);await page.keyboard.press('Escape');assert.equal(await modal().count(),1);
  assert.equal(await modal().locator('[data-bl-field-edit]:not(:disabled)').count(),0,'Field shortcuts are disabled during a write');
- assert.ok(releaseSave);releaseSave();await modal().waitFor({state:'detached'});await ready();assert.match(await page.locator('.mw-feedback').innerText(),/saved successfully/);assert.equal(await beforeUnloadBlocked(),false);assert.equal(await page.locator('[data-mw="home"]').getAttribute('aria-current'),'page');await openFirst();assert.match(await page.locator('.mw-bl-detail-heading').innerText(),/Inactive/);await page.waitForFunction(()=>document.querySelector('[data-bl-history]')?.textContent.includes('Popup regression evidence'));checks.push('Required lifecycle reason; 409 keeps draft; save controls and Escape locked in-flight; successful Save closes and reopening confirms values/audit');
+ assert.ok(releaseSave);releaseSave();await modal().waitFor({state:'detached'});await ready();await page.waitForFunction(()=>[...document.querySelectorAll('.r11-toast')].some(node=>/saved successfully/i.test(node.textContent)));;assert.equal(await beforeUnloadBlocked(),false);assert.equal(await page.locator('[data-mw="home"]').getAttribute('aria-current'),'page');await openFirst();assert.match(await page.locator('.mw-bl-detail-heading').innerText(),/Inactive/);await page.waitForFunction(()=>document.querySelector('[data-bl-history]')?.textContent.includes('Popup regression evidence'));checks.push('Required lifecycle reason; 409 keeps draft; save controls and Escape locked in-flight; successful Save closes and reopening confirms values/audit');
  await page.locator('#bl-back').click();await modal().waitFor({state:'detached'});assert.equal(await page.evaluate(()=>document.activeElement!==document.body),true);assert.equal(await page.evaluate(()=>document.documentElement.classList.contains('mw-modal-open')),false);
  // Record loading failures and independent audit errors are recoverable.
  readError=true;await page.locator('.mw-record-link:visible').first().click();await page.locator('[data-bl-retry]').waitFor();await page.locator('[data-bl-retry]').click();await page.locator('#bl-edit').waitFor();await page.locator('#bl-back').click();
@@ -203,22 +204,22 @@ try{
  assert.equal(await page.locator('#crmSearchInput').inputValue(),'Framework');
  assert.deepEqual(requests.filter(r=>r.path==='business-lines'&&r.method==='GET').at(-1).query,beforeQuery);
  assert.deepEqual(await page.locator('.rf-table th[data-column-key]').evaluateAll(els=>els.map(e=>e.dataset.columnKey)),beforeColumns);
- assert.equal(await page.locator('.mw-feedback').isVisible(),true);assert.equal(await beforeUnloadBlocked(),false);
+ assert.equal(await page.locator('.r11-toast').filter({hasText:/saved successfully/i}).count()>0,true);assert.equal(await beforeUnloadBlocked(),false);
  // List refresh failure must not report a committed save as failed or repeat it.
  await openFirst();await edit();await page.locator('#mw-bl-page-form [name="description"]').fill('Write succeeds even when refresh fails.');
  const putsBeforeRefresh=puts();nextListFailure=true;await page.locator('#bl-save').click();await modal().waitFor({state:'detached'});
  await page.locator('.mw-results [data-mw="refresh"]').waitFor();assert.equal(puts(),putsBeforeRefresh+1);
- assert.match(await page.locator('.mw-feedback').innerText(),/saved successfully/);
+ assert.equal(await page.locator('.r11-toast').filter({hasText:/saved successfully/i}).count()>0,true);
  await page.locator('.mw-results [data-mw="refresh"]').click();await ready();assert.equal(puts(),putsBeforeRefresh+1);
  await page.locator('#crmSearchInput').fill('');await page.keyboard.press('Escape');
  await page.waitForFunction(()=>document.querySelector('#mw-search')?.value===''&&document.querySelector('.mw-results')?.getAttribute('aria-busy')==='false');
- // Create from Overview also returns to Overview and exposes success feedback.
+ // Create from Overview returns to Records and surfaces the newest modified record first.
  await page.locator('[data-mw="dashboard"]').click();await page.waitForFunction(()=>document.querySelector('[data-mw="dashboard"]')?.getAttribute('aria-current')==='page');
  await page.locator('[data-mw="create"]').click();await page.locator('#mw-record-form [name="name"]').fill('Created from Overview');await page.locator('#mw-record-form [name="code"]').fill('FROM-OVERVIEW');
  await page.locator('#mw-save').click();await modal().waitFor({state:'detached'});await ready();
- assert.equal(await page.locator('[data-mw="dashboard"]').getAttribute('aria-current'),'page');assert.equal(await page.locator('.mw-feedback').isVisible(),true);
- await page.locator('[data-mw="home"]').click();await ready();
- checks.push('Successful Save auto-closes, preserves filtered/sorted page/columns, distinguishes refresh failure; Create returns to Overview');
+ assert.equal(await page.locator('[data-mw="home"]').getAttribute('aria-current'),'page');await page.waitForFunction(()=>[...document.querySelectorAll('.r11-toast')].some(node=>/created/i.test(node.textContent)));
+ const latestQuery=requests.filter(r=>r.path==='business-lines'&&r.method==='GET').at(-1).query;assert.match(String(latestQuery.sorts||''),/updatedAt/);assert.match(String(latestQuery.sorts||''),/desc/);
+ checks.push('Successful Save auto-closes, preserves filtered/sorted page/columns, distinguishes refresh failure; Create from Overview returns to Records with Last Modified At descending');
  // Realistic viewport constraints: footer stays visible with a scrolling content region.
  for(const {width,height} of [{width:1366,height:768},{width:1024,height:768},{width:1366,height:627},{width:700,height:800},{width:390,height:844},{width:320,height:568},{width:844,height:390}]){
   await page.setViewportSize({width,height});await page.waitForTimeout(100);

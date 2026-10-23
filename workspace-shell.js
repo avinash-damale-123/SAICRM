@@ -20,13 +20,14 @@ function activeModule(){const p=window.SCRM?.currentPage?.();return modules.has(
 function allowedModule(id){return id!=='businesslines'||window.SCRM?.can?.('businesslines')}
 function placeCrumbs(p){
  const chain=p==='businesslines'?[['home','Home'],['settings','Settings & Masters'],['businesslines','Business Lines']]:
+  p==='myprofile'?[['home','Home'],['myprofile','My Profile']]:
   p==='settings'?[['home','Home'],['settings',label(p)]]:
   p==='home'?[['home','Home']]:[['home','Home'],[p,label(p)]];
  const nav=$('.breadcrumb');if(!nav)return;
  nav.setAttribute('aria-label','Breadcrumb');
  nav.innerHTML=chain.map(([id,name],i)=>
   (i?'<span class="crumb-divider" aria-hidden="true">›</span>':'')+
-  (i===chain.length-1?'<strong id="crumb" aria-current="page" title="'+esc(name)+'">'+esc(name)+'</strong>':'<button type="button" class="crm-crumb" data-crumb="'+esc(id)+'" aria-label="Open '+esc(name)+'" title="Open '+esc(name)+'">'+(id==='home'?'⌂ ':'')+esc(name)+'</button>')
+  (i===chain.length-1?'<strong id="crumb" aria-current="page" title="'+esc(name)+'">'+esc(name)+'</strong>':'<button type="button" class="crm-crumb" data-crumb="'+esc(id)+'" aria-label="Open '+esc(name)+'" title="Open '+esc(name)+'">'+(id==='home'?'<span class="crm-home-icon" aria-hidden="true">⌂</span>':'')+esc(name)+'</button>')
  ).join('');
  nav.querySelectorAll('[data-crumb]').forEach(button=>button.onclick=()=>window.SCRM.navigateTo(button.dataset.crumb));
 }

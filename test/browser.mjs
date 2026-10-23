@@ -83,6 +83,10 @@ try{
  assert.equal(await page.locator('#menuBtn').evaluate(node=>!!node.closest('#sidebar .brand')),true,'Desktop nav toggle belongs in the sidebar');
  assert.equal(await page.locator('.topbar #menuBtn').count(),0,'Desktop nav toggle must not occupy the topbar');
  assert.equal((await page.locator('#sidebarSignOut').innerText()).trim(),'Sign out','Sidebar must offer a footer sign out');
+ assert.equal(await page.locator('[data-nav="myprofile"]').count(),1,'My Profile must be a persistent sidebar item');
+ await page.locator('[data-nav="myprofile"]').click();await page.getByRole('heading',{name:'My Profile'}).waitFor();
+ assert.match(await page.locator('#content').innerText(),/Full Name/);assert.match(await page.locator('#content').innerText(),/Email ID/);
+ await page.locator('[data-crumb="home"]').click();await page.getByRole('heading',{name:'Home'}).waitFor();
  const modules=['overview','mywork','analytics','leads','customers','contacts','opportunities','activities','quotes','bookings','employees','branches','modules','settings','audit'];
  let checks=0;
  for(const width of [320,360,768,1280,1440]){
