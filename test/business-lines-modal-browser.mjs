@@ -110,9 +110,10 @@ try{
  const assertFields=async()=>{assert.equal(await page.locator('.mw-bl-detail-page .mw-bl-field').count(),19);assert.equal(await page.locator('.mw-bl-detail-content .mw-bl-section').count(),5);};
  const toolbar=async()=>{for(const sel of ['[data-mw="filter-toggle"]','[data-mw="import"]','[data-mw="export"]','.mw-settings-menu'])assert.equal(await page.locator(sel).isVisible(),true,'Permitted action '+sel+' visible');};
  await toolbar();await page.locator('[data-mw="dashboard"]').click();await page.waitForFunction(()=>document.querySelector('[data-mw="dashboard"]')?.getAttribute('aria-current')==='page');await toolbar();
+ await page.locator('[data-mw="filter-toggle"]').click();assert.equal(await page.locator('#mw-filter-controls').isVisible(),true,'Filter panel opens from Overview');assert.equal(await page.locator('[data-mw="dashboard"]').getAttribute('aria-current'),'page','Opening filters keeps Overview selected');await page.locator('[data-mw="filter-toggle"]').click();
  await page.locator('[data-mw="import"]').click();await page.locator('#rf-import-file').waitFor();await page.locator('[data-rf="cancel"]').click();
  await page.locator('.mw-settings-menu>summary').click();await page.locator('[data-mw="columns"]').click();await page.locator('#rf-column-search').waitFor();await page.locator('[data-rf="cancel"]').click();
- assert.equal(await page.locator('[data-mw="dashboard"]').getAttribute('aria-current'),'page');checks.push('Same permitted actions in Records and Overview; Import and Column Selection work from Overview');
+ assert.equal(await page.locator('[data-mw="dashboard"]').getAttribute('aria-current'),'page');checks.push('Same permitted actions in Records and Overview; Import, Filter and Choose Columns work from Overview');
  await page.screenshot({path:'work/browser/popup-overview-toolbar.png'});
  await page.locator('[data-mw="home"]').click();await ready();
  const card=await page.locator('.scrm-bl-clean').evaluate(e=>({height:e.getBoundingClientRect().height,title:getComputedStyle(e.querySelector('h2')).fontSize,padding:parseFloat(getComputedStyle(e).paddingLeft)}));
