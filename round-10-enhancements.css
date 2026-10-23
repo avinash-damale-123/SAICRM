@@ -126,3 +126,7 @@
 .r10-toast.r10-leaving{opacity:0;transform:translateY(-5px);transition:opacity .2s,transform .2s}
 @keyframes r10-toast-in{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:translateY(0)}}
 @media(prefers-reduced-motion:reduce){.r10-toast{animation:none}.r10-toast.r10-leaving{transition:none}}
+
+@container scrm-main (max-width:520px){
+ .scrm-workbar.scrm-bl-clean.scrm-search-in-topbar .mw-settings-menu>div{left:0!important;right:auto!important;width:min(330px,calc(100vw - 32px))!important;max-width:calc(100vw - 32px)!important}
+}
