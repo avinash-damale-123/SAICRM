@@ -354,7 +354,7 @@ try{
  auditFailure=true;
  const auditFailureResponse=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/audit');
  await page.evaluate(()=>document.querySelector('[data-nav="audit"]').click());await auditFailureResponse;
- await page.waitForFunction(()=>document.querySelector('#toast')?.textContent.includes('Fixture audit unavailable'));
+ await page.waitForFunction(()=>[...document.querySelectorAll('.r11-toast')].some(node=>node.textContent.includes('Fixture audit unavailable')));
  assert.equal(await page.locator('.mw-module-header #mw-search').count(),1);
  assert.equal(await page.locator('.mw-table').isVisible(),true);
  await page.keyboard.press('Control+k');assert.equal(await page.locator('#crmSearchInput').evaluate(node=>document.activeElement===node),true);
