@@ -204,12 +204,12 @@ try{
  assert.equal(await page.locator('#crmSearchInput').inputValue(),'Framework');
  assert.deepEqual(requests.filter(r=>r.path==='business-lines'&&r.method==='GET').at(-1).query,beforeQuery);
  assert.deepEqual(await page.locator('.rf-table th[data-column-key]').evaluateAll(els=>els.map(e=>e.dataset.columnKey)),beforeColumns);
- assert.equal(await page.locator('.mw-feedback').isVisible(),true);assert.equal(await beforeUnloadBlocked(),false);
+ assert.equal(await page.locator('.r11-toast').filter({hasText:/saved successfully/i}).count()>0,true);assert.equal(await beforeUnloadBlocked(),false);
  // List refresh failure must not report a committed save as failed or repeat it.
  await openFirst();await edit();await page.locator('#mw-bl-page-form [name="description"]').fill('Write succeeds even when refresh fails.');
  const putsBeforeRefresh=puts();nextListFailure=true;await page.locator('#bl-save').click();await modal().waitFor({state:'detached'});
  await page.locator('.mw-results [data-mw="refresh"]').waitFor();assert.equal(puts(),putsBeforeRefresh+1);
- assert.match(await page.locator('.mw-feedback').innerText(),/saved successfully/);
+ assert.equal(await page.locator('.r11-toast').filter({hasText:/saved successfully/i}).count()>0,true);
  await page.locator('.mw-results [data-mw="refresh"]').click();await ready();assert.equal(puts(),putsBeforeRefresh+1);
  await page.locator('#crmSearchInput').fill('');await page.keyboard.press('Escape');
  await page.waitForFunction(()=>document.querySelector('#mw-search')?.value===''&&document.querySelector('.mw-results')?.getAttribute('aria-busy')==='false');
