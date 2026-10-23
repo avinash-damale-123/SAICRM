@@ -140,3 +140,7 @@
 
 /* Keep table headers compact but comfortably readable. */
 .mw-framework .rf-table thead th{height:38px!important}.mw-framework .rf-table thead th>button{min-height:37px!important;padding:6px 9px!important}
+
+@media(max-width:480px){
+ .scrm-workbar .mw-settings-menu>div{right:0!important;left:auto!important;width:min(296px,calc(100vw - 16px))!important;max-width:calc(100vw - 16px)!important;transform:none!important}
+}
