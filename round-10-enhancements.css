@@ -226,6 +226,7 @@
 .rf-filter-panel-actions .rf-hide-filters{color:#315846!important;border-color:#cbd8d1!important;background:#fff!important}
 .rf-filter-panel-actions .mw-btn:disabled{opacity:.45!important;cursor:not-allowed!important}
 @media(max-width:700px){
+ .r10-hscroll,.r10-sticky-head{display:none!important}
  .rf-filter-fields{display:grid!important;grid-template-columns:1fr!important;flex-basis:100%}
  .rf-filter-fields>label,.rf-filter-fields select,.rf-filter-fields input{width:100%!important}
  .rf-filter-panel-actions{width:100%;margin-left:0;justify-content:flex-end}
