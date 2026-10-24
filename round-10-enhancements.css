@@ -138,13 +138,17 @@
  body:has(.crm-module-host) .topbar{position:sticky!important;top:0!important;z-index:90!important}
  .crm-module-host{position:sticky!important;top:var(--scrm-topbar-h,68px)!important;z-index:80!important}
  .mw-framework .r10-hscroll{position:sticky!important;top:calc(var(--scrm-topbar-h,68px) + var(--scrm-modulebar-h,64px))!important;z-index:70!important}
- .mw-framework .mw-footer{position:relative!important;bottom:auto!important}
+ .mw-framework .mw-footer{position:static!important;bottom:auto!important}
 }
 .r10-sticky-head{position:fixed;z-index:65;overflow:hidden;background:#174d38;border:1px solid #d7e3dc;border-top:0;box-shadow:0 4px 12px rgba(25,56,43,.12);box-sizing:border-box}
 .r10-sticky-head[hidden]{display:none!important}
-.r10-sticky-head .r10-sticky-table{margin:0!important;transform-origin:left top}
-.r10-sticky-head .rf-table thead th{position:static!important;top:auto!important}
-.r10-sticky-head .rf-table thead th.rf-frozen,.r10-sticky-head .rf-table .rf-check-col{position:static!important;left:auto!important}
+.r10-sticky-head .r10-sticky-table{margin:0!important;transform-origin:left top;border-collapse:separate;border-spacing:0;table-layout:auto;font-size:11.5px}
+.r10-sticky-head .r10-sticky-table thead th{position:static!important;top:auto!important;height:35px!important;min-height:35px!important;padding:0!important;background:#176348!important;color:#fff!important;border:0;border-right:1px solid #3e7a62;border-bottom:1px solid #125537;vertical-align:middle}
+.r10-sticky-head .r10-sticky-table thead th.rf-sorted{background:#bd5914!important;color:#fff!important}
+.r10-sticky-head .r10-sticky-table thead th>button{display:flex;align-items:center;justify-content:space-between;gap:5px;width:100%;height:34px;min-height:34px;padding:4px 8px!important;border:0;background:transparent!important;color:#fff!important;font-size:11.5px;font-weight:650;line-height:1.15;text-align:left}
+.r10-sticky-head .r10-sticky-table .rf-check-col{width:34px!important;min-width:34px!important;max-width:34px!important;text-align:center;padding:2px 5px!important}
+.r10-sticky-head .r10-sticky-table .rf-check-col input{width:14px;height:14px;accent-color:#087b40}
+.r10-sticky-head .r10-sticky-table th.rf-frozen{position:static!important;left:auto!important}
 .r10-sticky-head .mw-column-resizer{display:none!important}
 
 /* Dense desktop record grid: readable but information-forward. */
