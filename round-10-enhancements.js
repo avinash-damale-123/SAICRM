@@ -28,7 +28,7 @@ function profile(){
 function showProfile(){
  const ws=window.SCRM?.activeWorkspace;if(ws&&!ws.canLeave?.())return;ws?.destroy?.(true);window.SCRM.activeWorkspace=null;
  const u=user(),content=$('#content');if(!content)return;content.className='content';content.innerHTML='<section class="r10-profile-page"><h1>My Profile</h1><p>Account information and personal CRM preferences.</p><div class="r10-profile-card"><dl><dt>Full Name</dt><dd>'+esc(u.name||'—')+'</dd><dt>Email ID</dt><dd>'+esc(u.email||'—')+'</dd><dt>Role</dt><dd>'+esc(u.systemRole==='super_admin'?'Super Admin':u.role||'—')+'</dd><dt>Account Status</dt><dd>'+esc(u.status||'—')+'</dd></dl><p>Additional profile settings will be added after the core CRM modules are completed.</p></div></section>';
- $('.nav-item,[data-r10-my-profile]').forEach(n=>n.classList.toggle('active',n.hasAttribute('data-r10-my-profile')));$('.crm-profile-menu')?.setAttribute('hidden','');
+ [...document.querySelectorAll('.nav-item,[data-r10-my-profile]')].forEach(n=>n.classList.toggle('active',n.hasAttribute('data-r10-my-profile')));$('.crm-profile-menu')?.setAttribute('hidden','');
  window.scrollTo(0,0);
 }
 function menus(){
@@ -49,7 +49,7 @@ function updateStickyTables(){
  $$('.rf-table-wrap').forEach(wrap=>wrap._r10StickyUpdate?.(offsets));
 }
 function scrollbars(){
- $('.rf-table-wrap').forEach(wrap=>{if(wrap.dataset.r10Scroll)return;wrap.dataset.r10Scroll='1';
+ [...document.querySelectorAll('.rf-table-wrap')].forEach(wrap=>{if(wrap.dataset.r10Scroll)return;wrap.dataset.r10Scroll='1';
   const top=document.createElement('div');top.className='r10-hscroll';top.setAttribute('aria-label','Horizontal table scroll');top.tabIndex=0;const inner=document.createElement('div');top.append(inner);wrap.before(top);
   const sticky=document.createElement('div');sticky.className='r10-sticky-head';sticky.hidden=true;top.after(sticky);
   let syncing=false,lastHead='',cloneTable=null;
