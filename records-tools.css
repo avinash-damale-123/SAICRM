@@ -91,7 +91,6 @@
 .rf-row-more>div button{justify-content:flex-start;font-size:12px;padding:6px 8px;min-height:30px;border:0;white-space:nowrap}
 .rf-long-text{display:block;white-space:normal!important;overflow-wrap:anywhere;line-height:1.5}
 .rf-read-more{display:block;padding:1px 0;border:0;background:none;color:#08653e;font-size:11px;font-weight:650;cursor:pointer}
-.rf-sort-summary{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;color:#5e7467;font-size:11px;padding:5px 10px}
 .rf-mobile-cards{display:none}
 .mw-framework-header .scrm-actions>.scrm-action[data-mw=import]{display:inline-flex!important}
 .mw-framework-header .scrm-actions>.scrm-action[data-mw=import][hidden]{display:none!important}
@@ -117,8 +116,6 @@
 .rf-form-error-summary{background:#fff4f2;border:1px solid #e7b5b0;border-radius:7px;padding:10px 12px;color:#9b332a;margin-bottom:12px;font-size:12px}
 .rf-form-error-summary[hidden]{display:none!important}.rf-form-error-summary button{display:block;text-align:left;border:0;background:transparent;color:#8e3029;font:inherit;cursor:pointer;padding:4px 0;text-decoration:underline}.rf-field-error{display:block;color:#a5392e!important;font-size:11px;line-height:1.4}.rf-field-error[hidden]{display:none!important}.mw-bl-field [aria-invalid=true]{border-color:#c65343!important;box-shadow:0 0 0 1px #c6534322}
 
-.rf-sort-open{margin-left:auto;background:#fff;border:1px solid #cbded1;border-radius:5px;color:#1e5d3e;cursor:pointer;font:inherit;padding:3px 9px;min-height:26px}.rf-sort-open:hover{background:#eaf5ee}
-@media(max-width:700px){.rf-sort-help{display:none}.rf-sort-open{min-height:38px}.rf-mobile-cards>.rf-check{padding:8px}.rf-mobile-cards>.rf-check input{width:18px;height:18px;accent-color:#087b40}}
 
 /* Final visual QA: header child spans must not inherit the old muted sort color.
    Pagination belongs after the scroll viewport, never over the table body. */
@@ -210,3 +207,5 @@
  .rf-job-summary dl>div{grid-template-columns:90px minmax(0,1fr);gap:8px}
  .rf-group>summary label{flex-wrap:wrap}
 }
+
+@media(max-width:700px){.rf-mobile-cards>.rf-check{padding:8px}.rf-mobile-cards>.rf-check input{width:18px;height:18px;accent-color:#087b40}}
