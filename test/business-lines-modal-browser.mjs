@@ -68,18 +68,18 @@ try{
   }));
   assert.ok(rowStyles.length,mode+' visible label/value rows');
   for(const row of rowStyles){
-   const expectedValueBackground=row.editable?'rgb(242, 250, 245)':'rgb(252, 254, 253)';
-   assert.notEqual(row.labelBackground,row.valueBackground,mode+' distinguishes label and value surfaces');
-   assert.equal(row.valueWeight,'400',mode+' regular-weight field values');assert.equal(row.valueBackground,expectedValueBackground,mode+(row.editable?' subtly highlights editable value surfaces':' keeps read-only values almost white'));
+   const expectedValueBackground='rgb(255, 255, 255)';
+   assert.notEqual(row.labelBackground,row.valueBackground,mode+' distinguishes neutral label and white value surfaces');
+   assert.equal(row.valueWeight,'400',mode+' regular-weight field values');assert.equal(row.valueBackground,expectedValueBackground,mode+' keeps value surfaces neutral white');
    assert.equal(row.actionFits,true,mode+' edit shortcut never covers the field value');
-   assert.ok(row.labelSize>=12,mode+' readable labels');assert.equal(row.overflow,false,mode+' no overflowing field text');
+   assert.ok(row.labelSize>=11,mode+' compact labels remain readable');assert.equal(row.overflow,false,mode+' no overflowing field text');
    if(row.width>480){assert.ok(row.valueLeft>=row.right-1,mode+' label on left and value on right');assert.ok(Math.abs(row.top-row.valueTop)<2,mode+' label and value share a row');}
    else assert.ok(row.valueTop>=row.bottom-1,mode+' readable stacked fallback on narrow screens');
   }
   const shortcuts=await modal().locator('[data-bl-field-edit]').evaluateAll(buttons=>buttons.map(b=>b.dataset.blFieldEdit).sort());
   assert.deepEqual(shortcuts,mode.startsWith('create')?['code','description','name']:['code','description','name','status'],mode+' shortcuts only for editable fields');
   const sections=await modal().locator('.mw-bl-section>details>summary:visible').evaluateAll(items=>items.map(el=>getComputedStyle(el).backgroundColor));
-  for(const color of sections)assert.ok(['rgb(197, 217, 204)','rgb(207, 223, 213)','rgb(191, 213, 200)'].includes(color),mode+' darker section headers');
+  for(const color of sections)assert.equal(color,'rgb(241, 243, 242)',mode+' uses restrained neutral section headers');
   if(!mode.includes('long values')&&await page.evaluate(()=>innerWidth>760)){
    const pair=await modal().evaluate(d=>{const first=d.querySelector('.mw-bl-field-name'),id=d.querySelector('.mw-bl-field-displayId');if(!first||!id||!first.getClientRects().length)return null;const a=first.getBoundingClientRect(),b=id.getBoundingClientRect();return {top:Math.abs(a.top-b.top),height:Math.abs(a.height-b.height)};});
    if(pair){assert.ok(pair.top<2,mode+' paired fields align at top');assert.ok(pair.height<2,mode+' paired fields have consistent row height');}
@@ -191,8 +191,8 @@ try{
  readError=true;await page.locator('.mw-record-link:visible').first().click();await page.locator('[data-bl-retry]').waitFor();await page.locator('[data-bl-retry]').click();await page.locator('#bl-edit').waitFor();await page.locator('#bl-back').click();
  historyError=true;await openFirst();await page.locator('[data-bl-expand="1"]').click();await page.locator('[data-audit-retry]').waitFor();await assertFields();historyError=false;await page.locator('[data-audit-retry]').click();await page.waitForFunction(()=>document.querySelector('[data-bl-history]')?.textContent.includes('Popup regression evidence'));await page.locator('#bl-back').click();
  holdRead=true;await page.locator('.mw-record-link:visible').first().click();await modal().waitFor();await page.locator('.mw-dialog-close').click();while(!releaseRead)await new Promise(r=>setTimeout(r,5));releaseRead();await page.waitForTimeout(80);assert.equal(await modal().count(),0,'Late response cannot reopen a closed popup');checks.push('Record retry, audit-only failure and late-response-after-close handled safely');
- // Saving preserves filters/columns but temporarily shows the newest modified
- // record first. The prior manual sort remains a saved preference for later sessions.
+ // Saving preserves filters/columns but shows the newest modified record first.
+ // Manual sorting is temporary for the active SPA session and is never a durable preference.
  await page.locator('#crmSearchInput').fill('Framework');await page.locator('.scrm-identity').click({position:{x:5,y:5}});
  await page.waitForFunction(()=>document.querySelector('#mw-search')?.value==='Framework'&&document.querySelector('.mw-results')?.getAttribute('aria-busy')==='false');
  await page.locator('[data-mw="sort"][data-column="name"]').click();await ready();
