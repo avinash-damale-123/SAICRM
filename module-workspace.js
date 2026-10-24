@@ -124,7 +124,7 @@ function create(host,config) {
  }
  async function load(){if(dead)return;recordsTools?.beforeLoad();const current=++sequence;state.loading=true;state.error='';render();try{const data=await api(config.endpoint+'?'+params());if(dead||current!==sequence)return;state.records=data.records||[];state.total=Number(data.total)||0;state.totalPages=Math.max(1,Number(data.totalPages)||Math.ceil(state.total/state.pageSize));state.counts=data.counts;state.owners=data.owners||[];state.permissions=Object.fromEntries(Object.entries(data.permissions||{}).map(([key,value])=>[key,value===true]));state.permissionsKnown=true;if(permitted('read')&&recordsTools?.receive(data))return load();if(!permitted('read')){state.records=[];state.total=0;state.counts=null;state.loading=false;state.error='You do not have access to this module.';render();return}state.limits={selectedExport:250,...data.resource?.limits};if(state.page>state.totalPages){state.page=state.totalPages;return load()}state.loading=false;render();recordsTools?.save();}catch(e){if(dead||current!==sequence)return;state.loading=false;state.error=e.message||'Please try again.';render()}}
  function rowFor(button){const id=button.dataset.record||button.closest('tr')?.querySelector('[data-record-id]')?.dataset.recordId;return state.records.find(r=>r.id===id)}
- async function click(event){const b=event.target.closest('[data-mw]');if(dead||!b||(!host.contains(b)&&!moduleHeader?.contains(b)))return;const action=b.dataset.mw;const access={create:'create',read:'read',edit:'edit',archive:'archive',restore:'restore',filters:'filter','filter-toggle':'filter',columns:'settings','column-customization':'settings','filter-customization':'settings',refresh:'read',export:'export','export-selected':'export',dashboard:'dashboard',home:'read',import:'import','clear-filters':'filter','clear-all-filters':'filter','remove-filter':'filter',sort:'read',page:'read','clear-selection':'read'};if(access[action]&&!permitted(access[action])&&!(action==='refresh'&&state.error&&!state.permissionsKnown)){announce('You do not have permission to perform this action.');return}moduleHeader?.querySelectorAll('.mw-settings-menu[open]').forEach(menu=>menu.open=false);
+ async function click(event){const b=event.target.closest('[data-mw]');if(dead||!b||(!host.contains(b)&&!moduleHeader?.contains(b)))return;const action=b.dataset.mw;const access={create:'create',read:'read',edit:'edit',archive:'archive',restore:'restore',filters:'filter','filter-toggle':'filter','hide-filters':'filter',columns:'settings','column-customization':'settings','sort-table':'settings','filter-customization':'settings',refresh:'read',export:'export','export-selected':'export',dashboard:'dashboard',home:'read',import:'import','clear-filters':'filter','clear-all-filters':'filter','remove-filter':'filter',sort:'read',page:'read','clear-selection':'read'};if(access[action]&&!permitted(access[action])&&!(action==='refresh'&&state.error&&!state.permissionsKnown)){announce('You do not have permission to perform this action.');return}moduleHeader?.querySelectorAll('.mw-settings-menu[open]').forEach(menu=>menu.open=false);
  if(recordsTools?.enabled&&await recordsTools.handle(action,event,b))return;
  if(action==='home'||action==='dashboard'){if(blDetail&&!closeBlRecord())return;if(recordsTools?.enabled){await recordsTools.switchView(action);return;}state.view=action;renderViews();stats();}
  else if(action==='filter-toggle'){state.filtersOpen=!state.filtersOpen;renderViews();}
@@ -495,7 +495,7 @@ function create(host,config) {
    const ownerId=d.querySelector('#mw-new-owner').value,error=d.querySelector('.mw-form-error');
    if(!ownerId){error.textContent='Select an eligible owner.';error.hidden=false;return}
    dialogSaving=true;d.querySelector('#mw-archive-confirm').disabled=true;
-   try{await api(config.endpoint+'/'+encodeURIComponent(record.id),'PUT',{version:record.version,ownerId,timeZone:actionTimeZone()});if(dead||dialog!==d)return;dialogSaving=false;closeDialog(true);announce('Business Line owner updated.');await load()}
+   try{await api(config.endpoint+'/'+encodeURIComponent(record.id),'PUT',{version:record.version,ownerId,timeZone:actionTimeZone()});if(dead||dialog!==d)return;dialogSaving=false;closeDialog(true);recordsTools?.showLatest?.();announce('Business Line owner updated.');await load()}
    catch(e){if(dead||dialog!==d)return;dialogSaving=false;error.textContent=e.message;error.hidden=false;d.querySelector('#mw-archive-confirm').disabled=false}
   };
  }
@@ -509,7 +509,7 @@ function create(host,config) {
    const reason=d.querySelector('#mw-lifecycle-reason').value.trim(),error=d.querySelector('.mw-form-error');
    if(!reason){error.textContent='A reason is required.';error.hidden=false;return}
    dialogSaving=true;d.querySelector('#mw-archive-confirm').disabled=true;
-   try{await api(config.endpoint+'/'+encodeURIComponent(record.id),'PUT',{version:record.version,status:next,reason,timeZone:actionTimeZone()});if(dead||dialog!==d)return;dialogSaving=false;closeDialog(true);announce('Business Line '+(next==='Active'?'reactivated.':'deactivated.'));await load()}
+   try{await api(config.endpoint+'/'+encodeURIComponent(record.id),'PUT',{version:record.version,status:next,reason,timeZone:actionTimeZone()});if(dead||dialog!==d)return;dialogSaving=false;closeDialog(true);recordsTools?.showLatest?.();announce('Business Line '+(next==='Active'?'reactivated.':'deactivated.'));await load()}
    catch(e){if(dead||dialog!==d)return;dialogSaving=false;error.textContent=e.message;error.hidden=false;d.querySelector('#mw-archive-confirm').disabled=false}
   };
  }
@@ -538,7 +538,7 @@ function create(host,config) {
    if(action==='restore-deleted'&&!['Archived','Inactive','Active'].includes(selectedTarget)){error.textContent='Choose Archived, Inactive or Active.';error.hidden=false;return}
    dialogSaving=true;d.querySelector('#mw-archive-confirm').disabled=true;
    const body={version:record.version,reason,timeZone:actionTimeZone()};if(action==='restore'||action==='restore-deleted')body.targetStatus=selectedTarget;
-   try{await api(config.endpoint+'/'+encodeURIComponent(record.id)+'/'+action,'POST',body);if(dead||dialog!==d)return;dialogSaving=false;closeDialog(true);announce(action==='restore'?'Business Line moved to '+selectedTarget+'.':action==='restore-deleted'?'Business Line recovered to '+selectedTarget+'.':'Business Line '+op.label+'.');await load()}
+   try{await api(config.endpoint+'/'+encodeURIComponent(record.id)+'/'+action,'POST',body);if(dead||dialog!==d)return;dialogSaving=false;closeDialog(true);recordsTools?.showLatest?.();announce(action==='restore'?'Business Line moved to '+selectedTarget+'.':action==='restore-deleted'?'Business Line recovered to '+selectedTarget+'.':'Business Line '+op.label+'.');await load()}
    catch(e){if(dead||dialog!==d)return;dialogSaving=false;error.textContent=e.message;error.hidden=false;d.querySelector('#mw-archive-confirm').disabled=false}
   };
  }
