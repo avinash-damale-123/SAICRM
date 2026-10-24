@@ -191,17 +191,21 @@ try{
  readError=true;await page.locator('.mw-record-link:visible').first().click();await page.locator('[data-bl-retry]').waitFor();await page.locator('[data-bl-retry]').click();await page.locator('#bl-edit').waitFor();await page.locator('#bl-back').click();
  historyError=true;await openFirst();await page.locator('[data-bl-expand="1"]').click();await page.locator('[data-audit-retry]').waitFor();await assertFields();historyError=false;await page.locator('[data-audit-retry]').click();await page.waitForFunction(()=>document.querySelector('[data-bl-history]')?.textContent.includes('Popup regression evidence'));await page.locator('#bl-back').click();
  holdRead=true;await page.locator('.mw-record-link:visible').first().click();await modal().waitFor();await page.locator('.mw-dialog-close').click();while(!releaseRead)await new Promise(r=>setTimeout(r,5));releaseRead();await page.waitForTimeout(80);assert.equal(await modal().count(),0,'Late response cannot reopen a closed popup');checks.push('Record retry, audit-only failure and late-response-after-close handled safely');
- // Saving returns to the exact filtered/sorted page and preserves column choices.
+ // Saving preserves filters/columns but temporarily shows the newest modified
+ // record first. The prior manual sort remains a saved preference for later sessions.
  await page.locator('#crmSearchInput').fill('Framework');await page.locator('.scrm-identity').click({position:{x:5,y:5}});
  await page.waitForFunction(()=>document.querySelector('#mw-search')?.value==='Framework'&&document.querySelector('.mw-results')?.getAttribute('aria-busy')==='false');
  await page.locator('[data-mw="sort"][data-column="name"]').click();await ready();
  await page.getByRole('button',{name:'Next page',exact:true}).click();await ready();
  const beforeQuery={...requests.filter(r=>r.path==='business-lines'&&r.method==='GET').at(-1).query};
  const beforeColumns=await page.locator('.rf-table th[data-column-key]').evaluateAll(els=>els.map(e=>e.dataset.columnKey));
- await openFirst();await edit();await page.locator('#mw-bl-page-form [name="description"]').fill('Preserve page, search and sorting after save.');
+ await openFirst();await edit();await page.locator('#mw-bl-page-form [name="description"]').fill('Show latest modified record after save.');
  await page.locator('#bl-save').click();await modal().waitFor({state:'detached'});await ready();
  assert.equal(await page.locator('#crmSearchInput').inputValue(),'Framework');
- assert.deepEqual(requests.filter(r=>r.path==='business-lines'&&r.method==='GET').at(-1).query,beforeQuery);
+ const afterSaveQuery={...requests.filter(r=>r.path==='business-lines'&&r.method==='GET').at(-1).query};
+ assert.deepEqual({...afterSaveQuery,sorts:beforeQuery.sorts,page:beforeQuery.page},beforeQuery);
+ assert.equal(afterSaveQuery.sorts,'[{"field":"updatedAt","direction":"desc"}]');
+ assert.equal(afterSaveQuery.page,'1');
  assert.deepEqual(await page.locator('.rf-table th[data-column-key]').evaluateAll(els=>els.map(e=>e.dataset.columnKey)),beforeColumns);
  assert.equal(await page.locator('#r10-toast-stack .r10-toast').last().isVisible(),true);assert.equal(await beforeUnloadBlocked(),false);
  // List refresh failure must not report a committed save as failed or repeat it.
