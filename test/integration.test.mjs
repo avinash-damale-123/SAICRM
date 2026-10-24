@@ -384,9 +384,9 @@ test('Business Line archive and restore preserve identity and cannot bypass vers
  const archive=await call('business-lines/'+record.id+'/archive','POST',{version:record.version,reason:'Archive approved'},superAdmin);
  assert.equal(archive.status,200);
  assert.ok(archive.body.record.archivedAt);
- const hidden=await call(businessURL({q:'Archive Fixture'}),'GET',undefined,superAdmin);
+ const hidden=await call(businessURL({q:record.displayId}),'GET',undefined,superAdmin);
  assert.equal(hidden.body.total,0);
- const listed=await call(businessURL({q:'Archive Fixture',archived:'only'}),'GET',undefined,superAdmin);
+ const listed=await call(businessURL({q:record.displayId,archived:'only'}),'GET',undefined,superAdmin);
  assert.equal(listed.body.total,1);
  assert.equal(listed.body.records[0].id,record.id);
  assert.equal((await call('business-lines/'+record.id,'PUT',{version:archive.body.record.version,description:'Bypass archive'},superAdmin)).status,409);
