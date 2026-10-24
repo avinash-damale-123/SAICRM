@@ -215,8 +215,8 @@ function attach(ctx){
  }
  async function switchView(next){
   const old=viewKey(),target=next==='dashboard'?'overview':'records';if(old===target)return;
-  rememberSessionSort();remote.queries={...(remote.queries||{}),[old]:query()};const q=remote.queries[target]||{q:'',status:'all',archived:target==='overview'?'all':'exclude',filters:{logic:'and',conditions:[]},pageSize:25},session=sortSession[target];
-  state.view=next;state.q=q.q||'';state.status=q.status||'all';state.archived=q.archived||'exclude';state.filterTree=q.filters||{logic:'and',conditions:[]};state.filters=[];state.sorts=session?.sorts?.length?copy(session.sorts):defaultSorts();state.sort=state.sorts[0].field;state.direction=state.sorts[0].direction;state.page=session?.page||1;state.pageSize=q.pageSize||25;state.selected.clear();allMatching=false;
+  const activeSorts=copy(state.sorts?.length?state.sorts:defaultSorts());rememberSessionSort();remote.queries={...(remote.queries||{}),[old]:query()};const q=remote.queries[target]||{q:'',status:'all',archived:target==='overview'?'all':'exclude',filters:{logic:'and',conditions:[]},pageSize:25},session=sortSession[target];
+  state.view=next;state.q=q.q||'';state.status=q.status||'all';state.archived=q.archived||'exclude';state.filterTree=q.filters||{logic:'and',conditions:[]};state.filters=[];state.sorts=session?.sorts?.length?copy(session.sorts):activeSorts;state.sort=state.sorts[0].field;state.direction=state.sorts[0].direction;state.page=session?.page||1;state.pageSize=q.pageSize||25;state.selected.clear();allMatching=false;
   if(find('#mw-search'))find('#mw-search').value=state.q;const visible=document.getElementById('crmSearchInput');if(visible)visible.value=state.q;if(find('#mw-status'))find('#mw-status').value=state.status;if(find('#mw-archived'))find('#mw-archived').value=state.archived;
   await saveNow();await reload();
  }
