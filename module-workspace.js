@@ -23,7 +23,7 @@ function create(host,config) {
  const recents=()=>{try{const v=JSON.parse(sessionStorage.getItem(recentKey));return Array.isArray(v)?v.filter(s=>typeof s==='string').slice(0,5):[]}catch{return[]}};
  function rememberSearch(value){if(!value)return;try{sessionStorage.setItem(recentKey,JSON.stringify([value,...recents().filter(s=>s!==value)].slice(0,5)))}catch{}}
  const button=(label,action,extra='',ico='')=>'<button type="button" class="mw-btn '+extra+'" data-mw="'+action+'" aria-label="'+esc(label)+'">'+(ico?icon(ico):'')+'<span>'+esc(label)+'</span></button>';
- function announce(message){if(dead||!message)return;state.message=message;const inline=find('.mw-feedback');if(inline){inline.textContent='';inline.hidden=true}let stack=document.getElementById('r10-toast-stack');if(!stack){stack=document.createElement('div');stack.id='r10-toast-stack';stack.setAttribute('aria-live','polite');stack.setAttribute('aria-atomic','false');document.body.append(stack)}const text=String(message),kind=/fail|error|unable|not permitted|rejected|invalid/i.test(text)?'error':/partial|warning|skipped|attention/i.test(text)?'warning':/success|saved|created|updated|archived|restored|published|ready|completed|queued/i.test(text)?'success':'info',toast=document.createElement('div');toast.className='r10-toast r10-'+kind;toast.setAttribute('role',kind==='error'?'alert':'status');toast.innerHTML='<strong>'+esc(text)+'</strong><button type="button" aria-label="Dismiss notification">×</button>';stack.append(toast);const close=()=>{if(!toast.isConnected)return;toast.classList.add('r10-leaving');setTimeout(()=>toast.remove(),220)};toast.querySelector('button').onclick=close;setTimeout(close,kind==='error'?8000:kind==='warning'?6000:kind==='info'?4500:3500)}
+ function announce(message){if(dead||!message)return;state.message=message;const inline=find('.mw-feedback');if(inline){inline.textContent='';inline.hidden=true}let stack=document.getElementById('r10-toast-stack');if(!stack){stack=document.createElement('div');stack.id='r10-toast-stack';stack.setAttribute('aria-live','polite');stack.setAttribute('aria-atomic','true');document.body.append(stack)}const text=String(message),kind=/fail|error|unable|not permitted|rejected|invalid/i.test(text)?'error':/partial|warning|skipped|attention/i.test(text)?'warning':/success|saved|created|updated|archived|restored|recovered|published|ready|completed|queued/i.test(text)?'success':'info',icons={success:'✓',info:'i',warning:'!',error:'×'},toast=document.createElement('div');toast.className='r10-toast r10-'+kind;toast.setAttribute('role',kind==='error'?'alert':'status');toast.innerHTML='<span class="r10-toast-icon" aria-hidden="true">'+icons[kind]+'</span><strong>'+esc(text)+'</strong><button type="button" aria-label="Close notification">×</button>';stack.append(toast);const close=()=>{if(!toast.isConnected)return;toast.classList.add('r10-leaving');setTimeout(()=>{toast.remove();if(stack.isConnected&&!stack.children.length)stack.remove()},220)};toast.querySelector('button').onclick=close;setTimeout(close,kind==='error'?5000:kind==='warning'?4500:kind==='info'?3500:3000)}
  function mountHeader(){
  const topbar=document.querySelector('.topbar');
  moduleHeader=document.createElement('div');moduleHeader.className='mw-module-header';
@@ -62,7 +62,7 @@ function create(host,config) {
  moduleHeader.querySelector('#mw-search').addEventListener('keydown',e=>{if(e.key==='Enter'&&permitted('search')){e.preventDefault();state.view='home';clearTimeout(timer);rememberSearch(state.q);state.page=1;load()}});
  }
  function shell(){
- host.innerHTML='<section class="mw-workspace" aria-label="'+esc(config.title)+'"><h1 class="mw-sr-only">'+esc(config.title)+'</h1><section class="mw-dashboard" aria-label="'+esc(config.title)+' Dashboard" hidden></section><div class="mw-home" aria-label="'+esc(config.title)+' Home"><div class="mw-panel"><section id="mw-filter-controls" class="mw-filter-controls" aria-label="Filter '+esc(config.title)+'" hidden><label>Status<select id="mw-status"><option value="all">All statuses</option><option value="Active">Active</option><option value="Inactive">Inactive</option></select></label><label>Record state<select id="mw-archived"><option value="exclude">Current records</option><option value="only">Archived records</option><option value="all">Current & archived</option>'+(config.key==='business-lines'?'<option value="deleted">Deleted records</option>':'')+'</select></label>'+button('Advanced filters','filters','','filter')+'</section><div class="mw-query-summary" hidden></div><div class="mw-selection" hidden></div><p class="mw-feedback" role="status" hidden></p><div class="mw-results" aria-live="polite"></div><footer class="mw-footer"></footer></div></div></section>';
+ host.innerHTML='<section class="mw-workspace" aria-label="'+esc(config.title)+'"><h1 class="mw-sr-only">'+esc(config.title)+'</h1><section class="mw-dashboard" aria-label="'+esc(config.title)+' Dashboard" hidden></section><div class="mw-home" aria-label="'+esc(config.title)+' Home"><div class="mw-panel"><section id="mw-filter-controls" class="mw-filter-controls" aria-label="Filter '+esc(config.title)+'" hidden><label>Status<select id="mw-status"><option value="all">All statuses</option><option value="Active">Active</option><option value="Inactive">Inactive</option><option value="Archived">Archived</option><option value="Deleted">Deleted</option></select></label><label>Record state<select id="mw-archived"><option value="exclude">Current records</option><option value="only">Archived records</option><option value="all">Current & archived</option>'+(config.key==='business-lines'?'<option value="deleted">Deleted records</option>':'')+'</select></label>'+button('Advanced filters','filters','','filter')+'</section><div class="mw-query-summary" hidden></div><div class="mw-selection" hidden></div><p class="mw-feedback" role="status" hidden></p><div class="mw-results" aria-live="polite"></div><footer class="mw-footer"></footer></div></div></section>';
  // Save confirmations must remain visible after returning to either view.
  if(config.key==='business-lines'){const workspace=find('.mw-workspace'),dashboard=find('.mw-dashboard'),filters=find('#mw-filter-controls'),summary=find('.mw-query-summary'),feedback=find('.mw-feedback');workspace.insertBefore(filters,dashboard);workspace.insertBefore(summary,dashboard);workspace.insertBefore(feedback,dashboard);feedback.hidden=true;}
  mountHeader();
@@ -133,7 +133,7 @@ function create(host,config) {
  else if(action==='create')editForm();
  else if(action==='read'){const r=rowFor(b);if(r&&permitted('read'))readRecord(r.id)}
  else if(action==='edit'){const r=rowFor(b);if(r&&!r.archivedAt&&!r.deletedAt)editForm(r)}
- else if(['archive','restore','soft-delete','restore-deleted'].includes(action)){const r=rowFor(b);if(r)archiveRecord(r,action)}
+ else if(['archive','restore','soft-delete','restore-deleted'].includes(action)){const r=rowFor(b);if(r)archiveRecord(r,action,b.dataset.targetStatus||'')}
  else if(action==='status-change'){const r=rowFor(b);if(r)statusRecord(r)}
  else if(action==='reassign-owner'){const r=rowFor(b);if(r)ownerRecord(r)}
  else if(action==='filters')filterDialog();
@@ -343,7 +343,7 @@ function create(host,config) {
  const missing=fields.find(f=>f.required&&!body[f.key]);if(missing){error.textContent='Enter '+missing.label.toLowerCase()+'.';error.hidden=false;form.elements[missing.key].focus();return}
  const saveControls=[...d.querySelectorAll('input,select,textarea,button')].map(el=>[el,el.disabled]);
  dialogSaving=true;d.setAttribute('aria-busy','true');saveControls.forEach(([el])=>el.disabled=true);d.querySelector('#mw-save').textContent='Saving…';
- try{await api(config.endpoint+(editing?'/'+encodeURIComponent(record.id):''),editing?'PUT':'POST',body);if(dead||dialog!==d)return;dialogSaving=false;closeDialog(true);if(config.key==='business-lines'&&!editing&&state.view==='dashboard'){state.view='home';renderViews()}announce(config.singular+(editing?' updated.':' created.'));await load()}
+ try{await api(config.endpoint+(editing?'/'+encodeURIComponent(record.id):''),editing?'PUT':'POST',body);if(dead||dialog!==d)return;dialogSaving=false;closeDialog(true);if(config.key==='business-lines'){if(!editing&&state.view==='dashboard'){state.view='home';renderViews()}recordsTools?.showLatest?.()}announce(config.singular+(editing?' updated.':' created.'));await load()}
  catch(e){if(dead||dialog!==d)return;dialogSaving=false;d.removeAttribute('aria-busy');saveControls.forEach(([el,disabled])=>el.disabled=disabled);error.textContent=e.message;error.hidden=false;d.querySelector('#mw-save').disabled=false;d.querySelector('#mw-save').textContent=config.key==='business-lines'?'Save':editing?'Save changes':'Create '+config.singular;error.scrollIntoView({block:'nearest'})}
  };
  form.querySelector('input:not([readonly]),select,textarea')?.focus();
@@ -477,7 +477,7 @@ function create(host,config) {
    // Keep the tab/query/sort/page and column preferences; refresh failures must
    // never be presented as failed writes or reopen the completed form.
    blBusy=false;dialogSaving=false;blDraft=null;dialogDirty=null;
-   closeDialog(true);announce('Business Line saved successfully.');
+   closeDialog(true);recordsTools?.showLatest?.();announce('Business Line saved successfully.');
    await load();
    if(!dead&&!dialog&&(document.activeElement===document.body||!document.activeElement?.isConnected))restoreDialogFocus();
   };
@@ -513,26 +513,36 @@ function create(host,config) {
    catch(e){if(dead||dialog!==d)return;dialogSaving=false;error.textContent=e.message;error.hidden=false;d.querySelector('#mw-archive-confirm').disabled=false}
   };
  }
- function businessLifecycle(record,action){
+ function businessLifecycle(record,action,targetStatus=''){
   const operations={
    archive:{permission:'archive',name:'Archive',label:'archived',danger:true},
-   restore:{permission:'restore',name:'Unarchive',label:'unarchived',danger:false},
+   restore:{permission:'restore',name:'Return Archived Record',label:'returned',danger:false},
    'soft-delete':{permission:'softDelete',name:'Soft Delete',label:'deleted',danger:true},
-   'restore-deleted':{permission:'restoreDeleted',name:'Restore Deleted',label:'restored',danger:false}
+   'restore-deleted':{permission:'restoreDeleted',name:'Recover Deleted Record',label:'recovered',danger:false}
   };
   const op=operations[action];if(!op||!permitted(op.permission))return;
-  const d=openDialog(op.name+' Business Line','<p>'+op.name+' <strong>'+esc(record.name)+'</strong>?</p><label class="mw-bl-reason">Reason <span class="mw-required">*</span><textarea id="mw-lifecycle-reason" maxlength="500" rows="3" required placeholder="Explain the action"></textarea></label><p class="mw-form-error" role="alert" hidden></p>','<button type="button" class="mw-btn" id="mw-archive-cancel">Cancel</button><button type="button" class="mw-btn '+(op.danger?'mw-danger':'mw-primary')+'" id="mw-archive-confirm">'+esc(op.name)+'</button>');
+  if(action==='soft-delete'&&!record.archivedAt){announce('This record must be Archived before it can be deleted.');return}
+  const destination=action==='restore'
+   ?'<label class="mw-bl-reason">Return record to <span class="mw-required">*</span><select id="mw-lifecycle-target" required><option value="Active" '+(targetStatus==='Active'?'selected':'')+'>Active</option><option value="Inactive" '+(targetStatus==='Inactive'?'selected':'')+'>Inactive</option></select></label>'
+   :action==='restore-deleted'
+    ?'<label class="mw-bl-reason">Recover record to <span class="mw-required">*</span><select id="mw-lifecycle-target" required><option value="Archived">Archived</option><option value="Inactive">Inactive</option><option value="Active">Active</option></select></label>'
+    :'';
+  const prompt=action==='restore'?'Choose whether this Archived record should return to Active or Inactive.':action==='restore-deleted'?'Choose the state this Deleted record should return to.':op.name+' <strong>'+esc(record.name)+'</strong>?';
+  const d=openDialog(op.name+' — Business Line','<p>'+prompt+'</p>'+destination+'<label class="mw-bl-reason">Reason <span class="mw-required">*</span><textarea id="mw-lifecycle-reason" maxlength="500" rows="3" required placeholder="Explain the action"></textarea></label><p class="mw-form-error" role="alert" hidden></p>','<button type="button" class="mw-btn" id="mw-archive-cancel">Cancel</button><button type="button" class="mw-btn '+(op.danger?'mw-danger':'mw-primary')+'" id="mw-archive-confirm">'+esc(action==='restore'?'Apply State':action==='restore-deleted'?'Recover Record':op.name)+'</button>');
   if(!d)return;
   d.querySelector('#mw-archive-cancel').onclick=()=>closeDialog();
   d.querySelector('#mw-archive-confirm').onclick=async()=>{
-   const reason=d.querySelector('#mw-lifecycle-reason').value.trim(),error=d.querySelector('.mw-form-error');
+   const reason=d.querySelector('#mw-lifecycle-reason').value.trim(),error=d.querySelector('.mw-form-error'),selectedTarget=d.querySelector('#mw-lifecycle-target')?.value||targetStatus;
    if(!reason){error.textContent='A reason is required.';error.hidden=false;return}
+   if(action==='restore'&&!['Active','Inactive'].includes(selectedTarget)){error.textContent='Choose Active or Inactive.';error.hidden=false;return}
+   if(action==='restore-deleted'&&!['Archived','Inactive','Active'].includes(selectedTarget)){error.textContent='Choose Archived, Inactive or Active.';error.hidden=false;return}
    dialogSaving=true;d.querySelector('#mw-archive-confirm').disabled=true;
-   try{await api(config.endpoint+'/'+encodeURIComponent(record.id)+'/'+action,'POST',{version:record.version,reason,timeZone:actionTimeZone()});if(dead||dialog!==d)return;dialogSaving=false;closeDialog(true);announce('Business Line '+op.label+'.');await load()}
+   const body={version:record.version,reason,timeZone:actionTimeZone()};if(action==='restore'||action==='restore-deleted')body.targetStatus=selectedTarget;
+   try{await api(config.endpoint+'/'+encodeURIComponent(record.id)+'/'+action,'POST',body);if(dead||dialog!==d)return;dialogSaving=false;closeDialog(true);announce(action==='restore'?'Business Line moved to '+selectedTarget+'.':action==='restore-deleted'?'Business Line recovered to '+selectedTarget+'.':'Business Line '+op.label+'.');await load()}
    catch(e){if(dead||dialog!==d)return;dialogSaving=false;error.textContent=e.message;error.hidden=false;d.querySelector('#mw-archive-confirm').disabled=false}
   };
  }
- function archiveRecord(record,action){if(config.key==='business-lines'){businessLifecycle(record,action);return}if(dead||!permitted(action))return;const restore=action==='restore';const d=openDialog((restore?'Restore ':'Archive ')+config.singular,'<p>'+(restore?'Restore':'Archive')+' <strong>'+esc(record.name)+'</strong>?</p><p class="mw-muted">'+(restore?'It will return to the current records list. Its prior Active or Inactive status is preserved.':'It will be kept with its history and can be restored later. It will be excluded from current records.')+'</p><p class="mw-form-error" role="alert" hidden></p>','<button type="button" class="mw-btn" id="mw-archive-cancel">Cancel</button><button type="button" class="mw-btn '+(restore?'mw-primary':'mw-danger')+'" id="mw-archive-confirm">'+(restore?'Restore':'Archive')+'</button>');if(!d)return;
+ function archiveRecord(record,action,targetStatus=''){if(config.key==='business-lines'){businessLifecycle(record,action,targetStatus);return}if(dead||!permitted(action))return;const restore=action==='restore';const d=openDialog((restore?'Restore ':'Archive ')+config.singular,'<p>'+(restore?'Restore':'Archive')+' <strong>'+esc(record.name)+'</strong>?</p><p class="mw-muted">'+(restore?'It will return to the current records list. Its prior Active or Inactive status is preserved.':'It will be kept with its history and can be restored later. It will be excluded from current records.')+'</p><p class="mw-form-error" role="alert" hidden></p>','<button type="button" class="mw-btn" id="mw-archive-cancel">Cancel</button><button type="button" class="mw-btn '+(restore?'mw-primary':'mw-danger')+'" id="mw-archive-confirm">'+(restore?'Restore':'Archive')+'</button>');if(!d)return;
  d.querySelector('#mw-archive-cancel').onclick=()=>closeDialog();d.querySelector('#mw-archive-confirm').onclick=async()=>{if(!permitted(action))return;dialogSaving=true;d.querySelector('#mw-archive-confirm').disabled=true;try{await api(config.endpoint+'/'+encodeURIComponent(record.id)+'/'+action,'POST',{version:record.version});if(dead||dialog!==d)return;dialogSaving=false;closeDialog(true);announce(config.singular+' '+(restore?'restored.':'archived.'));load()}catch(e){if(dead||dialog!==d)return;dialogSaving=false;const err=d.querySelector('.mw-form-error');err.textContent=e.message;err.hidden=false;d.querySelector('#mw-archive-confirm').disabled=false}}
  }
  function columnsDialog(){if(dead||!permitted('settings'))return;
