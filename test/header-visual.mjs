@@ -139,6 +139,10 @@ try{
  await header.locator('[data-mw="filter-toggle"]').press('Space');assert.equal(await page.locator('#mw-filter-controls').isVisible(),false);
  await header.locator('.mw-settings-menu>summary').press('Enter');await header.locator('[data-mw="columns"]').press('Enter');await page.locator('[data-column-check]').first().waitFor();
  await page.keyboard.press('Escape');await page.locator('dialog').waitFor({state:'detached'});
+ assert.equal(await page.locator('.rf-sort-summary').count(),0,'The old always-visible sort summary strip is removed from above the table');
+ await header.locator('.mw-settings-menu>summary').press('Enter');await header.locator('[data-mw="sort-table"]').press('Enter');await page.getByRole('dialog').waitFor();
+ assert.match(await page.getByRole('dialog').locator('#mw-dialog-title').innerText(),/Business Lines: Sort Order/);
+ await page.keyboard.press('Escape');await page.locator('dialog').waitFor({state:'detached'});
  await header.locator('[data-mw="create"]').press('Enter');await page.locator('#mw-record-form').waitFor();
  await page.keyboard.press('Escape');await page.locator('dialog').waitFor({state:'detached'});
  assert.equal(recordWrites(),beforeActions,'Opening and closing header tools does not modify records or start a transfer');
