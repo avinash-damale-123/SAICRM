@@ -123,6 +123,7 @@
 .r10-toast{pointer-events:auto;display:flex;align-items:center;gap:10px;width:min(460px,calc(100vw - 32px));min-height:58px;padding:14px 15px;border:1px solid #cfe0d5;border-radius:12px;background:#fff;box-shadow:0 18px 55px rgba(20,49,36,.24);font-size:13px;line-height:1.45;animation:r10-toast-in .18s ease-out}
 .r10-toast-icon{display:grid;place-items:center;flex:none;width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.72);font-size:16px;font-weight:800}.r10-toast strong{flex:1;font-weight:700}.r10-toast button{border:0;background:transparent;color:inherit;font-size:20px;line-height:1;cursor:pointer;padding:3px 4px;border-radius:5px}.r10-toast button:hover,.r10-toast button:focus-visible{background:rgba(0,0,0,.06)}
 .r10-toast.r10-success{background:#eff9f2;border-color:#b9dcc5;color:#176346}.r10-toast.r10-info{background:#eef6fd;border-color:#bfd7e8;color:#285b80}.r10-toast.r10-warning{background:#fff7e8;border-color:#e5cd9a;color:#80531c}.r10-toast.r10-error{background:#fff1f1;border-color:#e4b4b8;color:#9f252c}
+.mw-status.rf-status-archived{background:#eef2f7!important;color:#506277!important}.mw-status.rf-status-deleted{background:#fff0f1!important;color:#9b2830!important}
 .r10-toast.r10-leaving{opacity:0;transform:scale(.98);transition:opacity .2s,transform .2s}
 @keyframes r10-toast-in{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:scale(1)}}@keyframes r10-backdrop-in{from{opacity:0}to{opacity:1}}
 @media(prefers-reduced-motion:reduce){.r10-toast{animation:none}.r10-toast.r10-leaving{transition:none}}
