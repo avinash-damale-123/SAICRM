@@ -29,7 +29,7 @@ function requireQueryPermissions(permissions,options){
 export const businessLineColumns=Object.freeze(Object.entries(fields).map(([key,field])=>({key,label:field.label,type:field.date?'datetime':'text'})));
 const date=value=>value==null?null:(value instanceof Date?value.toISOString():new Date(value).toISOString());
 export function businessLineView(row){
- return {id:row.id,displayId:row.display_id,name:row.name,code:row.code,description:row.description,status:row.deleted_at?'Deleted':row.archived_at?'Archived':row.status,businessStatus:row.status,
+ return {id:row.id,displayId:row.display_id,name:row.name,code:row.code,description:row.description,status:row.deleted_at?'Deleted':row.archived_at?'Archived':row.status,
   ownerId:row.owner_display_id,owner:row.owner_name,isArchived:!!row.archived_at,archivedById:row.archive_display_id,isDeleted:!!row.deleted_at,deletedById:row.deleted_display_id,deletedAt:date(row.deleted_at),
   createdById:row.creator_display_id,createdBy:row.creator_name,createdAt:date(row.created_at),
   updatedById:row.updater_display_id,updatedBy:row.updater_name,updatedAt:date(row.updated_at),
