@@ -136,8 +136,15 @@ try{
  await header.locator('[data-mw="export"]').press('Enter');await page.locator('#rf-export-scope').waitFor();assert.equal(await page.locator('#rf-export-scope').inputValue(),'page');
  await page.keyboard.press('Escape');await page.locator('dialog').waitFor({state:'detached'});
  await header.locator('[data-mw="filter-toggle"]').press('Space');assert.equal(await page.locator('#mw-filter-controls').isVisible(),true);assert.equal(await header.locator('[data-mw="filter-toggle"]').getAttribute('aria-expanded'),'true');
+ assert.equal(await page.locator('[data-mw="clear-filters"]').isDisabled(),true,'Clear Filters is visible but disabled when nothing is applied');
+ assert.equal(await page.locator('[data-mw="filters"]').evaluate(e=>e.classList.contains('rf-advanced-filter')),true,'Advanced Filter has the stronger discoverable treatment');
+ await page.locator('[data-mw="hide-filters"]').click();assert.equal(await page.locator('#mw-filter-controls').isVisible(),false,'Hide Filters collapses only the panel');
+ await header.locator('[data-mw="filter-toggle"]').press('Space');assert.equal(await page.locator('#mw-filter-controls').isVisible(),true);
  await header.locator('[data-mw="filter-toggle"]').press('Space');assert.equal(await page.locator('#mw-filter-controls').isVisible(),false);
- await header.locator('.mw-settings-menu>summary').press('Enter');await header.locator('[data-mw="columns"]').press('Enter');await page.locator('[data-column-check]').first().waitFor();
+ await header.locator('.mw-settings-menu>summary').press('Enter');
+ assert.equal(await header.locator('.r10-custom-group,.r10-menu-desc').count(),0,'Customize is flat and description-free');
+ assert.deepEqual(await header.locator('.mw-settings-menu .r10-simple-menu-item').allTextContents(),['Choose Columns','Arrange Columns','Sort Table','Configure Filters']);
+ await header.locator('[data-mw="columns"]').press('Enter');await page.locator('[data-column-check]').first().waitFor();
  await page.keyboard.press('Escape');await page.locator('dialog').waitFor({state:'detached'});
  assert.equal(await page.locator('.rf-sort-summary').count(),0,'The old always-visible sort summary strip is removed from above the table');
  await header.locator('.mw-settings-menu>summary').press('Enter');await header.locator('[data-mw="sort-table"]').press('Enter');await page.getByRole('dialog').waitFor();
