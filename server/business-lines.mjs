@@ -7,7 +7,7 @@ const uuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-
 const own=(object,key)=>Object.prototype.hasOwnProperty.call(object,key);
 const fields=Object.freeze({
  id:{sql:'b.id',label:'Business Line UUID'},displayId:{sql:'b.display_id',label:'Business Line ID'},
- name:{sql:'b.name',label:'Business Line Name'},code:{sql:'b.code',label:'Business Line Code'},description:{sql:'b.description',label:'Business Line Description'},status:{sql:'b.status',label:'Business Line Status'},
+ name:{sql:'b.name',label:'Business Line Name'},code:{sql:'b.code',label:'Business Line Code'},description:{sql:'b.description',label:'Business Line Description'},status:{sql:"CASE WHEN b.deleted_at IS NOT NULL THEN 'Deleted' WHEN b.archived_at IS NOT NULL THEN 'Archived' ELSE b.status END",label:'Business Line Status'},
  ownerId:{sql:'b.owner_id',label:'Owner ID'},owner:{sql:'o.name',label:'Owner'},
  isArchived:{sql:'(b.archived_at IS NOT NULL)',label:'Is Archived'},archivedById:{sql:'b.archived_by',label:'Archived By ID'},archivedAt:{sql:'b.archived_at',label:'Archived At',date:true},
  isDeleted:{sql:'(b.deleted_at IS NOT NULL)',label:'Is Deleted'},deletedById:{sql:'b.deleted_by',label:'Deleted By ID'},deletedAt:{sql:'b.deleted_at',label:'Deleted At',date:true},
@@ -29,7 +29,7 @@ function requireQueryPermissions(permissions,options){
 export const businessLineColumns=Object.freeze(Object.entries(fields).map(([key,field])=>({key,label:field.label,type:field.date?'datetime':'text'})));
 const date=value=>value==null?null:(value instanceof Date?value.toISOString():new Date(value).toISOString());
 export function businessLineView(row){
- return {id:row.id,displayId:row.display_id,name:row.name,code:row.code,description:row.description,status:row.status,
+ return {id:row.id,displayId:row.display_id,name:row.name,code:row.code,description:row.description,status:row.deleted_at?'Deleted':row.archived_at?'Archived':row.status,
   ownerId:row.owner_display_id,owner:row.owner_name,isArchived:!!row.archived_at,archivedById:row.archive_display_id,isDeleted:!!row.deleted_at,deletedById:row.deleted_display_id,deletedAt:date(row.deleted_at),
   createdById:row.creator_display_id,createdBy:row.creator_name,createdAt:date(row.created_at),
   updatedById:row.updater_display_id,updatedBy:row.updater_name,updatedAt:date(row.updated_at),
@@ -76,7 +76,7 @@ function parameters(source={}){
  object(source,'Invalid list query');
  const q=source.q===undefined?'':text(source.q,'Search',200);
  const sort=source.sort||'updatedAt',direction=source.direction||'desc',status=source.status||'all',archived=source.archived||'exclude';
- if(!own(fields,sort)||!['asc','desc'].includes(direction)||!['all','Active','Inactive'].includes(status)||!['exclude','only','all','deleted'].includes(archived))fail(400,'Invalid list options');
+ if(!own(fields,sort)||!['asc','desc'].includes(direction)||!['all','Active','Inactive','Archived','Deleted'].includes(status)||!['exclude','only','all','deleted'].includes(archived))fail(400,'Invalid list options');
  let filters=source.filters||[];
  if(typeof filters==='string'){
   if(filters.length>4000)fail(400,'Too many filter details');
@@ -100,11 +100,13 @@ function parameters(source={}){
 }
 function whereFor(options){
  const params=[],conditions=[],add=value=>{params.push(value);return '$'+params.length;};
- if(options.archived==='deleted')conditions.push('b.deleted_at IS NOT NULL');
+ if(options.status==='Deleted')conditions.push('b.deleted_at IS NOT NULL');
+ else if(options.status==='Archived')conditions.push('b.deleted_at IS NULL','b.archived_at IS NOT NULL');
+ else if(['Active','Inactive'].includes(options.status))conditions.push('b.deleted_at IS NULL','b.archived_at IS NULL','b.status='+add(options.status));
+ else if(options.archived==='deleted')conditions.push('b.deleted_at IS NOT NULL');
  else {conditions.push('b.deleted_at IS NULL');
  if(options.archived==='exclude')conditions.push('b.archived_at IS NULL');
  if(options.archived==='only')conditions.push('b.archived_at IS NOT NULL');}
- if(options.status!=='all')conditions.push('b.status='+add(options.status));
  const words=options.q.split(/\s+/u).filter(Boolean);
  if(words.length>12)fail(400,'Use at most twelve search words');
  for(const word of words){
@@ -250,24 +252,33 @@ export async function businessLines({client,user,path,method,url,body}){
   }
   if((path.length===2&&method==='PUT')||(path.length===3&&['archive','restore','soft-delete','restore-deleted'].includes(path[2])&&method==='POST')){
    requirePermission(permissions,path.length===2?'edit':({'soft-delete':'softDelete','restore-deleted':'restoreDeleted'}[path[2]]||path[2]));
-   onlyKeys(body,path.length===2?['name','code','description','status','ownerId','version','reason','timeZone']:['version','reason','timeZone']);
+   onlyKeys(body,path.length===2?['name','code','description','status','ownerId','version','reason','timeZone']:['version','reason','timeZone','targetStatus']);
    const timeZone=sourceTimeZone(body.timeZone);
    version(body.version);
    const existing=await record(client,path[1],true),before=businessLineView(existing);
    if(existing.version!==body.version)fail(409,'This record changed. Refresh and try again.');
    if(path.length===3){
-    const action=path[2],reason=lifecycleReason(body.reason),archive=action==='archive',unarchive=action==='restore',softDelete=action==='soft-delete',undelete=action==='restore-deleted';
-    if(softDelete||undelete){
-     if(softDelete&&existing.deleted_at)fail(409,'This Business Line is already deleted');
-     if(undelete&&!existing.deleted_at)fail(409,'This Business Line is not deleted');
-     if(softDelete&&await dependencies(client,existing))fail(409,'Referenced Business Lines cannot be deleted. Reassign linked records first.');
-     await client.query('UPDATE business_lines SET deleted_at=$2,deleted_by=$3,updated_by=$4,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,softDelete?new Date():null,softDelete?user.id:null,user.id]);
-    }else{
-     if(existing.deleted_at)fail(409,'Restore this deleted Business Line first');
-     if(archive&&existing.archived_at)fail(409,'This Business Line is already archived');
-     if(unarchive&&!existing.archived_at)fail(409,'This Business Line is not archived');
-     if(archive&&await dependencies(client,existing))fail(409,'Referenced Business Lines cannot be archived. Review dependent records first.');
-     await client.query('UPDATE business_lines SET archived_at=$2,archived_by=$3,updated_by=$4,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,archive?new Date():null,archive?user.id:null,user.id]);
+    const action=path[2],reason=lifecycleReason(body.reason),archive=action==='archive',unarchive=action==='restore',softDelete=action==='soft-delete',undelete=action==='restore-deleted',targetStatus=body.targetStatus;
+    if(archive){
+     if(existing.deleted_at)fail(409,'Recover this deleted Business Line before archiving');
+     if(existing.archived_at)fail(409,'This Business Line is already archived');
+     if(await dependencies(client,existing))fail(409,'Referenced Business Lines cannot be archived. Review dependent records first.');
+     await client.query('UPDATE business_lines SET archived_at=now(),archived_by=$2,updated_by=$2,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,user.id]);
+    }else if(unarchive){
+     if(existing.deleted_at)fail(409,'Recover this deleted Business Line first');
+     if(!existing.archived_at)fail(409,'This Business Line is not archived');
+     if(!['Active','Inactive'].includes(targetStatus))fail(400,'Choose Active or Inactive as the return state');
+     await client.query('UPDATE business_lines SET status=$2,archived_at=NULL,archived_by=NULL,updated_by=$3,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,targetStatus,user.id]);
+    }else if(softDelete){
+     if(existing.deleted_at)fail(409,'This Business Line is already deleted');
+     if(!existing.archived_at)fail(409,'This record must be Archived before it can be deleted.');
+     if(await dependencies(client,existing))fail(409,'Referenced Business Lines cannot be deleted. Reassign linked records first.');
+     await client.query('UPDATE business_lines SET deleted_at=now(),deleted_by=$2,updated_by=$2,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,user.id]);
+    }else if(undelete){
+     if(!existing.deleted_at)fail(409,'This Business Line is not deleted');
+     if(!['Archived','Inactive','Active'].includes(targetStatus))fail(400,'Choose Archived, Inactive or Active as the recovery state');
+     if(targetStatus==='Archived')await client.query('UPDATE business_lines SET deleted_at=NULL,deleted_by=NULL,archived_at=COALESCE(archived_at,now()),archived_by=COALESCE(archived_by,$2),updated_by=$2,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,user.id]);
+     else await client.query('UPDATE business_lines SET status=$2,deleted_at=NULL,deleted_by=NULL,archived_at=NULL,archived_by=NULL,updated_by=$3,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,targetStatus,user.id]);
     }
     const after=businessLineView(await record(client,existing.id));
     await event(client,user,existing.id,softDelete?'Soft Deleted':undelete?'Restored Deleted':archive?'Archived':'Restored',before,after,reason,timeZone);
