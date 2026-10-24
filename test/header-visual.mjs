@@ -144,9 +144,11 @@ try{
  assert.equal(recordWrites(),beforeActions,'Opening and closing header tools does not modify records or start a transfer');
  // Exercise the tightest single-row layout with a visible filter count. The
  // two-digit label is a geometry stress case, not a fabricated filtering result.
+ // Effective lifecycle Status and legacy Record State are synchronized so they
+ // cannot describe contradictory states at the same time.
  await header.locator('[data-mw="filter-toggle"]').click();
  await page.locator('#mw-status').selectOption('Active');await ready();await page.locator('#mw-archived').selectOption('all');await ready();
- const filterBadge=header.locator('.mw-filter-count');assert.equal(await filterBadge.innerText(),'2');
+ const filterBadge=header.locator('.mw-filter-count');assert.equal(await filterBadge.innerText(),'1');
  for(const mainWidth of [1023,1024]){
   await page.setViewportSize({width:mainWidth+73,height:768});await setCollapsed(true);
   await filterBadge.evaluate(e=>e.textContent='20');
@@ -155,7 +157,7 @@ try{
   if(mainWidth===1023)assert.ok(threshold.tabs.y>threshold.identity.y+20&&threshold.bar.h<=112,'Below the readable single-row width, tabs and actions wrap compactly');
   await page.screenshot({path:out+'/header-threshold-'+mainWidth+'-filter-badge.png'});
  }
- await filterBadge.evaluate(e=>e.textContent='2');
+ await filterBadge.evaluate(e=>e.textContent='1');
  await page.locator('#mw-status').selectOption('all');await ready();await page.locator('#mw-archived').selectOption('exclude');await ready();await header.locator('[data-mw="filter-toggle"]').click();
  for(const width of [1920,1708,1518,1440,1366,1280,1100,1024,768,390,360,320]){
   await page.setViewportSize({width,height:width<700?844:768});
