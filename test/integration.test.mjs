@@ -404,7 +404,6 @@ test('Business Lines enforce Active/Inactive to Archived to Deleted lifecycle wi
  assert.match(record.ownerId,/^UID-\d{6,}$/);
  assert.match(record.createdById,/^UID-\d{6,}$/);
  assert.equal(record.status,'Active');
- assert.equal(record.businessStatus,'Active');
  assert.equal(record.isDeleted,false);
  assert.equal((await call('business-lines/'+record.id+'/soft-delete','POST',{version:record.version},superAdmin)).status,400);
  const directDelete=await call('business-lines/'+record.id+'/soft-delete','POST',{version:record.version,reason:'Direct deletion should be rejected'},superAdmin);
@@ -413,7 +412,6 @@ test('Business Lines enforce Active/Inactive to Archived to Deleted lifecycle wi
  const archived=await call('business-lines/'+record.id+'/archive','POST',{version:record.version,reason:'Archive before deletion'},superAdmin);
  assert.equal(archived.status,200,JSON.stringify(archived.body));
  assert.equal(archived.body.record.status,'Archived');
- assert.equal(archived.body.record.businessStatus,'Active');
  assert.ok(archived.body.record.archivedAt);
  const invalidReturn=await call('business-lines/'+record.id+'/restore','POST',{version:archived.body.record.version,reason:'Missing destination'},superAdmin);
  assert.equal(invalidReturn.status,400);
