@@ -54,7 +54,7 @@ try{
  await page.goto(testOrigin);await open();
  const checks=[],presentation=[];
  const modal=()=>page.locator('dialog[open]');
- const assertModal=async mode=>{
+ const assertModal=async mode=>{await page.mouse.move(1,1);await page.waitForTimeout(20);
   assert.equal(await modal().count(),1,mode+': exactly one dialog');
   assert.equal(await modal().evaluate(d=>d.matches(':modal')),true,mode+': native modal makes background inert');
   assert.equal(await page.locator('.mw-workspace').isVisible(),true,mode+': underlying workspace remains mounted');
