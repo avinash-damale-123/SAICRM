@@ -103,7 +103,7 @@ try{
  // Saving a policy draft refreshes the Records list asynchronously. Geometry
  // assertions must inspect the rendered table, never the temporary loading state.
  await ready();
- if(!await page.locator('.rf-expanded:visible').count()){await page.locator('.rf-read-more').first().click();await page.waitForFunction(()=>document.querySelectorAll('.rf-expanded').length===1);}
+ if(!await page.locator('.rf-expanded:visible').count()){await page.locator('.rf-read-more:visible').first().click();await page.locator('.rf-expanded:visible').first().waitFor();assert.equal(await page.locator('.rf-expanded:visible').count(),1,'Only the requested visible desktop description is expanded');}
  const geometry=await page.evaluate(()=>{const table=document.querySelector('.rf-table-wrap'),footer=document.querySelector('.mw-footer');return {tableBottom:table.getBoundingClientRect().bottom,footerTop:footer.getBoundingClientRect().top,footerPosition:getComputedStyle(footer).position,colors:[...document.querySelectorAll('.rf-table th>button>span:first-child')].map(el=>getComputedStyle(el).color),expanded:document.querySelector('.rf-expanded')?.getBoundingClientRect().height,compact:document.querySelector('.rf-long-text:not(.rf-expanded)')?.getBoundingClientRect().height};});
  assert.ok(['static','relative'].includes(geometry.footerPosition),'Pagination must remain in normal document flow, not sticky/fixed');
  assert.ok(geometry.footerTop>=geometry.tableBottom-1,'Pagination follows the table scroll viewport: '+JSON.stringify(geometry));
