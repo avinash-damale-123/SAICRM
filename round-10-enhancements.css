@@ -156,6 +156,9 @@
  .mw-framework .rf-table{font-size:11.5px!important}
  .mw-framework .rf-table tbody td{height:29px!important;min-height:29px!important;padding:2px 8px!important;line-height:1.18!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
  .mw-framework .rf-table tbody td>*{max-width:100%}
+ .mw-framework .rf-table tbody tr:has(.rf-expanded)>td{height:auto!important;min-height:29px!important;padding-top:5px!important;padding-bottom:5px!important;vertical-align:top!important}
+ .mw-framework .rf-table tbody td:has(.rf-expanded){overflow:visible!important;white-space:normal!important}
+ .mw-framework .rf-table .rf-long-text.rf-expanded{display:block!important;max-height:none!important;overflow:visible!important;white-space:normal!important}
  .mw-framework .rf-table thead th{height:35px!important;min-height:35px!important;font-size:11.5px!important}
  .mw-framework .rf-table thead th>button{height:34px!important;min-height:34px!important;padding:4px 8px!important;font-size:11.5px!important;line-height:1.15!important}
  .mw-framework .rf-table .rf-check-col{width:34px!important;min-width:34px!important;max-width:34px!important;padding:2px 5px!important}
