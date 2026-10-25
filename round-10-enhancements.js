@@ -68,7 +68,9 @@ function scrollbars(){
    top.hidden=!overflow||mobile||bottomVisible||tablePast;
    const topScrollH=top.hidden?0:Math.ceil(top.getBoundingClientRect().height||18),stickyTop=offsets.base+topScrollH,headRect=thead.getBoundingClientRect(),showSticky=!mobile&&headRect.top<stickyTop&&rect.bottom>stickyTop+Math.max(30,headRect.height);
    sticky.hidden=!showSticky;
-   if(showSticky){thead.setAttribute('aria-hidden','true');thead.inert=true;}else{thead.removeAttribute('aria-hidden');thead.inert=false;}
+   const originalHidden=thead.getAttribute('aria-hidden')==='true';
+   if(showSticky&&!originalHidden){thead.setAttribute('aria-hidden','true');thead.inert=true;}
+   else if(!showSticky&&originalHidden){thead.removeAttribute('aria-hidden');thead.inert=false;}
    if(showSticky&&cloneTable){sticky.style.top=stickyTop+'px';sticky.style.left=Math.round(rect.left)+'px';sticky.style.width=Math.round(rect.width)+'px';cloneTable.style.width=Math.max(table.scrollWidth,wrap.clientWidth)+'px';cloneTable.style.transform='translateX('+(-wrap.scrollLeft)+'px)';const originalSelect=wrap.querySelector('#mw-select-page'),cloneSelect=sticky.querySelector('#r10-sticky-select-page');if(originalSelect&&cloneSelect){cloneSelect.checked=originalSelect.checked;cloneSelect.indeterminate=originalSelect.indeterminate;}}
   };
   wrap._r10StickyUpdate=update;syncSize();
