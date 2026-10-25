@@ -61,7 +61,7 @@ function scrollbars(){
   const syncSize=()=>{inner.style.width=Math.max(wrap.scrollWidth,wrap.clientWidth)+'px';top.scrollLeft=wrap.scrollLeft;rebuild();};
   const update=offsets=>{
    if(!wrap.isConnected)return;syncSize();const table=wrap.querySelector('.rf-table'),thead=table?.querySelector('thead');if(!table||!thead){top.hidden=true;sticky.hidden=true;return;}
-   const rect=wrap.getBoundingClientRect(),overflow=wrap.scrollWidth>wrap.clientWidth+2,mobile=matchMedia('(max-width:700px)').matches,bottomVisible=rect.bottom<=innerHeight-3&&rect.bottom>offsets.base+8,tablePast=rect.bottom<=offsets.base+8;
+   const rect=wrap.getBoundingClientRect(),overflow=wrap.scrollWidth>wrap.clientWidth+2,mobile=matchMedia('(max-width:700px)').matches,bottomVisible=rect.bottom<=innerHeight+1&&rect.bottom>offsets.base+8,tablePast=rect.bottom<=offsets.base+8;
    top.hidden=!overflow||mobile||bottomVisible||tablePast;
    const topScrollH=top.hidden?0:Math.ceil(top.getBoundingClientRect().height||18),stickyTop=offsets.base+topScrollH,headRect=thead.getBoundingClientRect(),showSticky=!mobile&&headRect.top<stickyTop&&rect.bottom>stickyTop+Math.max(30,headRect.height);
    sticky.hidden=!showSticky;
