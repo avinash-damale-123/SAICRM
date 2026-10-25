@@ -154,9 +154,9 @@
 /* Dense desktop record grid: readable but information-forward. */
 @media(min-width:701px){
  .mw-framework .rf-table{font-size:11.5px!important}
- .mw-framework .rf-table tbody td{height:24px!important;min-height:24px!important;padding:2px 8px!important;line-height:1.15!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+ .mw-framework .rf-table tbody td{height:20px!important;min-height:20px!important;padding:2px 8px!important;line-height:1.15!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
  .mw-framework .rf-table tbody td>*{max-width:100%}
- .mw-framework .rf-table tbody tr:has(.rf-expanded)>td{height:auto!important;min-height:24px!important;padding-top:5px!important;padding-bottom:5px!important;vertical-align:top!important}
+ .mw-framework .rf-table tbody tr:has(.rf-expanded)>td{height:auto!important;min-height:20px!important;padding-top:5px!important;padding-bottom:5px!important;vertical-align:top!important}
  .mw-framework .rf-table tbody td:has(.rf-expanded){overflow:visible!important;white-space:normal!important}
  .mw-framework .rf-table .rf-long-text:not(.rf-expanded){display:inline-block!important;max-width:calc(100% - 58px)!important;max-height:16px!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;-webkit-line-clamp:unset!important;line-height:1.18!important;vertical-align:middle!important}
  .mw-framework .rf-table .rf-long-text:not(.rf-expanded)+.rf-read-more{display:inline-block!important;margin-left:4px!important;padding:0!important;font-size:9.5px!important;line-height:1!important;vertical-align:middle!important;white-space:nowrap!important}
