@@ -200,6 +200,7 @@
  dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-field{border-color:#dfe4e1!important;border-radius:5px!important;background:#fff!important}
  dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-field>label{padding:5px 8px!important;background:#f4f5f5!important;border-color:#dfe4e1!important;color:#3d4e46!important;font-size:11px!important;line-height:1.25!important}
  dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-value-cell{padding:3px 6px!important;min-height:32px!important;background:#fff!important;border-color:#dfe4e1!important;gap:2px!important}
+ dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) form .mw-bl-value-cell:has(input:not([readonly]),select:not([disabled]),textarea:not([readonly])){background:#fff!important;border-color:#dfe4e1!important;box-shadow:none!important}
  dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-readonly>.mw-bl-value-cell{background:#fff!important}
  dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-read-value{min-height:18px!important;padding:1px 0!important;font-size:12px!important;line-height:1.3!important;color:#273a31!important}
  dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-field :is(input,select){min-height:30px!important;height:30px!important;padding:4px 6px!important;font-size:12px!important;background:#fff!important;border-color:#d8dfdb!important}
