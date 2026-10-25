@@ -261,3 +261,21 @@ dialog.mw-bl-dialog.mw-bl-record-dialog .mw-bl-section details>summary{
  color:#32493e!important;
  border-color:#dde3df!important;
 }
+
+
+/* Neutral Business Lines form surfaces at every viewport width. */
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-field>label{
+ background:#f4f5f5!important;border-color:#dfe4e1!important;color:#3d4e46!important
+}
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-value-cell,
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-readonly>.mw-bl-value-cell,
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) form .mw-bl-value-cell:has(input:not([readonly]),select:not([disabled]),textarea:not([readonly])){
+ background:#fff!important;border-color:#dfe4e1!important;box-shadow:none!important
+}
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-section details>summary{
+ background:#f1f3f2!important;color:#32493e!important;border-color:#dde3df!important
+}
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-section details>summary:hover,
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-section details>summary:focus-visible{
+ background:#e9edeb!important
+}
