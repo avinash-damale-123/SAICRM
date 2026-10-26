@@ -47,7 +47,18 @@ try{
     counts:{total:records.length,active:records.length,inactive:0,archived:0},owners:[{id:user.id,ownerId:'UID-000001',name:user.name}],
     referenceData:{businessLines:lines},permissions,
     resource:{frameworkVersion:1,columns:publicColumns(),limits:{selectedExport:250}},
-    ui:{policy:effective(),preferences:prefs(),overviewCounts:{total:records.length,active:records.length,inactive:0,archived:0,deleted:0}}};
+    ui:{policy:effective(),preferences:prefs(),
+     overviewCounts:{total:filtered.length,active:filtered.length,inactive:0,archived:0,deleted:0},
+     overviewInsights:{
+      mappedCountries:filtered.filter(r=>r.businessLineIds?.includes(lineId)).length,
+      unmappedCountries:filtered.filter(r=>!r.businessLineIds?.includes(lineId)).length,
+      activePresenceLinks:filtered.filter(r=>r.businessLineIds?.includes(lineId)).length,
+      activeBusinessLinesAvailable:1,
+      activeBusinessLinesRepresented:filtered.some(r=>r.businessLineIds?.includes(lineId))?1:0,
+      continents:filtered.length?[{name:'Asia',count:filtered.length}]:[],
+      businessLines:filtered.length?[{id:lineId,code:'STTS',name:'Satguru Travel',count:filtered.length}]:[],
+      usedIn:[]
+     }}};
   }else if(path==='countries'&&method==='POST'){
    assert.deepEqual(body.businessLineIds,[lineId]);
    const r={...body,id:'33333333-3333-4333-8333-333333333333',displayId:'CN-001',status:'Active',
@@ -78,6 +89,15 @@ try{
  await page.evaluate(()=>document.querySelector('[data-nav="countries"]').click());
  await page.waitForFunction(()=>document.querySelector('.mw-results')?.getAttribute('aria-busy')==='false');
  assert.equal(await page.locator('.mw-results .rf-table tbody tr').count(),0,'Country Master starts empty');
+ await page.locator('.mw-module-tab[data-mw="dashboard"]').click();
+ await page.locator('[data-country-overview="live"]').waitFor();
+ assert.equal(await page.locator('[data-country-metric="total"] strong').innerText(),'0','Empty Country Overview must show zero');
+ assert.ok(await page.locator('[data-country-panel="continent"]').getByText('No Active Country records are available').isVisible());
+ assert.equal(await page.locator('[data-country-panel="presence"]').getByText('No operational Country–Business Line mappings').count(),1);
+ assert.equal(await page.locator('[data-country-panel="usage"]').getByText('No linked CRM records').count(),1);
+ assert.equal(await page.locator('.mw-dashboard').innerText().then(t=>t.includes('Total Business Lines')),false,'Country Overview must not copy Business Lines summary');
+ await page.locator('.mw-module-tab[data-mw="home"]').click();
+ await page.waitForFunction(()=>document.querySelector('.mw-results')?.getAttribute('aria-busy')==='false');
  assert.ok(await page.locator('.mw-state [data-mw="create"]').isVisible());
  await page.locator('.mw-state [data-mw="create"]').click();
  await page.locator('#mw-record-form').waitFor();
@@ -110,6 +130,15 @@ try{
  await page.locator('dialog').waitFor({state:'detached'});
  assert.equal(records[0].alias,'Bharat');
  assert.equal(records[0].version,2);
+ await page.locator('.mw-module-tab[data-mw="dashboard"]').click();
+ await page.locator('[data-country-metric="total"] strong').getByText('1',{exact:true}).waitFor();
+ assert.equal(await page.locator('[data-country-metric="active"] strong').innerText(),'1');
+ assert.equal(await page.locator('[data-country-metric="mapped"] strong').innerText(),'1');
+ assert.equal(await page.locator('[data-country-metric="unmapped"] strong').innerText(),'0');
+ assert.equal(await page.locator('[data-country-metric="covered"] strong').innerText(),'1');
+ assert.equal(await page.locator('[data-country-panel="continent"]').getByText('Asia',{exact:true}).count(),1);
+ assert.equal(await page.locator('[data-country-panel="presence"]').innerText().then(t=>t.includes('STTS')),true);
+ assert.equal(await page.locator('[data-country-panel="usage"]').getByText('No linked CRM records').count(),1);
  assert.deepEqual(errors,[],'No uncaught browser errors');
- console.log('Country Master browser acceptance passed: empty state, create, grouped form, mapping, view and edit');
+ console.log('Country browser acceptance passed: distinct live Overview and Business Lines-style Country Create, View and Edit.');
 }finally{await browser.close();await new Promise(r=>server.close(r));}
