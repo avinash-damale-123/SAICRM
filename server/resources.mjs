@@ -21,6 +21,15 @@ export const countryResource = Object.freeze({
  supportsImport: true, supportsDelete: false
 });
 
+
+export const regionResource = Object.freeze({
+ key: 'REGIONS', name: 'Regions', type: 'module',
+ section: 'Administration', subsection: 'Core Masters', route: '#regions',
+ implementationStatus: 'Available', registration: 'automatic',
+ systemLocked: true, superAdminOnly: false, actions,
+ supportsImport: true, supportsDelete: false
+});
+
 /**
  * Current server policy is deliberately restricted to approved, verified Super
  * Admins. Only database field names are accepted. A future Role Matrix may narrow
@@ -45,4 +54,13 @@ export function countryPermissions(user){
  ]));
 }
 
-export const resources = Object.freeze([businessLineResource,countryResource]);
+
+export function regionPermissions(user){
+ const eligible=user?.email_verified===true&&user.status==='approved'&&(user.system_role==='super_admin'||user.role==='admin');
+ return Object.freeze(Object.fromEntries([
+  ...actions.map(action=>[action,eligible]),
+  ['import',eligible],['delete',false]
+ ]));
+}
+
+export const resources = Object.freeze([businessLineResource,countryResource,regionResource]);
