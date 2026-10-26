@@ -46,10 +46,10 @@ export async function countryLookup(client,user,url){
  const params=url.searchParams;
  for(const key of params.keys())if(!['q','businessLineId','limit'].includes(key))fail(400,'Unknown lookup filter');
  const q=String(params.get('q')||'').trim(),lineId=params.get('businessLineId')||null;
- if(q.length>100||(/[\\u0000-\\u001f]/u).test(q))fail(400,'Invalid Country search');
+ if(q.length>100||(/[\u0000-\u001f]/u).test(q))fail(400,'Invalid Country search');
  if(lineId&&!uuid(lineId))fail(400,'Invalid Business Line ID');
  const rawLimit=params.get('limit')||'50',limit=Number(rawLimit);
- if(!/^\\d+$/.test(rawLimit)||!Number.isSafeInteger(limit)||limit<1||limit>100)fail(400,'Lookup limit must be between 1 and 100');
+ if(!/^\d+$/.test(rawLimit)||!Number.isSafeInteger(limit)||limit<1||limit>100)fail(400,'Lookup limit must be between 1 and 100');
  const rows=(await client.query(`SELECT c.id,c.display_id,c.name,c.code,c.iso3,c.dialing_code,c.default_currency
  FROM countries c WHERE c.status='Active' AND c.archived_at IS NULL AND c.deleted_at IS NULL
  AND ($1::uuid IS NULL OR EXISTS(
