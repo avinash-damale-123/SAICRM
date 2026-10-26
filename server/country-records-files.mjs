@@ -14,7 +14,8 @@ export const importFields=Object.freeze([
  {key:'nationality',label:'Nationality',group:'Country Information',type:'text',required:true,help:'Nationality/demonym.',format:'Text; maximum 150 characters',blank:'Required.',example:'Indian'},
  {key:'continent',label:'Continent',group:'Country Information',type:'text',required:true,help:'Controlled continent value.',format:'Africa, Asia, Europe, North America, South America, Oceania, Antarctica',blank:'Required.',example:'Asia'},
  {key:'alias',label:'Country Alias / Short Name',group:'Country Information',type:'text',required:false,help:'Optional alternate/common name.',format:'Text; maximum 150 characters',blank:'Optional.',example:'UAE'},
- {key:'description',label:'Description / Remarks',group:'Country Information',type:'text',required:false,help:'Optional notes.',format:'Text; maximum 500 characters',blank:'Optional.',example:'Reference master record'}
+ {key:'description',label:'Description / Remarks',group:'Country Information',type:'text',required:false,help:'Optional notes.',format:'Text; maximum 500 characters',blank:'Optional.',example:'Reference master record'},
+ {key:'businessLinePresence',label:'Business Line Presence',group:'Business Line Presence',type:'text',required:false,help:'Optional active Business Line codes separated by semicolons. Example: STTS;T3. Blank means no Business Line Presence when this column is explicitly mapped.',format:'Semicolon-separated active Business Line codes',blank:'Optional. When mapped blank, remove current mappings only if dependency checks allow it.',example:'STTS;T3'}
 ]);
 export const templateFields=Object.freeze(importFields.filter(f=>!f.matchOnly));
 const decoder=new TextDecoder('utf-8',{fatal:true});
