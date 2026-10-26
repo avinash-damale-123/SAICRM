@@ -24,6 +24,8 @@ before(async()=>{
  await pool.query(await readFile(new URL('../db/006_business_lines_lifecycle.sql',import.meta.url),'utf8'));
  await pool.query(await readFile(new URL('../db/007_records_framework.sql',import.meta.url),'utf8'));
  await pool.query(await readFile(new URL('../db/007_records_framework.sql',import.meta.url),'utf8'));
+ await pool.query(await readFile(new URL('../db/008_countries.sql',import.meta.url),'utf8'));
+ await pool.query(await readFile(new URL('../db/008_countries.sql',import.meta.url),'utf8'));
  // Applying migrations twice must preserve an initialized database.
  await pool.query(await readFile(new URL('../db/003_business_lines.sql',import.meta.url),'utf8'));
  await pool.query(await readFile(new URL('../db/004_business_lines_fields.sql',import.meta.url),'utf8'));
@@ -798,4 +800,81 @@ test('Wide Unicode exports subdivide safely without losing records or requested 
   for(const part of details.body.files){assert.ok(part.size<=2500000,'Every part stays inside the response-size budget');const file=await call('business-lines/jobs/'+id+'/file?part='+part.part,'GET',undefined,superAdmin);assert.equal(file.status,200);const parsed=parseCSV(Buffer.from(file.body.data,'base64')),headers=parsed[0];for(const field of fields)assert.ok(headers.includes(field.label),'No requested column was dropped: '+field.label);const codeIndex=headers.indexOf('Business Line Code');codes.push(...parsed.slice(1).map(r=>r[codeIndex]));}
   assert.equal(codes.length,1000);assert.equal(new Set(codes).size,1000);assert.ok(codes.includes('RF-WIDE-1')&&codes.includes('RF-WIDE-1000'));
  }finally{await pool.query('UPDATE users SET name=$2 WHERE id=$1',[actor.id,actor.name]);}
+});
+
+test('Country Master end-to-end: create, Presence, lookup, dependency blocking, lifecycle and immutable history',{skip:!enabled},async()=>{
+ const {superAdmin,admin}=await businessActors();
+ const line=await businessCreate('Country Relationship Acceptance');
+ assert.equal((await call('countries','GET',undefined,admin)).status,403);
+ assert.equal((await call('countries','POST',{name:'Forbidden'},admin)).status,403);
+ const input={name:'Country Acceptance Fixture',code:'QQ',iso3:'QQQ',isoNumeric:'998',dialingCode:'+91',defaultCurrency:'INR',nationality:'QA Nationality',continent:'Asia',alias:'QA Alias',description:'Acceptance fixture',businessLineIds:[line.id]};
+ const created=await call('countries','POST',input,superAdmin);
+ assert.equal(created.status,200,JSON.stringify(created.body));
+ let country=created.body.record;
+ assert.match(country.displayId,/^CN-\d{3,}$/);
+ assert.equal(country.code,'QQ');
+ assert.equal(country.businessLineIds.length,1);
+ assert.equal(country.businessLinePresence,line.code);
+ const list=await call('countries','GET',undefined,superAdmin);
+ assert.equal(list.status,200,JSON.stringify(list.body));
+ assert.ok(list.body.records.some(row=>row.id===country.id));
+ assert.equal(list.body.resource.columns.length,28);
+ const lookup=await call('countries/lookup?businessLineId='+encodeURIComponent(line.id)+'&q=Country%20Acceptance','GET',undefined,admin);
+ assert.equal(lookup.status,200,JSON.stringify(lookup.body));
+ assert.equal(lookup.body.countries.some(row=>row.id===country.id),true);
+ const related=await call('countries/'+country.id+'/related','GET',undefined,superAdmin);
+ assert.equal(related.status,200,JSON.stringify(related.body));
+ assert.equal(related.body.total,1);
+ const blocked=await call('countries/'+country.id,'PUT',{version:country.version,status:'Inactive',reason:'Testing dependencies'},superAdmin);
+ assert.equal(blocked.status,409,JSON.stringify(blocked.body));
+ const unmapped=await call('countries/'+country.id+'/presence','PUT',{version:country.version,businessLineIds:[]},superAdmin);
+ assert.equal(unmapped.status,200,JSON.stringify(unmapped.body));country=unmapped.body.record;
+ assert.equal(country.businessLineIds.length,0);
+ const inactive=await call('countries/'+country.id,'PUT',{version:country.version,status:'Inactive',reason:'QA deactivation'},superAdmin);
+ assert.equal(inactive.status,200,JSON.stringify(inactive.body));country=inactive.body.record;
+ assert.equal(country.status,'Inactive');
+ const archived=await call('countries/'+country.id+'/archive','POST',{version:country.version,reason:'QA archive'},superAdmin);
+ assert.equal(archived.status,200,JSON.stringify(archived.body));country=archived.body.record;
+ assert.equal(country.status,'Archived');
+ const deleted=await call('countries/'+country.id+'/soft-delete','POST',{version:country.version,reason:'QA soft delete'},superAdmin);
+ assert.equal(deleted.status,200,JSON.stringify(deleted.body));country=deleted.body.record;
+ assert.equal(country.status,'Deleted');
+ const restored=await call('countries/'+country.id+'/restore-deleted','POST',{version:country.version,reason:'QA recover'},superAdmin);
+ assert.equal(restored.status,200,JSON.stringify(restored.body));country=restored.body.record;
+ assert.equal(country.status,'Archived');
+ const back=await call('countries/'+country.id+'/restore','POST',{version:country.version,reason:'QA restore'},superAdmin);
+ assert.equal(back.status,200,JSON.stringify(back.body));country=back.body.record;
+ assert.equal(country.status,'Inactive');
+ const active=await call('countries/'+country.id,'PUT',{version:country.version,status:'Active',reason:'QA reactivation'},superAdmin);
+ assert.equal(active.status,200,JSON.stringify(active.body));country=active.body.record;
+ assert.equal(country.status,'Active');
+ const history=await call('countries/'+country.id+'/history','GET',undefined,superAdmin);
+ assert.equal(history.status,200,JSON.stringify(history.body));
+ assert.ok(history.body.history.some(item=>item.action==='Business Line Presence Added'));
+ assert.ok(history.body.history.some(item=>item.action==='Business Line Presence Removed'));
+ assert.ok(history.body.history.some(item=>item.action==='Soft Deleted'));
+ const ledger=await pool.query('SELECT action FROM country_business_line_events WHERE country_id=$1 ORDER BY id',[country.id]);
+ assert.deepEqual(ledger.rows.map(row=>row.action),['Added','Removed']);
+ assert.equal((await call('countries','POST',input,superAdmin)).status,409);
+ assert.equal((await call('countries','POST',{...input,code:'QQQ'},superAdmin)).status,400);
+});
+
+test('Country CSV import is dry-run validated with immutable-ID matching and Business Line codes',{skip:!enabled},async()=>{
+ const {superAdmin}=await businessActors();
+ const line=await businessCreate('Country Import Validation Line');
+ const csv=['Country Name,Country Code,ISO 3-Letter Code,ISO Numeric Code,International Dialing Code,Default Currency,Nationality,Continent,Business Line Presence',
+  'Country Import Fixture,QX,QXX,997,+123,USD,QA Nationality,Asia,'+line.code].join('\n')+'\n';
+ const template=await call('countries/imports/template?format=csv','GET',undefined,superAdmin);
+ assert.equal(template.status,200,JSON.stringify(template.body));
+ assert.match(Buffer.from(template.body.data,'base64').toString('utf8'),/ISO Numeric Code/);
+ const uploaded=await call('countries/imports/analyze','POST',{filename:'countries-fixture.csv',data:Buffer.from(csv).toString('base64')},superAdmin);
+ assert.equal(uploaded.status,200,JSON.stringify(uploaded.body));
+ assert.equal(uploaded.body.job.total,1);
+ const validated=await call('countries/imports/'+uploaded.body.job.id+'/validate','POST',{mapping:uploaded.body.recommended,mode:'create',atomic:false},superAdmin);
+ assert.equal(validated.status,200,JSON.stringify(validated.body));
+ assert.equal(validated.body.valid,1);
+ assert.equal(validated.body.invalid,0);
+ assert.equal(validated.body.preview[0].result,'Create');
+ const notCreated=await pool.query("SELECT count(*)::int AS n FROM countries WHERE code='QX'");
+ assert.equal(notCreated.rows[0].n,0,'Validation must not create any Country');
 });

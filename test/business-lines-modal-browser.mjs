@@ -198,6 +198,7 @@ try{
  await page.locator('[data-mw="sort"][data-column="name"]').click();await ready();
  await page.getByRole('button',{name:'Next page',exact:true}).click();await ready();
  const beforeQuery={...requests.filter(r=>r.path==='business-lines'&&r.method==='GET').at(-1).query};
+ await ready();
  const beforeColumns=await page.locator('.rf-table th[data-column-key]').evaluateAll(els=>els.map(e=>e.dataset.columnKey));
  await openFirst();await edit();await page.locator('#mw-bl-page-form [name="description"]').fill('Show latest modified record after save.');
  await page.locator('#bl-save').click();await modal().waitFor({state:'detached'});await ready();
