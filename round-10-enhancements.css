@@ -131,3 +131,151 @@
 @container scrm-main (max-width:520px){
  .scrm-workbar.scrm-bl-clean.scrm-search-in-topbar .mw-settings-menu>div{left:0!important;right:auto!important;width:min(330px,calc(100vw - 32px))!important;max-width:calc(100vw - 32px)!important}
 }
+
+
+/* 2026-10-24 Business Lines density, sticky-workflow and control refinements */
+@media(min-width:701px){
+ body:has(.crm-module-host) .topbar{position:sticky!important;top:0!important;z-index:90!important}
+ .crm-module-host{position:sticky!important;top:var(--scrm-topbar-h,68px)!important;z-index:80!important}
+ .mw-framework .r10-hscroll{position:sticky!important;top:calc(var(--scrm-topbar-h,68px) + var(--scrm-modulebar-h,64px))!important;z-index:70!important}
+ .mw-framework .mw-footer{position:static!important;bottom:auto!important}
+}
+.r10-sticky-head{position:fixed;z-index:65;overflow:hidden;background:#174d38;border:1px solid #d7e3dc;border-top:0;box-shadow:0 4px 12px rgba(25,56,43,.12);box-sizing:border-box}
+.r10-sticky-head[hidden]{display:none!important}
+.r10-sticky-head .r10-sticky-table{margin:0!important;transform-origin:left top;border-collapse:separate;border-spacing:0;table-layout:auto;font-size:11.5px}
+.r10-sticky-head .r10-sticky-table thead th{position:static!important;top:auto!important;height:35px!important;min-height:35px!important;padding:0!important;background:#176348!important;color:#fff!important;border:0;border-right:1px solid #3e7a62;border-bottom:1px solid #125537;vertical-align:middle}
+.r10-sticky-head .r10-sticky-table thead th.rf-sorted{background:#bd5914!important;color:#fff!important}
+.r10-sticky-head .r10-sticky-table thead th>button{display:flex;align-items:center;justify-content:space-between;gap:5px;width:100%;height:34px;min-height:34px;padding:4px 8px!important;border:0;background:transparent!important;color:#fff!important;font-size:11.5px;font-weight:650;line-height:1.15;text-align:left}
+.r10-sticky-head .r10-sticky-table .rf-check-col{width:34px!important;min-width:34px!important;max-width:34px!important;text-align:center;padding:2px 5px!important}
+.r10-sticky-head .r10-sticky-table .rf-check-col input{width:14px;height:14px;accent-color:#087b40}
+.r10-sticky-head .r10-sticky-table th.rf-frozen{position:static!important;left:auto!important}
+.r10-sticky-head .mw-column-resizer{display:none!important}
+
+/* Dense desktop record grid: readable but information-forward. */
+@media(min-width:701px){
+ .mw-framework .rf-table{font-size:11.5px!important}
+ .mw-framework .rf-table tbody tr:not(:has(.rf-expanded)){height:29px!important;max-height:29px!important}
+ .mw-framework .rf-table tbody tr:not(:has(.rf-expanded))>td{box-sizing:border-box!important;height:29px!important;min-height:29px!important;max-height:29px!important;padding:0 8px!important;line-height:1.15!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+ .mw-framework .rf-table tbody td>*{max-width:100%}
+ .mw-framework .rf-table tbody tr:has(.rf-expanded)>td{box-sizing:border-box!important;height:auto!important;min-height:29px!important;max-height:none!important;padding-top:5px!important;padding-bottom:5px!important;vertical-align:top!important}
+ .mw-framework .rf-table tbody td:has(.rf-expanded){overflow:visible!important;white-space:normal!important}
+ .mw-framework .rf-table .rf-long-text:not(.rf-expanded){display:inline-block!important;max-width:calc(100% - 58px)!important;max-height:16px!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;-webkit-line-clamp:unset!important;line-height:1.18!important;vertical-align:middle!important}
+ .mw-framework .rf-table .rf-long-text:not(.rf-expanded)+.rf-read-more{display:inline-block!important;margin-left:4px!important;padding:0!important;font-size:9.5px!important;line-height:1!important;vertical-align:middle!important;white-space:nowrap!important}
+ .mw-framework .rf-table .rf-long-text.rf-expanded{display:block!important;max-height:none!important;overflow:visible!important;white-space:normal!important}
+ .mw-framework .rf-table .rf-long-text.rf-expanded+.rf-read-more{display:block!important;margin-top:3px!important}
+ .mw-framework .rf-table thead th{height:35px!important;min-height:35px!important;font-size:11.5px!important}
+ .mw-framework .rf-table thead th>button{height:34px!important;min-height:34px!important;padding:4px 8px!important;font-size:11.5px!important;line-height:1.15!important}
+ .mw-framework .rf-table .rf-check-col{width:34px!important;min-width:34px!important;max-width:34px!important;padding:2px 5px!important}
+ .mw-framework .rf-table input[type="checkbox"]{width:14px!important;height:14px!important}
+ .mw-framework .rf-table .mw-status{box-sizing:border-box!important;height:18px!important;min-height:18px!important;line-height:14px!important;padding:2px 6px!important;font-size:9.5px!important}
+ .mw-framework .rf-table .rf-row-actions{min-height:23px!important}
+ .mw-framework .rf-table .rf-icon-action,.mw-framework .rf-table .rf-row-more>summary{box-sizing:border-box!important;width:23px!important;height:23px!important;min-width:23px!important;min-height:23px!important;padding:2px!important}
+}
+/* Larger, easier-to-grab top horizontal scrollbar. */
+.r10-hscroll{height:19px!important;min-height:19px!important;background:#f5f8f6!important;scrollbar-width:auto!important;scrollbar-color:#739682 #edf3ef!important}
+.r10-hscroll::-webkit-scrollbar{height:16px!important}
+.r10-hscroll::-webkit-scrollbar-track{background:#edf3ef!important;border-radius:99px!important}
+.r10-hscroll::-webkit-scrollbar-thumb{background:#739682!important;border-radius:99px!important;border:2px solid #edf3ef!important;min-width:42px!important}
+.r10-hscroll::-webkit-scrollbar-thumb:hover{background:#547d66!important}
+
+/* Compact, neutral Business Line Create / Read / Edit forms. */
+@media(min-width:601px){
+ dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-dialog-body{padding:7px 14px!important}
+ dialog.mw-bl-record-dialog .mw-bl-detail-heading{min-height:34px!important;padding:0 0 5px!important;margin:0 0 5px!important}
+ dialog.mw-bl-record-dialog .mw-bl-detail-heading h2{font-size:15px!important}
+ dialog.mw-bl-record-dialog .mw-bl-detail-meta{font-size:11px!important;gap:5px!important}
+ dialog.mw-bl-record-dialog .mw-bl-navigation{gap:5px 8px!important}
+ dialog.mw-bl-record-dialog .mw-bl-detail-index{gap:4px!important}
+ dialog.mw-bl-record-dialog .mw-bl-detail-index button{min-height:27px!important;height:27px!important;padding:3px 7px!important;font-size:10.5px!important;background:#fff!important}
+ dialog.mw-bl-record-dialog :is(.mw-bl-detail-tools>button,.mw-bl-detail-actions>.mw-btn){min-height:34px!important;height:34px!important;padding:4px 8px!important;font-size:11px!important;background:#fff!important;border-color:#cbd8d1!important;color:#315846!important}
+ dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-section details>summary{min-height:40px!important;padding:4px 9px!important;font-size:12px!important;background:#f1f3f2!important;color:#32493e!important;border-color:#dde3df!important}
+ dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-section details>summary:hover,
+ dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-section details>summary:focus-visible{background:#e9edeb!important}
+ dialog.mw-bl-record-dialog .mw-bl-chevron{width:30px!important;height:30px!important;min-width:30px!important;min-height:30px!important;border-color:#c5d1ca!important;color:#315846!important}
+ dialog.mw-bl-record-dialog .mw-bl-section-content{padding:6px 9px!important}
+ dialog.mw-bl-create-dialog .mw-bl-section-content{padding:6px 8px 8px!important}
+ dialog.mw-bl-record-dialog .mw-bl-grid{gap:6px 12px!important}
+ dialog.mw-bl-create-dialog .mw-bl-grid{gap:7px!important}
+ dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-field{border-color:#dfe4e1!important;border-radius:5px!important;background:#fff!important}
+ dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-field>label{padding:5px 8px!important;background:#f4f5f5!important;border-color:#dfe4e1!important;color:#3d4e46!important;font-size:11px!important;line-height:1.25!important}
+ dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-value-cell{padding:3px 6px!important;min-height:32px!important;background:#fff!important;border-color:#dfe4e1!important;gap:2px!important}
+ dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) form .mw-bl-value-cell:has(input:not([readonly]),select:not([disabled]),textarea:not([readonly])){background:#fff!important;border-color:#dfe4e1!important;box-shadow:none!important}
+ dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-readonly>.mw-bl-value-cell{background:#fff!important}
+ dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-read-value{min-height:18px!important;padding:1px 0!important;font-size:12px!important;line-height:1.3!important;color:#273a31!important}
+ dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-field :is(input,select){min-height:30px!important;height:30px!important;padding:4px 6px!important;font-size:12px!important;background:#fff!important;border-color:#d8dfdb!important}
+ dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-field textarea{min-height:48px!important;padding:5px 6px!important;font-size:12px!important;line-height:1.35!important;background:#fff!important;border-color:#d8dfdb!important}
+ dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-field-actionable>.mw-bl-value-cell{padding-right:34px!important}
+ dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-field-edit{width:24px!important;height:24px!important;min-width:24px!important;min-height:24px!important;right:4px!important;top:4px!important;padding:4px!important;background:#f7f8f7!important;border-color:#d6ddd9!important}
+ dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-hint{font-size:10px!important;line-height:1.25!important}
+ dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog)>footer{padding:7px 14px!important;min-height:48px!important}
+ dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog)>footer .mw-btn{height:32px!important;min-height:32px!important;font-size:12px!important}
+}
+
+/* Flat, scan-friendly Customize menu. */
+.mw-settings-menu>div{width:min(235px,calc(100vw - 24px))!important;max-width:min(235px,calc(100vw - 24px))!important;padding:5px!important;overflow-x:hidden!important}
+.mw-settings-menu .r10-simple-menu-item{display:flex!important;align-items:center!important;gap:8px!important;width:100%!important;min-height:36px!important;padding:7px 9px!important;white-space:nowrap!important;text-align:left!important}
+.r10-simple-menu-item .r10-menu-icon{display:inline-flex!important;align-items:center;justify-content:center;width:18px;min-width:18px;color:#537063;font-size:14px;line-height:1}
+.r10-simple-menu-item>span:last-child{display:inline!important;font-size:12px;font-weight:600;color:#2e493c}
+.r10-menu-divider{height:1px;background:#e4ebe7;margin:4px 3px}
+
+/* Flexible filter panel with explicit Clear/Hide actions and stronger Advanced Filter affordance. */
+.mw-filter-controls{display:flex!important;align-items:flex-end!important;flex-wrap:wrap!important;gap:6px 8px!important;padding:7px 10px!important}
+.rf-filter-fields{display:flex;align-items:flex-end;flex-wrap:wrap;gap:6px 8px;flex:1 1 620px;min-width:0}
+.rf-filter-fields>label{display:flex;flex-direction:column;gap:3px;font-size:10px}
+.rf-advanced-filter{border-color:#91b8a1!important;background:#eef7f1!important;color:#165c3d!important;font-weight:700!important;box-shadow:0 0 0 1px rgba(8,123,64,.04)}
+.rf-advanced-filter:hover{background:#e2f1e7!important;border-color:#609979!important}
+.rf-advanced-filter.rf-active{background:#dff1e5!important;border-color:#39815b!important;box-shadow:inset 0 0 0 1px #39815b!important}
+.rf-advanced-count{display:inline-grid;place-items:center;min-width:17px;height:17px;margin-left:5px;padding:0 4px;border-radius:9px;background:#087b40;color:#fff;font-size:9px;font-weight:800}
+.rf-filter-panel-actions{margin-left:auto;display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.rf-filter-active-label{font-size:10px;color:#687d72;white-space:nowrap}
+.rf-filter-panel-actions .mw-btn{min-height:29px!important;height:29px!important;padding:4px 8px!important}
+.rf-filter-panel-actions .rf-clear-all:not(:disabled){color:#8a4d00!important;border-color:#dfc193!important;background:#fffaf1!important}
+.rf-filter-panel-actions .rf-hide-filters{color:#315846!important;border-color:#cbd8d1!important;background:#fff!important}
+.rf-filter-panel-actions .mw-btn:disabled{opacity:.45!important;cursor:not-allowed!important}
+@media(max-width:700px){
+ .r10-hscroll,.r10-sticky-head{display:none!important}
+ .rf-filter-fields{display:grid!important;grid-template-columns:1fr!important;flex-basis:100%}
+ .rf-filter-fields>label,.rf-filter-fields select,.rf-filter-fields input{width:100%!important}
+ .rf-filter-panel-actions{width:100%;margin-left:0;justify-content:flex-end}
+}
+
+
+/* Final neutral Business Lines form surfaces across all responsive widths. */
+dialog.mw-bl-dialog.mw-bl-create-dialog form .mw-bl-field>.mw-bl-value-cell,
+dialog.mw-bl-dialog.mw-bl-record-dialog form .mw-bl-field>.mw-bl-value-cell,
+dialog.mw-bl-dialog.mw-bl-create-dialog form .mw-bl-field>.mw-bl-value-cell:has(input:not([readonly]),select:not([disabled]),textarea:not([readonly])),
+dialog.mw-bl-dialog.mw-bl-record-dialog form .mw-bl-field>.mw-bl-value-cell:has(input:not([readonly]),select:not([disabled]),textarea:not([readonly])){
+ background:#fff!important;
+ border-color:#dfe4e1!important;
+ box-shadow:none!important;
+}
+dialog.mw-bl-dialog.mw-bl-create-dialog .mw-bl-field>label,
+dialog.mw-bl-dialog.mw-bl-record-dialog .mw-bl-field>label{
+ background:#f4f5f5!important;
+ border-color:#dfe4e1!important;
+ color:#3d4e46!important;
+}
+dialog.mw-bl-dialog.mw-bl-create-dialog .mw-bl-section details>summary,
+dialog.mw-bl-dialog.mw-bl-record-dialog .mw-bl-section details>summary{
+ background:#f1f3f2!important;
+ color:#32493e!important;
+ border-color:#dde3df!important;
+}
+
+
+/* Neutral Business Lines form surfaces at every viewport width. */
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-field>label{
+ background:#f4f5f5!important;border-color:#dfe4e1!important;color:#3d4e46!important
+}
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-value-cell,
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-readonly>.mw-bl-value-cell,
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) form .mw-bl-value-cell:has(input:not([readonly]),select:not([disabled]),textarea:not([readonly])){
+ background:#fff!important;border-color:#dfe4e1!important;box-shadow:none!important
+}
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-section details>summary{
+ background:#f1f3f2!important;color:#32493e!important;border-color:#dde3df!important
+}
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-section details>summary:hover,
+dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) .mw-bl-section details>summary:focus-visible{
+ background:#e9edeb!important
+}
