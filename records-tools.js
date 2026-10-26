@@ -201,7 +201,7 @@ function attach(ctx){
   const action=(title,key,symbol)=>'<button type="button" class="rf-icon-action'+(key==='archive'?' rf-action-danger':'')+'" data-mw="'+key+'" data-record="'+esc(r.id)+'" title="'+esc(title)+'" aria-label="'+esc(title)+' '+esc(r.name)+'">'+symbol+'</button>';
   let content=permitted('read')?action('View','read',viewIcon):'';
   if(permitted('edit')&&!r.archivedAt&&!r.deletedAt)content+=action('Edit','edit','✎');
-  if(permitted('archive')&&!r.archivedAt&&!r.deletedAt&&(config.key!=='countries'||r.status==='Inactive'))content+=action('Archive','archive',archiveIcon);
+  if(permitted('archive')&&!r.archivedAt&&!r.deletedAt&&(!['countries','regions'].includes(config.key)||r.status==='Inactive'))content+=action('Archive','archive',archiveIcon);
   const more=[];
   if(r.deletedAt&&permitted('restoreDeleted'))more.push([['countries','regions'].includes(config.key)?'Recover to Archived':'Recover Record','restore-deleted','']);
   else if(r.archivedAt){if(permitted('restore')){if(['countries','regions'].includes(config.key))more.push(['Return to Inactive','restore','']);else{more.push(['Move to Active','restore','Active']);more.push(['Move to Inactive','restore','Inactive']);}}if(permitted('softDelete'))more.push(['Soft Delete','soft-delete','']);}
