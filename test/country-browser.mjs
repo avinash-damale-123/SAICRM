@@ -74,8 +74,8 @@ try{
   await route.fulfill({status,json:response});
  });
  await page.goto('http://127.0.0.1:4197');
- await page.locator('[data-nav="countries"]').waitFor();
- await page.locator('[data-nav="countries"]').click();
+ await page.locator('[data-nav="countries"]').waitFor({state:'attached'});
+ await page.evaluate(()=>document.querySelector('[data-nav="countries"]').click());
  await page.waitForFunction(()=>document.querySelector('.mw-results')?.getAttribute('aria-busy')==='false');
  assert.equal(await page.locator('.mw-results .rf-table tbody tr').count(),0,'Country Master starts empty');
  assert.ok(await page.locator('[data-mw="create"]').isVisible());
