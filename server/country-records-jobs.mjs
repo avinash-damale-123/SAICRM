@@ -76,9 +76,9 @@ export async function validateImport(client,user,id,body){
  const rows=mappedRows(job.state,body.mapping);
  if(body.mode==='update'&&rows.some(r=>!r.payload.displayId)){for(const r of rows)if(!r.payload.displayId&&!r.error){r.status='failed';r.error='Country ID is mandatory for Update Import.';}}
  const presenceCodes=[...new Set(rows.flatMap(r=>String(r.payload.businessLinePresence||'').split(/[;,]/).map(v=>v.trim().toUpperCase()).filter(Boolean)))];
- const presenceLines=presenceCodes.length?(await client.query("SELECT id,upper(code) code FROM business_lines WHERE upper(code)=ANY($1::text[]) AND status='Active' AND archived_at IS NULL AND deleted_at IS NULL",[presenceCodes])).rows:[];
+ const presenceLines=presenceCodes.length?(await client.query("SELECT id,upper(code) code FROM business_lines WHERE upper(code)=ANY($1::text[])",[presenceCodes])).rows:[];
  const presenceMap=new Map(presenceLines.map(r=>[r.code,r.id]));
- for(const r of rows){if(r.status==='failed'||!own(r.payload,'businessLinePresence'))continue;const codes=String(r.payload.businessLinePresence||'').split(/[;,]/).map(v=>v.trim().toUpperCase()).filter(Boolean),missing=codes.filter(code=>!presenceMap.has(code));if(missing.length){r.status='failed';r.error='Unknown or inactive Business Line code: '+missing.join(', ');continue;}r.payload.businessLineIds=[...new Set(codes.map(code=>presenceMap.get(code)))];}
+ for(const r of rows){if(r.status==='failed'||!own(r.payload,'businessLinePresence'))continue;const codes=String(r.payload.businessLinePresence||'').split(/[;,]/).map(v=>v.trim().toUpperCase()).filter(Boolean),missing=codes.filter(code=>!presenceMap.has(code));if(missing.length){r.status='failed';r.error='Unknown Business Line code: '+missing.join(', ');continue;}r.payload.businessLineIds=[...new Set(codes.map(code=>presenceMap.get(code)))];}
  const existing=(await client.query(`SELECT id,display_id,name,code,iso3,iso_numeric,dialing_code,default_currency,nationality,continent,alias,description,
  lower(regexp_replace(btrim(name),'[[:space:]]+',' ','g')) name_key,version,archived_at,deleted_at
  FROM countries WHERE display_id=ANY($1::text[]) OR code=ANY($2::text[]) OR iso3=ANY($3::text[]) OR iso_numeric=ANY($4::text[])
