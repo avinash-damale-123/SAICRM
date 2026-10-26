@@ -78,8 +78,8 @@ try{
  await page.evaluate(()=>document.querySelector('[data-nav="countries"]').click());
  await page.waitForFunction(()=>document.querySelector('.mw-results')?.getAttribute('aria-busy')==='false');
  assert.equal(await page.locator('.mw-results .rf-table tbody tr').count(),0,'Country Master starts empty');
- assert.ok(await page.locator('[data-mw="create"]').isVisible());
- await page.locator('[data-mw="create"]').click();
+ assert.ok(await page.locator('.mw-state [data-mw="create"]').isVisible());
+ await page.locator('.mw-state [data-mw="create"]').click();
  await page.locator('#mw-record-form').waitFor();
  for(const title of ['Country Information','Business Line Presence','Ownership','Record Information'])
   assert.ok(await page.locator('.mw-bl-section summary').filter({hasText:title}).count(),'Missing '+title+' section');
