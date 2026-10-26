@@ -119,7 +119,7 @@ try{
  assert.equal(requests.filter(r=>r.path==='countries'&&r.method==='POST').length,1);
  await page.locator('.rf-table [data-mw="read"][data-record]').first().click();
  await page.locator('dialog[open]').waitFor();
- await page.locator('dialog[open]').getByText('Related / Used In',{exact:true}).waitFor();
+ await page.locator('dialog[open] summary').filter({hasText:/Related\s*\/\s*Used In/i}).waitFor({timeout:12000}).catch(async error=>{console.error('COUNTRY DETAIL DEBUG',await page.locator('dialog[open]').innerText(),errors);throw error;});
  assert.match(await page.locator('dialog[open]').innerText(),/related \/ used in/i);
  assert.match(await page.locator('dialog[open]').innerText(),/STTS/);
  await page.locator('dialog[open] button').filter({hasText:'Edit Country'}).click();
