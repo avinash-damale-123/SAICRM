@@ -698,3 +698,6 @@ dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) :is(#mw-cancel
  .mw-bl-dialog.mw-country-create-dialog.mw-bl-create-dialog{width:calc(100vw - 16px)!important}
  .mw-bl-dialog.mw-country-create-dialog.mw-bl-create-dialog .mw-bl-form .mw-bl-grid{grid-template-columns:minmax(0,1fr)!important}
 }
+
+.mw-country-overview-link{appearance:none;border:0;background:transparent;color:#087544;font:inherit;font-weight:650;text-align:left;min-width:0;padding:3px 0;cursor:pointer;overflow-wrap:anywhere;text-decoration:underline;text-underline-offset:3px}
+.mw-country-overview-link:hover,.mw-country-overview-link:focus-visible{color:#125b37}
