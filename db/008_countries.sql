@@ -61,14 +61,30 @@ CREATE TABLE IF NOT EXISTS country_business_lines (
 CREATE INDEX IF NOT EXISTS country_business_lines_current_v8 ON country_business_lines(country_id,business_line_id) WHERE removed_at IS NULL;
 CREATE INDEX IF NOT EXISTS country_business_lines_line_v8 ON country_business_lines(business_line_id,country_id) WHERE removed_at IS NULL;
 
+-- Immutable relationship event ledger: survives removal and subsequent re-addition.
+CREATE TABLE IF NOT EXISTS country_business_line_events (
+ id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+ country_id uuid NOT NULL REFERENCES countries(id),
+ business_line_id uuid NOT NULL REFERENCES business_lines(id),
+ actor_id uuid NOT NULL REFERENCES users(id),
+ action text NOT NULL CHECK(action IN ('Added','Removed')),
+ previous jsonb NOT NULL DEFAULT '{}'::jsonb,
+ current jsonb NOT NULL DEFAULT '{}'::jsonb,
+ created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS country_business_line_events_record_v8 ON country_business_line_events(country_id,id);
+DROP TRIGGER IF EXISTS country_business_line_events_append_only ON country_business_line_events;
+CREATE TRIGGER country_business_line_events_append_only BEFORE UPDATE OR DELETE ON country_business_line_events FOR EACH ROW EXECUTE FUNCTION prevent_audit_mutation();
+
+
 -- Country Master intentionally starts empty. Records may be created or imported later.
 
 DO $runtime_access$
 BEGIN
  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='saicrm_runtime') THEN
   GRANT SELECT, INSERT, UPDATE, DELETE ON countries, country_business_lines TO saicrm_runtime;
-  GRANT SELECT, INSERT ON country_events TO saicrm_runtime;
-  GRANT USAGE, SELECT ON SEQUENCE countries_sequence_no_seq, country_events_id_seq TO saicrm_runtime;
+  GRANT SELECT, INSERT ON country_events, country_business_line_events TO saicrm_runtime;
+  GRANT USAGE, SELECT ON SEQUENCE countries_sequence_no_seq, country_events_id_seq, country_business_line_events_id_seq TO saicrm_runtime;
  END IF;
 END $runtime_access$;
 
