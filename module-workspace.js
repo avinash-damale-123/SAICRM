@@ -307,7 +307,7 @@ function create(host,config) {
    if(record?.businessLineRef&&!options.some(option=>option.id===record.businessLineRef))options.push({id:record.businessLineRef,code:record.businessLineCode||record.businessLineId||'',name:(record.businessLine||'Current Business Line')+' (current)'});
    control='<select id="'+controlId+'" name="businessLineRef"'+(required?' required':'')+'><option value="">- Select -</option>'+options.map(option=>'<option value="'+esc(option.id)+'" '+(option.id===shown?'selected':'')+'>'+esc((option.code?option.code+' — ':'')+(option.name||option.id))+'</option>').join('')+'</select>';
   }else if(full){
-   control='<textarea rows="2"'+attrs+'>'+esc(shown)+'</textarea>';
+   control='<textarea rows="2"'+attrs+' data-counted="'+esc(key)+'">'+esc(shown)+'</textarea>';
   }else{
    control='<input type="text"'+attrs+' value="'+esc(shown)+'"'+(editable?' autocomplete="off"':'')+'>';
   }
