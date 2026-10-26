@@ -38,6 +38,33 @@ function view(r){return {
 };}
 export {view as countryView};
 
+/** Active-only Country lookup for other authorized CRM modules.
+ * Optional Business Line scope must be an active Business Line with a live mapping.
+ */
+export async function countryLookup(client,user,url){
+ if(!user||user.status!=='approved'||user.email_verified!==true)fail(403,'Approved verified CRM access required');
+ const params=url.searchParams;
+ for(const key of params.keys())if(!['q','businessLineId','limit'].includes(key))fail(400,'Unknown lookup filter');
+ const q=String(params.get('q')||'').trim(),lineId=params.get('businessLineId')||null;
+ if(q.length>100||(/[\\u0000-\\u001f]/u).test(q))fail(400,'Invalid Country search');
+ if(lineId&&!uuid(lineId))fail(400,'Invalid Business Line ID');
+ const rawLimit=params.get('limit')||'50',limit=Number(rawLimit);
+ if(!/^\\d+$/.test(rawLimit)||!Number.isSafeInteger(limit)||limit<1||limit>100)fail(400,'Lookup limit must be between 1 and 100');
+ const rows=(await client.query(`SELECT c.id,c.display_id,c.name,c.code,c.iso3,c.dialing_code,c.default_currency
+ FROM countries c WHERE c.status='Active' AND c.archived_at IS NULL AND c.deleted_at IS NULL
+ AND ($1::uuid IS NULL OR EXISTS(
+ SELECT 1 FROM country_business_lines m JOIN business_lines bl ON bl.id=m.business_line_id
+ WHERE m.country_id=c.id AND m.business_line_id=$1 AND m.removed_at IS NULL
+ AND bl.status='Active' AND bl.archived_at IS NULL AND bl.deleted_at IS NULL))
+ AND ($2::text='' OR strpos(lower(c.name),lower($2))>0 OR strpos(lower(c.code),lower($2))>0
+ OR strpos(lower(c.alias),lower($2))>0 OR strpos(lower(c.iso3),lower($2))>0)
+ ORDER BY lower(c.name),c.id LIMIT $3`,[lineId,q,limit])).rows;
+ return {countries:rows.map(r=>({id:r.id,displayId:r.display_id,name:r.name,code:r.code,iso3:r.iso3,
+ dialingCode:r.dialing_code,defaultCurrency:r.default_currency,flag:flag(r.code),
+ label:flag(r.code)+' '+r.name+' ('+r.code+')'}))};
+}
+
+
 async function load(client,id,lock=false){if(!uuid(id))fail(400,'Invalid Country ID');if(lock){const x=await client.query('SELECT id FROM countries WHERE id=$1 FOR UPDATE',[id]);if(!x.rowCount)fail(404,'Country not found');}const r=(await client.query(select+' WHERE c.id=$1',[id])).rows[0];if(!r)fail(404,'Country not found');return r;}
 async function activeBusinessLines(client){return (await client.query(`SELECT id,display_id AS "displayId",code,name FROM business_lines WHERE status='Active' AND archived_at IS NULL AND deleted_at IS NULL ORDER BY lower(name),id`)).rows;}
 async function owners(client){return (await client.query(`SELECT id,display_id AS "ownerId",name,email FROM users WHERE status='approved' AND email_verified=true ORDER BY name,id`)).rows;}
