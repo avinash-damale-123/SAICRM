@@ -858,3 +858,23 @@ test('Country Master end-to-end: create, Presence, lookup, dependency blocking, 
  assert.equal((await call('countries','POST',input,superAdmin)).status,409);
  assert.equal((await call('countries','POST',{...input,code:'QQQ'},superAdmin)).status,400);
 });
+
+test('Country CSV import is dry-run validated with immutable-ID matching and Business Line codes',{skip:!enabled},async()=>{
+ const {superAdmin}=await businessActors();
+ const line=await businessCreate('Country Import Validation Line');
+ const csv=['Country Name,Country Code,ISO 3-Letter Code,ISO Numeric Code,International Dialing Code,Default Currency,Nationality,Continent,Business Line Presence',
+  'Country Import Fixture,QX,QXX,997,+123,USD,QA Nationality,Asia,'+line.code].join('\\n')+'\\n';
+ const template=await call('countries/imports/template?format=csv','GET',undefined,superAdmin);
+ assert.equal(template.status,200,JSON.stringify(template.body));
+ assert.match(Buffer.from(template.body.data,'base64').toString('utf8'),/ISO Numeric Code/);
+ const uploaded=await call('countries/imports/analyze','POST',{filename:'countries-fixture.csv',data:Buffer.from(csv).toString('base64')},superAdmin);
+ assert.equal(uploaded.status,200,JSON.stringify(uploaded.body));
+ assert.equal(uploaded.body.job.total,1);
+ const validated=await call('countries/imports/'+uploaded.body.job.id+'/validate','POST',{mapping:uploaded.body.recommended,mode:'create',atomic:false},superAdmin);
+ assert.equal(validated.status,200,JSON.stringify(validated.body));
+ assert.equal(validated.body.valid,1);
+ assert.equal(validated.body.invalid,0);
+ assert.equal(validated.body.preview[0].result,'Create');
+ const notCreated=await pool.query("SELECT count(*)::int AS n FROM countries WHERE code='QX'");
+ assert.equal(notCreated.rows[0].n,0,'Validation must not create any Country');
+});
