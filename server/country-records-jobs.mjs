@@ -53,7 +53,7 @@ function mappedRows(state,mapping){
    payload.code=text(payload.code,'Country Code',2,true).toUpperCase();if(!/^[A-Z]{2}$/.test(payload.code))fail(400,'Country Code must contain exactly 2 letters');
    payload.iso3=text(payload.iso3,'ISO 3-Letter Code',3,true).toUpperCase();if(!/^[A-Z]{3}$/.test(payload.iso3))fail(400,'ISO 3-Letter Code must contain exactly 3 letters');
    payload.isoNumeric=text(payload.isoNumeric,'ISO Numeric Code',3,true);if(!/^\d{3}$/.test(payload.isoNumeric))fail(400,'ISO Numeric Code must contain exactly 3 digits');
-   payload.dialingCode=text(payload.dialingCode,'International Dialing Code',16,true);if(!/^\+\d{1,15}$/.test(payload.dialingCode))fail(400,'International Dialing Code must start with + and contain digits only');
+   payload.dialingCode=text(payload.dialingCode.replace(/^'(?=\+\d)/,''),'International Dialing Code',16,true);if(!/^\+\d{1,15}$/.test(payload.dialingCode))fail(400,'International Dialing Code must start with + and contain digits only');
    payload.defaultCurrency=text(payload.defaultCurrency,'Default Currency',40,true).toUpperCase();
    payload.nationality=text(payload.nationality,'Nationality',150,true);
    payload.continent=text(payload.continent,'Continent',40,true);if(!continents.has(payload.continent))fail(400,'Choose a valid Continent');
@@ -75,10 +75,10 @@ export async function validateImport(client,user,id,body){
  if(body.atomic&&job.total>fileLimits.atomicRows)fail(400,'All-or-nothing imports support up to 250 rows; split the file or explicitly choose partial mode');
  const rows=mappedRows(job.state,body.mapping);
  if(body.mode==='update'&&rows.some(r=>!r.payload.displayId)){for(const r of rows)if(!r.payload.displayId&&!r.error){r.status='failed';r.error='Country ID is mandatory for Update Import.';}}
- const presenceCodes=[...new Set(rows.flatMap(r=>String(r.payload.businessLinePresence||'').split(';').map(v=>v.trim().toUpperCase()).filter(Boolean)))];
+ const presenceCodes=[...new Set(rows.flatMap(r=>String(r.payload.businessLinePresence||'').split(/[;,]/).map(v=>v.trim().toUpperCase()).filter(Boolean)))];
  const presenceLines=presenceCodes.length?(await client.query("SELECT id,upper(code) code FROM business_lines WHERE upper(code)=ANY($1::text[]) AND status='Active' AND archived_at IS NULL AND deleted_at IS NULL",[presenceCodes])).rows:[];
  const presenceMap=new Map(presenceLines.map(r=>[r.code,r.id]));
- for(const r of rows){if(r.status==='failed'||!own(r.payload,'businessLinePresence'))continue;const codes=String(r.payload.businessLinePresence||'').split(';').map(v=>v.trim().toUpperCase()).filter(Boolean),missing=codes.filter(code=>!presenceMap.has(code));if(missing.length){r.status='failed';r.error='Unknown or inactive Business Line code: '+missing.join(', ');continue;}r.payload.businessLineIds=[...new Set(codes.map(code=>presenceMap.get(code)))];}
+ for(const r of rows){if(r.status==='failed'||!own(r.payload,'businessLinePresence'))continue;const codes=String(r.payload.businessLinePresence||'').split(/[;,]/).map(v=>v.trim().toUpperCase()).filter(Boolean),missing=codes.filter(code=>!presenceMap.has(code));if(missing.length){r.status='failed';r.error='Unknown or inactive Business Line code: '+missing.join(', ');continue;}r.payload.businessLineIds=[...new Set(codes.map(code=>presenceMap.get(code)))];}
  const existing=(await client.query(`SELECT id,display_id,name,code,iso3,iso_numeric,dialing_code,default_currency,nationality,continent,alias,description,
  lower(regexp_replace(btrim(name),'[[:space:]]+',' ','g')) name_key,version,archived_at,deleted_at
  FROM countries WHERE display_id=ANY($1::text[]) OR code=ANY($2::text[]) OR iso3=ANY($3::text[]) OR iso_numeric=ANY($4::text[])
