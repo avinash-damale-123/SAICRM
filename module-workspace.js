@@ -70,6 +70,13 @@ function create(host,config) {
  find('#mw-status').onchange=e=>{if(!permitted('filter'))return;state.status=e.target.value;state.page=1;load()};
  find('#mw-archived').onchange=e=>{if(!permitted('filter'))return;state.archived=e.target.value;state.page=1;load()};
  host.addEventListener('click',click);host.addEventListener('change',change);
+  if(config.key==='countries')host.addEventListener('click',event=>{
+   const link=event.target.closest('[data-country-line-id]');
+   if(!link||!host.contains(link)||!permitted('read'))return;
+   const id=link.dataset.countryLineId;if(!id||!window.SCRM?.navigateRecord)return;
+   event.preventDefault();
+   Promise.resolve(window.SCRM.navigateRecord('businesslines',id,'Business Line')).catch(error=>announce(error.message));
+  });
  render();
  }
  function renderViews(){
