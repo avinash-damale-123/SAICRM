@@ -6,7 +6,7 @@ export function object(value){if(!value||typeof value!=='object'||Array.isArray(
 export function keys(value,allowed){object(value);if(Object.keys(value).some(key=>!allowed.includes(key)))fail(400,'Unknown or protected field');}
 export function text(value,label,max,required=false){if(typeof value!=='string')fail(400,label+' must be text');const s=value.trim();if((required&&!s)||s.length>max||/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(s))fail(400,'Invalid '+label);return s;}
 const groups=['Country Information','Business Line Presence','Ownership','Record Information','Lifecycle Information'];
-const presenceSql=`COALESCE((SELECT string_agg(COALESCE(bl.code,bl.name),', ' ORDER BY lower(bl.name)) FROM country_business_lines m JOIN business_lines bl ON bl.id=m.business_line_id WHERE m.country_id=c.id AND m.removed_at IS NULL),'')`;
+const presenceSql=`COALESCE((SELECT string_agg(COALESCE(bl.code,bl.name),';' ORDER BY lower(bl.name)) FROM country_business_lines m JOIN business_lines bl ON bl.id=m.business_line_id WHERE m.country_id=c.id AND m.removed_at IS NULL),'')`;
 const definitions=[
  ['displayId','Country ID','text','c.display_id',0],['name','Country Name','text','c.name',0],['code','Country Code','text','c.code',0],
  ['iso3','ISO 3-Letter Code','text','c.iso3',0],['isoNumeric','ISO Numeric Code','text','c.iso_numeric',0],
