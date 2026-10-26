@@ -25,7 +25,7 @@ window.SCRMRegions = {
     {key:'status',label:'Status'},
     {key:'owner',label:'Owner'},
     {key:'updatedAt',system:true,label:'Last Modified At',type:'date'},
-    {key:'businessLineId',label:'Business Line ID',type:'id',default:false},
+    {key:'businessLineId',label:'Business Line ID',type:'id',system:true,default:false},
     {key:'remarks',label:'Remarks',default:false},
     {key:'ownerId',system:true,label:'Owner ID',type:'id',default:false},
     {key:'createdBy',system:true,label:'Created By',default:false},
