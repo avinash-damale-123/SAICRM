@@ -93,6 +93,7 @@ try{
  await page.locator('#mw-record-form [name="code"]').fill('af-west');
  await page.locator('#mw-record-form [name="regionalManager"]').fill('Regional Manager');
  await page.locator('#mw-record-form [name="remarks"]').fill('Operational Region');
+ assert.equal(await page.locator('#mw-record-form [data-count-for="remarks"]').innerText(),String('Operational Region'.length),'Region Remarks counter updates like Business Lines Description');
  assert.equal(await page.locator('#mw-record-form [name="code"]').inputValue(),'AF-WEST','Region Code uppercases like Business Lines Code');
  await page.locator('#mw-save').click();
  await page.locator('dialog').waitFor({state:'detached'});
@@ -126,7 +127,6 @@ try{
  assert.equal(records[0].regionalManager,'Updated Manager');
  assert.equal(records[0].remarks,'Updated Region remarks');
  assert.equal(records[0].status,'Inactive');
- const update=requests.findLast(r=>r.path===records[0].id?false:r.path==='regions/'+records[0].id&&r.method==='PUT');
  const updateRequest=requests.filter(r=>r.path==='regions/'+records[0].id&&r.method==='PUT').at(-1);
  assert.equal(updateRequest.body.businessLineRef,lineId);
  assert.equal(updateRequest.body.status,'Inactive');
