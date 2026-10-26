@@ -55,13 +55,16 @@ export async function searchWorkspace(client, principal, current, url) {
   for (const item of rows) output.push({id:item.id,module:'countries',title:item.name,detail:item.display_id+' · '+item.code,status:item.status,updatedAt:toTime(item.updated_at)});
  }
  if ((global || module === 'regions') && regionPermissions(current).read) {
-  const rows = (await client.query(`
-   SELECT r.id,r.display_id,r.name,r.code,r.status,r.updated_at,bl.name business_line
-   FROM regions r JOIN business_lines bl ON bl.id=r.business_line_id
-   WHERE position(lower($1) in lower(r.name || ' ' || r.display_id || ' ' || r.code || ' ' || bl.name || ' ' || r.regional_manager)) > 0
-   ORDER BY r.updated_at DESC LIMIT 15
-  `, [query])).rows;
-  for (const item of rows) output.push({id:item.id,module:'regions',title:item.name,detail:item.display_id+' · '+item.code+' · '+item.business_line,status:item.status,updatedAt:toTime(item.updated_at)});
+  const available=(await client.query("SELECT to_regclass('public.regions') IS NOT NULL AS ready")).rows[0]?.ready===true;
+  if(available){
+   const rows = (await client.query(`
+    SELECT r.id,r.display_id,r.name,r.code,r.status,r.updated_at,bl.name business_line
+    FROM regions r JOIN business_lines bl ON bl.id=r.business_line_id
+    WHERE position(lower($1) in lower(r.name || ' ' || r.display_id || ' ' || r.code || ' ' || bl.name || ' ' || r.regional_manager)) > 0
+    ORDER BY r.updated_at DESC LIMIT 15
+   `, [query])).rows;
+   for (const item of rows) output.push({id:item.id,module:'regions',title:item.name,detail:item.display_id+' · '+item.code+' · '+item.business_line,status:item.status,updatedAt:toTime(item.updated_at)});
+  }
  }
  return {results: output.sort((a,b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0,40),query,scope:global?'global':'module'};
 }
