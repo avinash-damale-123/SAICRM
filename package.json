@@ -11,7 +11,7 @@
     "db:migrate": "node scripts/migrate.mjs",
     "admin:bootstrap": "node scripts/bootstrap-admin.mjs",
     "test:browser": "node test/browser.mjs",
-    "test:business-browser": "node test/business-lines-browser.mjs && node test/header-visual.mjs && node test/records-framework-browser.mjs && node test/business-lines-modal-browser.mjs && node test/country-browser.mjs",
+    "test:business-browser": "node test/country-browser.mjs && node test/business-lines-browser.mjs && node test/header-visual.mjs && node test/records-framework-browser.mjs && node test/business-lines-modal-browser.mjs",
     "super-admin:bootstrap": "node scripts/bootstrap-super-admin.mjs",
     "test:records-browser": "node test/records-framework-browser.mjs"
   },
