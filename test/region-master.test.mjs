@@ -100,3 +100,34 @@ test('Region migration enforces parent Business Line, composite name uniqueness 
  assert.ok(!/INSERT INTO regions\s*\(/i.test(sql));
  assert.match(sql,/INSERT INTO schema_migrations\(version\) VALUES\(9\)/);
 });
+
+
+test('Region visible workspace uses the Business Lines master record experience',async()=>{
+ const workspace=await readFile(new URL('../module-workspace.js',import.meta.url),'utf8');
+ assert.match(workspace,/\['business-lines','regions'\]\.includes\(config\.key\).*openBlRecord/s);
+ assert.match(workspace,/const regionGroups=\[/);
+ assert.match(workspace,/Region Information/);
+ assert.match(workspace,/Ownership Details/);
+ assert.match(workspace,/Lifecycle Information/);
+ assert.match(workspace,/businessLineRef.*Business Line/);
+ assert.match(workspace,/Related \/ Used In/);
+ assert.match(workspace,/Previous/);
+ assert.match(workspace,/Next/);
+ assert.match(workspace,/data-bl-expand/);
+ assert.match(workspace,/data-bl-field-edit/);
+ assert.match(workspace,/config\.singular\+' saved successfully\.'/);
+});
+
+test('Region visible lifecycle actions follow the strict sequence before backend submission',async()=>{
+ const tools=await readFile(new URL('../records-tools.js',import.meta.url),'utf8');
+ assert.match(tools,/!\['countries','regions'\]\.includes\(config\.key\)\|\|r\.status==='Inactive'/);
+ assert.match(tools,/\['countries','regions'\]\.includes\(config\.key\)\?'Return to Inactive'/);
+ assert.match(tools,/\['countries','regions'\]\.includes\(config\.key\)\?'Recover to Archived'/);
+});
+
+test('Region parity release cache-busts the shared visible UI assets',async()=>{
+ const html=await readFile(new URL('../index.html',import.meta.url),'utf8');
+ assert.match(html,/records-tools\.js\?v=20261027-region-parity-r1/);
+ assert.match(html,/module-workspace\.js\?v=20261027-region-parity-r1/);
+ assert.match(html,/region-ui\.js\?v=20261027-region-parity-r1/);
+});
