@@ -29,7 +29,7 @@ function view(r){return {
  id:r.id,displayId:r.display_id,name:r.name,code:r.code,iso3:r.iso3,isoNumeric:r.iso_numeric,dialingCode:r.dialing_code,
  defaultCurrency:r.default_currency,nationality:r.nationality,continent:r.continent,alias:r.alias,description:r.description,
  flag:flag(r.code),businessLines:r.business_lines||[],businessLineIds:(r.business_lines||[]).map(x=>x.id),
- businessLinePresence:(r.business_lines||[]).map(x=>x.code||x.name).join(', '),
+ businessLinePresence:(r.business_lines||[]).map(x=>x.code||x.name).join(';'),
  status:r.deleted_at?'Deleted':r.archived_at?'Archived':r.status,owner:r.owner_name,ownerId:r.owner_display_id,
  createdBy:r.creator_name,createdById:r.creator_display_id,createdAt:date(r.created_at),
  updatedBy:r.updater_name,updatedById:r.updater_display_id,updatedAt:date(r.updated_at),
