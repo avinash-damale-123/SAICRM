@@ -229,7 +229,7 @@ function create(host,config) {
    edit=document.createElement('button');edit.id='bl-edit-top';edit.type='button';edit.className='mw-icon-btn mw-bl-quick-edit';
    edit.setAttribute('aria-label','Edit '+config.singular);edit.title='Edit '+config.singular;edit.innerHTML=blPopupGlyph('edit');
    // Delegate to the same permission-checked footer action, never create a second write path.
-   edit.onclick=()=>{if(dialog!==d||dialogSaving||blBusy)return;const action=d.querySelector('#bl-edit');if(action&&!action.disabled)action.click();};
+   edit.onclick=()=>{if(dialog!==d||dialogSaving||blBusy)return;const action=d.querySelector(config.key==='countries'?'#country-edit':'#bl-edit');if(action&&!action.disabled)action.click();};
    actions.prepend(edit);
   }
  }
@@ -456,7 +456,7 @@ function create(host,config) {
   if(dead||!permitted('read')||(startEdit&&!permitted('edit')))return;
   let d=dialog;
   if(blDetail){if(!discardChecked&&!leaveBlAllowed())return;blDraft=null;dialogDirty=null;}
-  else{d=openDialog(startEdit?'Edit Country':'View Country','','<button type="button" class="mw-btn" id="bl-back">Close</button>',true);if(!d)return;d.classList.add('mw-bl-record-dialog mw-country-record-dialog');}
+  else{d=openDialog(startEdit?'Edit Country':'View Country','','<button type="button" class="mw-btn" id="bl-back">Close</button>',true);if(!d)return;d.classList.add('mw-bl-record-dialog','mw-country-record-dialog');}
   blPopupHeader(d);
   const request=++blLoadSequence;
   const page=document.createElement('section');page.className='mw-bl-detail-page mw-country-detail-page';page.setAttribute('aria-label','Country record details');
