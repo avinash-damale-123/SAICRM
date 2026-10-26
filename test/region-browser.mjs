@@ -110,7 +110,9 @@ try{
  assert.equal(await page.locator('[data-bl-next]').count(),1);
  assert.equal(await page.locator('[data-bl-expand="1"]').count(),1);
  assert.equal(await page.locator('#bl-edit-top').count(),1,'Region Read has the same header quick Edit action');
- assert.match(await page.locator('dialog[open]').innerText(),/branches.*2 linked records/i);
+ const relatedSection=page.locator('.mw-bl-section').filter({has:page.getByText('Related / Used In',{exact:true})});
+ await relatedSection.locator('summary').click();
+ assert.match(await relatedSection.innerText(),/branches.*2 linked records/i);
 
  await page.locator('#bl-edit').click();
  await page.locator('#mw-bl-page-form').waitFor();
