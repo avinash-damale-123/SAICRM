@@ -2,8 +2,8 @@
 'use strict';
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const modules = new Set(['leads','customers','contacts','opportunities','activities','quotes','bookings','employees','branches','businesslines','countries']);
-const names = {home:'Home',overview:'Overview',mywork:'My Work',analytics:'Analytics',leads:'Leads',customers:'Customers',contacts:'People & Contacts',opportunities:'Opportunities',activities:'Activities',quotes:'Quotations',bookings:'Bookings',employees:'Employees & Access',branches:'Branch Network',businesslines:'Business Lines',countries:'Countries',settings:'Settings & Masters',modules:'Module Directory',audit:'Audit Trail',notifications:'Notifications',access:'Access Approvals'};
+const modules = new Set(['leads','customers','contacts','opportunities','activities','quotes','bookings','employees','branches','businesslines','countries','regions']);
+const names = {home:'Home',overview:'Overview',mywork:'My Work',analytics:'Analytics',leads:'Leads',customers:'Customers',contacts:'People & Contacts',opportunities:'Opportunities',activities:'Activities',quotes:'Quotations',bookings:'Bookings',employees:'Employees & Access',branches:'Branch Network',businesslines:'Business Lines',countries:'Countries',regions:'Regions',settings:'Settings & Masters',modules:'Module Directory',audit:'Audit Trail',notifications:'Notifications',access:'Access Approvals'};
 let searchInput,scopeBtn,scopeMenu,searchResults,noticeMenu,profileMenu,queryTimer,sequence=0,current='',scope='module',resultItems=[],activeResult=0,notificationItems=[],noticeLoading=false;
 const userId = () => window.SCRM?.user?.id || 'anonymous';
 const readKey = () => 'scrm:notification-read:'+userId();
@@ -17,9 +17,9 @@ function markSeen(ids){
 }
 function label(id){return names[id]||id.replace(/([A-Z])/g,' $1')}
 function activeModule(){const p=window.SCRM?.currentPage?.();return modules.has(p)?p:null}
-function allowedModule(id){return !['businesslines','countries'].includes(id)||window.SCRM?.can?.(id)}
+function allowedModule(id){return !['businesslines','countries','regions'].includes(id)||window.SCRM?.can?.(id)}
 function placeCrumbs(p){
- const chain=p==='businesslines'?[['home','Home'],['settings','Settings & Masters'],['businesslines','Business Lines']]:p==='countries'?[['home','Home'],['settings','Settings & Masters'],['countries','Countries']]:
+ const chain=p==='businesslines'?[['home','Home'],['settings','Settings & Masters'],['businesslines','Business Lines']]:p==='countries'?[['home','Home'],['settings','Settings & Masters'],['countries','Countries']]:p==='regions'?[['home','Home'],['settings','Settings & Masters'],['regions','Regions']]:
   p==='settings'?[['home','Home'],['settings',label(p)]]:
   p==='home'?[['home','Home']]:[['home','Home'],[p,label(p)]];
  const nav=$('.breadcrumb');if(!nav)return;

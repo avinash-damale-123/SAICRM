@@ -19,6 +19,7 @@ const staticFiles = [
   'module-workspace.js',
   'business-lines-ui.js',
   'country-ui.js',
+  'region-ui.js',
   'records-tools.js',
   'records-tools.css',
   'round-10-enhancements.css',
