@@ -138,6 +138,7 @@ try{
  assert.equal(await page.locator('[data-country-metric="covered"] strong').innerText(),'1');
  assert.equal(await page.locator('[data-country-panel="continent"]').getByText('Asia',{exact:true}).count(),1);
  assert.equal(await page.locator('[data-country-panel="presence"]').innerText().then(t=>t.includes('STTS')),true);
+ assert.equal(await page.locator('[data-country-panel="presence"] [data-country-line-id="'+lineId+'"]').count(),1,'Overview Business Line names are connected to the actual master record');
  assert.equal(await page.locator('[data-country-panel="usage"]').getByText('No linked CRM records').count(),1);
  assert.deepEqual(errors,[],'No uncaught browser errors');
  console.log('Country browser acceptance passed: distinct live Overview and Business Lines-style Country Create, View and Edit.');
