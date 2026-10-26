@@ -21,6 +21,7 @@
  function can(module,action='read') {
   if(!user||user.status!=='approved'||!user.emailVerified)return false;
   if(['businesslines','countries'].includes(module))return user.systemRole==='super_admin';
+  if(module==='regions')return user.systemRole==='super_admin'||user.role==='admin';
   if(['home','overview','mywork','analytics','notifications','modules','settings'].includes(module))return action==='read';
   if(['employees','branches','audit','access'].includes(module))return user.role==='admin';
   if(['read','search','filter','dashboard'].includes(action))return true;
