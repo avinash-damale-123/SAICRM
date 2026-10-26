@@ -4,7 +4,7 @@
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const copy=v=>JSON.parse(JSON.stringify(v));
 const label={contains:'Contains',notContains:'Does not contain',equals:'Equals',notEquals:'Does not equal',startsWith:'Starts with',endsWith:'Ends with',in:'Is one of',notIn:'Is not one of',isEmpty:'Is empty',isNotEmpty:'Is not empty',before:'Before',after:'After',between:'Between',lastDays:'In the last N days',gt:'Greater than',gte:'At least',lt:'Less than',lte:'At most'};
-const groups=['Basic Information','Ownership Details','Record Information','Lifecycle Information'];
+const groups=['Basic Information','Country Information','Business Line Presence','Ownership Details','Ownership','Record Information','Lifecycle Information'];
 const roles={super_admin:'Super Admin',admin:'Admin',manager:'Manager',standard:'Standard User'};
 const btn=(text,id,primary=false)=>'<button type="button" class="mw-btn '+(primary?'mw-primary':'')+'" data-rf="'+esc(id)+'">'+esc(text)+'</button>';
 const uuid=()=>crypto.randomUUID();
