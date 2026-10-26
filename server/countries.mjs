@@ -64,8 +64,8 @@ function changes(before,after){
  const out={};for(const k of ['name','code','iso3','isoNumeric','dialingCode','defaultCurrency','nationality','continent','alias','description','status','ownerId','archivedAt','deletedAt','businessLinePresence'])
  if((before?.[k]??null)!==(after?.[k]??null))out[k]={before:before?.[k]??null,after:after?.[k]??null};return out;
 }
-async function event(client,user,id,action,before,after,why=null,tz=null){
- const payload=changes(before,after);if(tz!==null)payload._context={timeZone:tz};
+async function event(client,user,id,action,before,after,why=null,tz=null,extra=null){
+ const payload={...changes(before,after),...(extra||{})};if(tz!==null)payload._context={timeZone:tz};
  await client.query('INSERT INTO country_events(country_id,actor_id,action,changes,reason) VALUES($1,$2,$3,$4,$5)',[id,user.id,action,payload,why]);
  await client.query('INSERT INTO audit(actor,action,module,record_id) VALUES($1,$2,$3,$4)',[user.id,action,'countries',id]);
 }
@@ -73,6 +73,7 @@ async function syncPresence(client,user,country,ids,tz=null){
  if(ids===undefined)return;
  if(!Array.isArray(ids)||ids.length>100||new Set(ids).size!==ids.length||ids.some(x=>!uuid(x)))fail(400,'Invalid Business Line Presence selection');
  const current=(await client.query('SELECT business_line_id FROM country_business_lines WHERE country_id=$1 AND removed_at IS NULL',[country.id])).rows.map(r=>r.business_line_id);
+ if(ids.some(id=>!current.includes(id))&&country.status!=='Active')fail(409,'Business Line Presence can be added only to an Active Country');
  const currentSet=new Set(current),next=new Set(ids);
  const add=ids.filter(id=>!currentSet.has(id)),remove=current.filter(id=>!next.has(id));
  if(add.length){
@@ -81,13 +82,15 @@ async function syncPresence(client,user,country,ids,tz=null){
   for(const lineId of add){
    await client.query(`INSERT INTO country_business_lines(country_id,business_line_id,added_by,added_at,removed_by,removed_at)
    VALUES($1,$2,$3,now(),NULL,NULL) ON CONFLICT(country_id,business_line_id) DO UPDATE SET added_by=$3,added_at=now(),removed_by=NULL,removed_at=NULL`,[country.id,lineId,user.id]);
-   await event(client,user,country.id,'Business Line Presence Added',null,null,null,tz);
+   await client.query("INSERT INTO country_business_line_events(country_id,business_line_id,actor_id,action,previous,current) VALUES($1,$2,$3,'Added',$4,$5)",[country.id,lineId,user.id,{present:false},{present:true}]);
+   await event(client,user,country.id,'Business Line Presence Added',null,null,null,tz,{businessLineId:{before:null,after:lineId},businessLinePresence:{before:current.join(', '),after:[...currentSet,...add].join(', ')}});
   }
  }
  for(const lineId of remove){
   if(await lineReferences(client,country,lineId))fail(409,'Business Line Presence cannot be removed while records under that Business Line still use this Country');
   await client.query('UPDATE country_business_lines SET removed_by=$3,removed_at=now() WHERE country_id=$1 AND business_line_id=$2 AND removed_at IS NULL',[country.id,lineId,user.id]);
-  await event(client,user,country.id,'Business Line Presence Removed',null,null,null,tz);
+  await client.query("INSERT INTO country_business_line_events(country_id,business_line_id,actor_id,action,previous,current) VALUES($1,$2,$3,'Removed',$4,$5)",[country.id,lineId,user.id,{present:true},{present:false}]);
+  await event(client,user,country.id,'Business Line Presence Removed',null,null,null,tz,{businessLineId:{before:lineId,after:null},businessLinePresence:{before:current.join(', '),after:ids.join(', ')}});
  }
 }
 function parseInput(body,existing=null){
@@ -120,6 +123,7 @@ export async function countries({client,user,path,method,url,body}){
    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$12,$12)`,[id,v.name,v.code,v.iso3,v.isoNumeric,v.dialingCode,v.defaultCurrency,v.nationality,v.continent,v.alias,v.description,user.id]);
    let row=await load(client,id,true);await syncPresence(client,user,row,body.businessLineIds,tz);const after=view(await load(client,id));await event(client,user,id,'Created',null,after,null,tz);return {record:after};
   }
+  if(path.length===2&&path[1]==='references'&&method==='GET'){need('read');return {businessLines:await activeBusinessLines(client),owners:await owners(client),resource:countryResource,permissions};}
   if(path.length===2&&method==='GET'){need('read');return {record:view(await load(client,path[1]))};}
   if(path.length===3&&path[2]==='history'&&method==='GET'){
    need('history');await load(client,path[1]);const rows=(await client.query(`SELECT e.id,u.display_id actor_id,u.name actor,e.action,e.changes,e.reason,e.created_at
@@ -161,7 +165,6 @@ export async function countries({client,user,path,method,url,body}){
    need('edit');allowed(body,['businessLineIds','version','timeZone']);version(body.version);const existing=await load(client,path[1],true);if(existing.version!==body.version)fail(409,'This record changed. Refresh and try again.');if(existing.status!=='Active'||existing.archived_at||existing.deleted_at)fail(409,'Business Line Presence can be changed only for an Active Country');
    await syncPresence(client,user,existing,body.businessLineIds,sourceTimeZone(body.timeZone));await client.query('UPDATE countries SET updated_by=$2,updated_at=now(),version=version+1 WHERE id=$1',[existing.id,user.id]);return {record:view(await load(client,existing.id))};
   }
-  if(path.length===2&&path[1]==='references'&&method==='GET'){need('read');return {businessLines:await activeBusinessLines(client),owners:await owners(client),resource:countryResource,permissions};}
   fail(405,'Unsupported Country action');
  }catch(e){if(e.code==='23505')fail(409,'Country Name, Country Code, ISO 3-Letter Code or ISO Numeric Code already exists, including inactive, archived or deleted records');throw e;}
 }
