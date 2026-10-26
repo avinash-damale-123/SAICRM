@@ -100,7 +100,7 @@ try{
  await page.locator('.rf-table [data-mw="read"][data-record]').first().click();
  await page.locator('dialog[open]').waitFor();
  await page.locator('dialog[open]').getByText('Related / Used In',{exact:true}).waitFor();
- assert.match(await page.locator('dialog[open]').innerText(),/Related \/ Used In/);
+ assert.match(await page.locator('dialog[open]').innerText(),/related \/ used in/i);
  assert.match(await page.locator('dialog[open]').innerText(),/STTS/);
  await page.locator('dialog[open] button').filter({hasText:'Edit Country'}).click();
  await page.locator('#mw-record-form [name="name"]').waitFor();
