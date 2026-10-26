@@ -112,7 +112,7 @@ try{
  assert.equal(await page.locator('#bl-edit-top').count(),1,'Region Read has the same header quick Edit action');
  const relatedSection=page.locator('.mw-bl-section').filter({has:page.getByText('Related / Used In',{exact:true})});
  await relatedSection.locator('summary').click();
- assert.match(await relatedSection.innerText(),/branches.*2 linked records/i);
+ assert.match(await relatedSection.innerText(),/branches\s+2 linked records/i);
 
  await page.locator('#bl-edit').click();
  await page.locator('#mw-bl-page-form').waitFor();
