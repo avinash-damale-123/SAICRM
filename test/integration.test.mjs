@@ -819,6 +819,20 @@ test('Country Master end-to-end: create, Presence, lookup, dependency blocking, 
  assert.equal(list.status,200,JSON.stringify(list.body));
  assert.ok(list.body.records.some(row=>row.id===country.id));
  assert.equal(list.body.resource.columns.length,28);
+
+ const insights=list.body.ui.overviewInsights;
+ assert.equal(insights.mappedCountries,1,'The fixture Country is counted once in operational Presence');
+ assert.equal(insights.activePresenceLinks,1);
+ assert.ok(insights.activeBusinessLinesAvailable>=1);
+ assert.ok(insights.businessLines.some(lineRow=>lineRow.id===line.id&&lineRow.count===1));
+ assert.ok(insights.continents.some(row=>row.name==='Asia'&&row.count>=1));
+ const countryOverviewExport=await call('countries/overview-export','POST',{query:{q:'Country Acceptance Fixture'},format:'csv',timeZone:'UTC'},superAdmin);
+ assert.equal(countryOverviewExport.status,200,JSON.stringify(countryOverviewExport.body));
+ const countrySummaryCsv=Buffer.from(countryOverviewExport.body.data,'base64').toString('utf8');
+ assert.match(countrySummaryCsv,/Active Countries with Operational Presence/);
+ assert.match(countrySummaryCsv,/Business Line: /);
+ assert.match(countrySummaryCsv,/Continent: Asia/);
+
  const lookup=await call('countries/lookup?businessLineId='+encodeURIComponent(line.id)+'&q=Country%20Acceptance','GET',undefined,admin);
  assert.equal(lookup.status,200,JSON.stringify(lookup.body));
  assert.equal(lookup.body.countries.some(row=>row.id===country.id),true);
