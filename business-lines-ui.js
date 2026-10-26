@@ -5,7 +5,7 @@ window.SCRMBusinessLines = {
   if(!window.SCRM.can('businesslines')){host.innerHTML='<div class="mw-state" role="alert"><strong>Access restricted</strong><p>Business Lines is available to the Super Admin.</p></div>';return {canLeave(){return true},destroy(){return true}}}
   return window.SCRMModuleWorkspace.create(host,{
    key:'business-lines',endpoint:'business-lines',title:'Business Lines',singular:'Business Line',
-   description:'Manage the business lines that organize your enterprise.',import:false,api:window.SCRM.api,
+   description:'Manage the business lines that organize your enterprise.',import:false,recordsFramework:true,api:window.SCRM.api,
    fields:[
     {key:'name',label:'Business Line Name',type:'text',required:true,maxLength:150,full:false},
     {key:'code',label:'Business Line Code',type:'text',required:true,maxLength:20,views:['create','edit']},
