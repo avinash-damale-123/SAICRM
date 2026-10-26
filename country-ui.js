@@ -20,11 +20,11 @@ function countryOverview({counts={},insights=null,query={}}={}){
  const donut=total?'conic-gradient('+stops.join(',')+')':'conic-gradient(#e6ecf3 0 100%)';
  const card=(title,value,hint,key)=>'<article class="mw-dashboard-metric mw-country-metric" data-country-metric="'+key+'"><span>'+esc(title)+'</span><strong>'+fmt(value)+'</strong><small>'+esc(hint)+'</small></article>';
  const empty=message=>'<p class="mw-country-empty">'+esc(message)+'</p>';
- const bars=(rows,denominator,labelFn,limit=12)=>{
+ const bars=(rows,denominator,labelFn,limit=12,linkBusinessLines=false)=>{
   const visible=rows.slice(0,limit);
   return '<div class="mw-country-chart" role="list">'+visible.map(row=>{
    const name=labelFn(row),value=amount(row.count),percentage=share(value,denominator);
-   return '<div class="mw-country-bar-row" role="listitem"><div class="mw-country-bar-head"><span title="'+esc(name)+'">'+esc(name)+'</span><strong>'+fmt(value)+' <small>('+percentage+'%)</small></strong></div><div class="mw-country-track"><div class="mw-country-fill" style="width:'+percentage+'%"></div></div></div>';
+   return '<div class="mw-country-bar-row" role="listitem"><div class="mw-country-bar-head">'+(linkBusinessLines&&row.id?'<button type="button" class="mw-country-overview-link" data-country-line-id="'+esc(row.id)+'" title="View Business Line '+esc(row.name||row.code)+'">'+esc(name)+'</button>':'<span title="'+esc(name)+'">'+esc(name)+'</span>')+'<strong>'+fmt(value)+' <small>('+percentage+'%)</small></strong></div><div class="mw-country-track"><div class="mw-country-fill" style="width:'+percentage+'%"></div></div></div>';
   }).join('')+'</div>'+(rows.length>limit?'<p class="mw-country-footnote">Showing '+limit+' of '+rows.length+' groups, ordered by active Country count.</p>':'');
  };
  return '<div class="mw-country-overview" data-country-overview="live">'
@@ -45,7 +45,7 @@ function countryOverview({counts={},insights=null,query={}}={}){
   +(continents.length?bars(continents,active,row=>row.name):empty('No Active Country records are available for continent analysis.'))+'</section>'
   +'<section class="mw-visual-card mw-country-panel" data-country-panel="presence"><h3>Business Line Presence</h3><p class="mw-visual-subtitle">Only Active Countries mapped to currently Active Business Lines are included.</p>'
   +'<div class="mw-country-coverage"><strong>'+fmt(represented)+' / '+fmt(available)+'</strong><span>Active Business Lines with operational Country presence</span></div>'
-  +(businessLines.length?bars(businessLines,active,row=>(row.code?row.code+' — ':'')+row.name):empty('No operational Country–Business Line mappings in the selected view.'))
+  +(businessLines.length?bars(businessLines,active,row=>(row.code?row.code+' — ':'')+row.name,12,true):empty('No operational Country–Business Line mappings in the selected view.'))
   +'</section>'
   +'<section class="mw-visual-card mw-country-panel" data-country-panel="usage"><h3>Related CRM Record Usage</h3><p class="mw-visual-subtitle">Existing CRM records that reference Countries in this view through supported Country fields.</p>'
   +(usage.length?'<div class="mw-country-usage">'+usage.map(row=>'<div class="mw-country-usage-row"><span>'+esc(moduleLabel(row.module))+'</span><strong>'+fmt(row.count)+' record'+(amount(row.count)===1?'':'s')+'</strong></div>').join('')+'</div>':empty('No linked CRM records were found for the selected Countries.'))
