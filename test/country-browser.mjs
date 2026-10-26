@@ -98,8 +98,8 @@ try{
  assert.equal(await page.locator('.mw-dashboard').innerText().then(t=>t.includes('Total Business Lines')),false,'Country Overview must not copy Business Lines summary');
  await page.locator('.mw-module-tab[data-mw="home"]').click();
  await page.waitForFunction(()=>document.querySelector('.mw-results')?.getAttribute('aria-busy')==='false');
- assert.ok(await page.locator('.mw-state [data-mw="create"]').isVisible());
- await page.locator('.mw-state [data-mw="create"]').click();
+ assert.ok(await page.locator('.mw-module-header [data-mw="create"]').isVisible());
+ await page.locator('.mw-module-header [data-mw="create"]').click();
  await page.locator('#mw-record-form').waitFor();
  for(const title of ['Country Information','Business Line Presence','Ownership','Record Information'])
   assert.ok(await page.locator('.mw-bl-section summary').filter({hasText:title}).count(),'Missing '+title+' section');
