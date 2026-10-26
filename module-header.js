@@ -39,7 +39,7 @@ function preserveSearch(action) {
  const search=searchNode(), input=search?.querySelector('input');
  // Business Lines search now lives outside the rerendered module. Leave focus
  // and text selection alone while the user types or clears the existing query.
- if(currentPage==='businesslines'&&search?.classList.contains('crm-search-in-topbar'))return action();
+ if(['businesslines','countries'].includes(currentPage)&&search?.classList.contains('crm-search-in-topbar'))return action();
  const focused=document.activeElement===input;
  const start=input?.selectionStart,end=input?.selectionEnd;
  parkSearch();
@@ -136,7 +136,7 @@ function sync(page,label) {
  if(!row){parkSearch();return;}
  decorate(row,page,label);
  const top=document.querySelector('.topbar'), actions=top?.querySelector('.top-actions');
- const inTopbar=page==='businesslines'&&!!search&&!!actions&&bell?.parentElement===actions;
+ const inTopbar=['businesslines','countries'].includes(page)&&!!search&&!!actions&&bell?.parentElement===actions;
  top?.classList.toggle('scrm-bl-top-search',inTopbar);
  row.classList.toggle('scrm-search-in-topbar',inTopbar);
  search?.classList.toggle('crm-search-in-topbar',inTopbar);
