@@ -215,7 +215,7 @@ function create(host,config) {
  function blPopupHeader(d,editable=false){
   const header=d.querySelector(':scope > header');if(!header)return;
   const body=d.querySelector('.mw-dialog-body');
-  body.tabIndex=0;body.setAttribute('role','region');body.setAttribute('aria-label','Scrollable Business Line details');
+  body.tabIndex=0;body.setAttribute('role','region');body.setAttribute('aria-label','Scrollable '+config.singular+' details');
   let actions=header.querySelector('.mw-bl-title-actions');
   if(!actions){
    header.querySelector(':scope > div').classList.add('mw-bl-title-copy');
@@ -226,7 +226,7 @@ function create(host,config) {
   if(!editable){edit?.remove();return;}
   if(!edit){
    edit=document.createElement('button');edit.id='bl-edit-top';edit.type='button';edit.className='mw-icon-btn mw-bl-quick-edit';
-   edit.setAttribute('aria-label','Edit Business Line');edit.title='Edit Business Line';edit.innerHTML=blPopupGlyph('edit');
+   edit.setAttribute('aria-label','Edit '+config.singular);edit.title='Edit '+config.singular;edit.innerHTML=blPopupGlyph('edit');
    // Delegate to the same permission-checked footer action, never create a second write path.
    edit.onclick=()=>{if(dialog!==d||dialogSaving||blBusy)return;const action=d.querySelector('#bl-edit');if(action&&!action.disabled)action.click();};
    actions.prepend(edit);
@@ -244,6 +244,7 @@ function create(host,config) {
  }
  function blValue(record,key){
   const value=record?.[key];
+  if(key==='businessLineRef')return record?.businessLine||record?.businessLineId||'—';
   if(key==='isArchived')return record?.archivedAt?'Yes':'No';
   if(key==='isDeleted')return record?.deletedAt?'Yes':'No';
   if(key==='status')return record?.status||'Active';
@@ -256,21 +257,29 @@ function create(host,config) {
   {name:'Record Information',fields:[['createdBy','Created By'],['createdAt','Created At'],['createdById','Created By ID'],['updatedBy','Last Modified By'],['updatedAt','Last Modified At'],['updatedById','Last Modified By ID']]},
   {name:'Lifecycle Information',fields:[['isArchived','Is Archived'],['archivedAt','Archived At'],['archivedById','Archived By ID'],['isDeleted','Is Deleted'],['deletedAt','Deleted At'],['deletedById','Deleted By ID']]}
  ];
+ const regionGroups=[
+  {name:'Region Information',fields:[['name','Region Name'],['displayId','Region ID'],['code','Region Code'],['status','Region Status'],['businessLineRef','Business Line'],['regionalManager','Regional Manager'],['remarks','Remarks']]},
+  {name:'Ownership Details',fields:[['owner','Owner'],['ownerId','Owner ID']]},
+  {name:'Record Information',fields:[['businessLineId','Business Line ID'],['createdBy','Created By'],['createdAt','Created At'],['createdById','Created By ID'],['updatedBy','Last Modified By'],['updatedAt','Last Modified At'],['updatedById','Last Modified By ID']]},
+  {name:'Lifecycle Information',fields:[['archivedBy','Archived By'],['archivedAt','Archived At'],['archivedById','Archived By ID'],['deletedBy','Deleted By'],['deletedAt','Deleted At'],['deletedById','Deleted By ID']]}
+ ];
+ const masterGroups=()=>config.key==='regions'?regionGroups:blGroups;
+ const masterEditableKeys=()=>config.key==='regions'?['businessLineRef','name','code','regionalManager','remarks','status']:['name','code','description','status'];
+ const masterCreateKeys=()=>config.key==='regions'?['businessLineRef','name','code','regionalManager','remarks']:['name','code','description'];
  function blFieldActionAllowed(key,record,mode){
-  if(mode==='create')return permitted('create')&&['name','code','description'].includes(key);
-  return permitted('edit')&&!record?.archivedAt&&!record?.deletedAt&&['name','code','description','status'].includes(key);
+  const editable=masterEditableKeys(),create=masterCreateKeys();
+  if(mode==='create')return permitted('create')&&create.includes(key);
+  return permitted('edit')&&!record?.archivedAt&&!record?.deletedAt&&editable.includes(key);
  }
  function wireBlFieldActions(root,record,mode){
   const d=root.closest('dialog');
   root.querySelectorAll('[data-bl-field-edit]').forEach(button=>{
-   // A blur validation message must not move the clicked shortcut before click.
    button.addEventListener('pointerdown',event=>{if(event.button===0)event.preventDefault();});
    button.addEventListener('click',()=>{
     const key=button.dataset.blFieldEdit;
     if(dead||dialog!==d||dialogSaving||blBusy||!blFieldActionAllowed(key,record,mode))return;
     if(mode==='read'){
      const edit=d.querySelector('#bl-edit');if(!edit||edit.disabled)return;
-     // Use the existing Edit transition and Save flow; the shortcut never writes.
      edit.click();
     }
     const form=d.querySelector(mode==='create'?'#mw-record-form':'#mw-bl-page-form');
@@ -282,25 +291,46 @@ function create(host,config) {
   });
  }
  function blInput(key,label,record,mode){
-  const editable=mode==='create'?['name','code','description'].includes(key):mode==='edit'&&['name','code','description','status'].includes(key);
-  const value=mode==='create'?'':blValue(record,key),shown=value==='—'?'':value;
-  const required=editable&&['name','code'].includes(key)&&!(key==='code'&&mode==='edit'&&!record?.code),full=key==='description';
-  const limit={name:150,code:20,description:500}[key];
+  const editKeys=masterEditableKeys(),createKeys=masterCreateKeys();
+  const editable=mode==='create'?createKeys.includes(key):mode==='edit'&&editKeys.includes(key);
+  const value=mode==='create'?'':(key==='businessLineRef'?(record?.businessLineRef||''):blValue(record,key)),shown=value==='—'?'':value;
+  const required=editable&&(config.key==='regions'?['businessLineRef','name','code','regionalManager'].includes(key):['name','code'].includes(key))&&!(key==='code'&&mode==='edit'&&!record?.code);
+  const full=config.key==='regions'?key==='remarks':key==='description';
+  const limit=config.key==='regions'?{name:100,code:16,regionalManager:100,remarks:1000}[key]:{name:150,code:20,description:500}[key];
   const controlId='mw-bl-'+mode+'-'+key;
- const attrs=editable?(' id="'+controlId+'" name="'+esc(key)+'"'+(required?' required':'')+(limit?' maxlength="'+limit+'"':'')):' readonly aria-readonly="true"';
-  let control=key==='status'&&editable?'<select id="'+controlId+'" name="status" aria-label="Business Line Status"><option value="Active"'+(shown==='Active'?' selected':'')+'>Active</option><option value="Inactive"'+(shown==='Inactive'?' selected':'')+'>Inactive</option></select>':full?'<textarea rows="2"'+attrs+'>'+esc(shown)+'</textarea>':'<input type="text"'+attrs+' value="'+esc(shown)+'"'+(editable?' autocomplete="off"':'')+'>';
-  if(mode==='read'||mode==='edit'&&!editable)control='<div class="mw-bl-read-value'+(full?' mw-bl-read-description':'')+'" aria-labelledby="'+controlId+'-label">'+esc(value)+'</div>';
-  const hint=editable&&key==='status'?'<small class="mw-bl-hint">Changing status requires a reason and may be blocked when records depend on this line.</small>':editable&&key==='code'?'<small class="mw-bl-hint">Uppercase letters, digits and hyphens; maximum 20 characters.</small>':editable&&key==='description'?'<small class="mw-bl-hint">Maximum 500 characters. <span data-count-for="description">'+shown.length+'</span> / 500</small>':'';
+  const attrs=editable?(' id="'+controlId+'" name="'+esc(key)+'"'+(required?' required':'')+(limit?' maxlength="'+limit+'"':'')):' readonly aria-readonly="true"';
+  let control;
+  if(key==='status'&&editable){
+   control='<select id="'+controlId+'" name="status" aria-label="'+esc(config.singular)+' Status"><option value="Active"'+(shown==='Active'?' selected':'')+'>Active</option><option value="Inactive"'+(shown==='Inactive'?' selected':'')+'>Inactive</option></select>';
+  }else if(key==='businessLineRef'&&editable){
+   const options=[...(state.referenceData.businessLines||[])];
+   if(record?.businessLineRef&&!options.some(option=>option.id===record.businessLineRef))options.push({id:record.businessLineRef,code:record.businessLineCode||record.businessLineId||'',name:(record.businessLine||'Current Business Line')+' (current)'});
+   control='<select id="'+controlId+'" name="businessLineRef"'+(required?' required':'')+'><option value="">- Select -</option>'+options.map(option=>'<option value="'+esc(option.id)+'" '+(option.id===shown?'selected':'')+'>'+esc((option.code?option.code+' — ':'')+(option.name||option.id))+'</option>').join('')+'</select>';
+  }else if(full){
+   control='<textarea rows="2"'+attrs+'>'+esc(shown)+'</textarea>';
+  }else{
+   control='<input type="text"'+attrs+' value="'+esc(shown)+'"'+(editable?' autocomplete="off"':'')+'>';
+  }
+  if(mode==='read'||mode==='edit'&&!editable)control='<div class="mw-bl-read-value'+(full?' mw-bl-read-description':'')+'" aria-labelledby="'+controlId+'-label">'+esc(blValue(record,key))+'</div>';
+  let hint='';
+  if(editable&&key==='status')hint='<small class="mw-bl-hint">Changing status requires a reason and may be blocked when dependent records exist.</small>';
+  else if(editable&&key==='code')hint='<small class="mw-bl-hint">'+(config.key==='regions'?'Uppercase letters, digits and hyphens; maximum 16 characters. Region Code is globally unique.':'Uppercase letters, digits and hyphens; maximum 20 characters.')+'</small>';
+  else if(editable&&key==='description')hint='<small class="mw-bl-hint">Maximum 500 characters. <span data-count-for="description">'+String(shown).length+'</span> / 500</small>';
+  else if(editable&&key==='remarks')hint='<small class="mw-bl-hint">Maximum 1000 characters. <span data-count-for="remarks">'+String(shown).length+'</span> / 1000</small>';
+  else if(editable&&key==='businessLineRef')hint='<small class="mw-bl-hint">Only Active Business Lines can be newly selected. Changing Business Line can be blocked when this Region is already referenced.</small>';
   const action=blFieldActionAllowed(key,record,mode)?'<button type="button" class="mw-bl-field-edit" data-bl-field-edit="'+esc(key)+'" aria-label="Edit '+esc(label)+'" title="Edit '+esc(label)+'">'+blPopupGlyph('edit')+'</button>':'';
-  // Separate label and value surfaces without turning protected values into inputs.
   return '<div class="mw-bl-field mw-bl-field-'+esc(key)+(full?' mw-bl-full':'')+(editable?' mw-bl-editable':' mw-bl-readonly')+(action?' mw-bl-field-actionable':'')+'"><label id="'+controlId+'-label"'+(editable?' for="'+controlId+'"':'')+'><span>'+esc(label)+(required?'&nbsp;<span class="mw-required">*</span>':'')+'</span></label><div class="mw-bl-value-cell">'+control+hint+action+'</div></div>';
  }
  function blFormSections(record,mode){
+  const groups=masterGroups();
   if(mode==='create'){
-   const content='<div class="mw-bl-grid">'+[['name','Business Line Name'],['code','Business Line Code'],['description','Business Line Description']].map(([key,label])=>blInput(key,label,record,mode)).join('')+'</div>';
-   return '<div class="mw-bl-section-tools" role="group" aria-label="Section display"><button type="button" class="mw-bl-section-action" data-bl-sections="expand">Expand all</button><button type="button" class="mw-bl-section-action" data-bl-sections="collapse">Collapse all</button></div><section class="mw-bl-section"><details open><summary>Basic Information <span class="mw-bl-chevron">⌄</span></summary><div class="mw-bl-section-content">'+content+'</div></details></section>';
+   const fields=config.key==='regions'
+    ?[['businessLineRef','Business Line'],['name','Region Name'],['code','Region Code'],['regionalManager','Regional Manager'],['remarks','Remarks']]
+    :[['name','Business Line Name'],['code','Business Line Code'],['description','Business Line Description']];
+   const content='<div class="mw-bl-grid">'+fields.map(([key,label])=>blInput(key,label,record,mode)).join('')+'</div>';
+   return '<div class="mw-bl-section-tools" role="group" aria-label="Section display"><button type="button" class="mw-bl-section-action" data-bl-sections="expand">Expand all</button><button type="button" class="mw-bl-section-action" data-bl-sections="collapse">Collapse all</button></div><section class="mw-bl-section"><details open><summary>'+esc(groups[0].name)+' <span class="mw-bl-chevron">⌄</span></summary><div class="mw-bl-section-content">'+content+'</div></details></section>';
   }
-  return '<div class="mw-bl-section-tools" role="group" aria-label="Section display"><button type="button" class="mw-bl-section-action" data-bl-sections="expand">Expand all</button><button type="button" class="mw-bl-section-action" data-bl-sections="collapse">Collapse all</button></div>'+blGroups.map((group,index)=>'<section class="mw-bl-section"><details '+(index===0||mode==='read'&&index===1?'open':'')+'><summary>'+esc(group.name)+' <span class="mw-bl-chevron" aria-hidden="true">⌄</span></summary><div class="mw-bl-section-content"><div class="mw-bl-grid">'+group.fields.map(([key,label])=>blInput(key,label,record,mode)).join('')+'</div></div></details></section>').join('');
+  return '<div class="mw-bl-section-tools" role="group" aria-label="Section display"><button type="button" class="mw-bl-section-action" data-bl-sections="expand">Expand all</button><button type="button" class="mw-bl-section-action" data-bl-sections="collapse">Collapse all</button></div>'+groups.map((group,index)=>'<section class="mw-bl-section"><details '+(index===0||mode==='read'&&index===1?'open':'')+'><summary>'+esc(group.name)+' <span class="mw-bl-chevron" aria-hidden="true">⌄</span></summary><div class="mw-bl-section-content"><div class="mw-bl-grid">'+group.fields.map(([key,label])=>blInput(key,label,record,mode)).join('')+'</div></div></details></section>').join('');
  }
  function wireBlSections(dialogNode){
   dialogNode.querySelectorAll('[data-bl-sections]').forEach(button=>button.addEventListener('click',()=>{
@@ -315,7 +345,7 @@ function create(host,config) {
  function formValues(form){return JSON.stringify([...new FormData(form).entries()])}
  function editForm(record){
  if(dead||!permitted(record?'edit':'create'))return;
- if(record&&config.key==='business-lines'){openBlRecord(record.id,true);return;}
+ if(record&&['business-lines','regions'].includes(config.key)){openBlRecord(record.id,true);return;}
  const editing=!!record,fields=(config.fields||[]).filter(f=>!f.views||f.views.includes(editing?'edit':'create'));
  const currentValue=f=>record?.[f.key]??(f.key==='owner'?(user.name||user.email):f.default??'');
  const fieldHTML=f=>{const value=currentValue(f),label='<label class="mw-field '+(f.full?'mw-field-full':'')+'">'+esc(f.label)+(f.required?' <span class="mw-required" aria-hidden="true">*</span>':'');const attrs='name="'+esc(f.key)+'" '+(f.required?'required ':'')+(f.maxLength?'maxlength="'+f.maxLength+'" ':'');
@@ -341,16 +371,16 @@ function create(host,config) {
   const audit='<div class="mw-form-grid mw-bl-grid">'+readOnly('Region ID',record?.displayId||'Generated on creation')+readOnly('Status',record?.status||'Active')+readOnly('Business Line ID',record?.businessLineId||'Derived from Business Line')+readOnly('Created By',record?.createdBy||user.name||user.email)+readOnly('Created At',record?.createdAt?date(record.createdAt):'On creation')+readOnly('Last Modified By',record?.updatedBy||'On creation')+readOnly('Last Modified At',record?.updatedAt?date(record.updatedAt):'On creation')+'</div>';
   return '<form id="mw-record-form" class="mw-bl-form"><div class="mw-bl-section-tools" role="group" aria-label="Region form sections"><button type="button" class="mw-bl-section-action" data-bl-sections="expand">Expand all</button><button type="button" class="mw-bl-section-action" data-bl-sections="collapse">Collapse all</button></div>'+section('Region Information',info,true)+section('Ownership',owner,false)+section('Record Information',audit,false)+'<p class="mw-form-error" role="alert" hidden></p></form>';
  }
- const body=config.key==='business-lines'?'<form id="mw-record-form" class="mw-bl-form">'+blFormSections(record,editing?'edit':'create')+(editing?'<div class="mw-bl-status-reason" hidden><label for="mw-bl-status-reason">Reason for status change <span class="mw-required">*</span></label><textarea id="mw-bl-status-reason" maxlength="500" rows="2" placeholder="Explain why the status is changing"></textarea><small>Required only when changing Active / Inactive.</small></div>':'')+'<p class="mw-form-error" role="alert" hidden></p></form>':config.key==='countries'?countryForm():config.key==='regions'?regionForm():'<form id="mw-record-form"><p class="mw-form-intro">'+(editing?'Update details. Record identifiers and audit fields are protected.':'Create this record. The record owner will be you.')+'</p><h3>Basic information</h3><div class="mw-form-grid">'+fields.map(fieldHTML).join('')+'</div>'+(editing?'<h3>System information</h3><dl class="mw-details-grid"><div><dt>'+esc(allColumns.find(c=>c.key==='displayId')?.label||'Record ID')+'</dt><dd>'+esc(record.displayId)+'</dd></div><div><dt>Last modified</dt><dd>'+esc(date(record.updatedAt))+'</dd></div></dl>':'')+'<p class="mw-form-error" role="alert" hidden></p></form>';
- const d=openDialog(config.key==='business-lines'?(editing?'Edit Business Line':'New Business Line'):(editing?'Edit ':'Create ')+config.singular,body,'<button type="button" class="mw-btn" id="mw-cancel">Cancel</button><button type="submit" form="mw-record-form" class="mw-btn mw-primary" id="mw-save">'+(config.key==='business-lines'?'Save':editing?'Save changes':'Create '+esc(config.singular))+'</button>');if(!d)return;
+ const body=['business-lines','regions'].includes(config.key)?'<form id="mw-record-form" class="mw-bl-form">'+blFormSections(record,editing?'edit':'create')+(editing?'<div class="mw-bl-status-reason" hidden><label for="mw-bl-status-reason">Reason for status change <span class="mw-required">*</span></label><textarea id="mw-bl-status-reason" maxlength="500" rows="2" placeholder="Explain why the status is changing"></textarea><small>Required only when changing Active / Inactive.</small></div>':'')+'<p class="mw-form-error" role="alert" hidden></p></form>':config.key==='countries'?countryForm():'<form id="mw-record-form"><p class="mw-form-intro">'+(editing?'Update details. Record identifiers and audit fields are protected.':'Create this record. The record owner will be you.')+'</p><h3>Basic information</h3><div class="mw-form-grid">'+fields.map(fieldHTML).join('')+'</div>'+(editing?'<h3>System information</h3><dl class="mw-details-grid"><div><dt>'+esc(allColumns.find(c=>c.key==='displayId')?.label||'Record ID')+'</dt><dd>'+esc(record.displayId)+'</dd></div><div><dt>Last modified</dt><dd>'+esc(date(record.updatedAt))+'</dd></div></dl>':'')+'<p class="mw-form-error" role="alert" hidden></p></form>';
+ const d=openDialog(['business-lines','regions'].includes(config.key)?(editing?'Edit '+config.singular:'New '+config.singular):(editing?'Edit ':'Create ')+config.singular,body,'<button type="button" class="mw-btn" id="mw-cancel">Cancel</button><button type="submit" form="mw-record-form" class="mw-btn mw-primary" id="mw-save">'+(['business-lines','regions'].includes(config.key)?'Save':editing?'Save changes':'Create '+esc(config.singular))+'</button>');if(!d)return;
  if(['business-lines','countries','regions'].includes(config.key)){d.classList.add('mw-bl-create-dialog');blPopupHeader(d);if(config.key==='countries')d.querySelector('.mw-dialog-body')?.setAttribute('aria-label','Scrollable Country details');if(config.key==='regions')d.querySelector('.mw-dialog-body')?.setAttribute('aria-label','Scrollable Region details');}
  const form=d.querySelector('form'),base=formValues(form);dialogDirty=()=>formValues(form)!==base;recordsTools?.wireForm(form);
  if(['countries','regions'].includes(config.key)){wireBlSections(d);form.addEventListener('invalid',event=>{const section=event.target.closest('.mw-bl-section details');if(section)section.open=true;},true);}
- if(config.key==='business-lines'){wireBlSections(d);wireBlFieldActions(form,record,editing?'edit':'create');form.addEventListener('invalid',event=>{const section=event.target.closest('.mw-bl-section details');if(section)section.open=true},true);if(editing){const status=form.querySelector('[name="status"]'),reasonWrap=form.querySelector('.mw-bl-status-reason'),reasonField=form.querySelector('#mw-bl-status-reason');const sync=()=>{const changed=status?.value!==record.status;reasonWrap.hidden=!changed;reasonField.required=changed;if(!changed)reasonField.value='';};status?.addEventListener('change',sync);sync()}}
+ if(['business-lines','regions'].includes(config.key)){wireBlSections(d);wireBlFieldActions(form,record,editing?'edit':'create');form.addEventListener('invalid',event=>{const section=event.target.closest('.mw-bl-section details');if(section)section.open=true},true);if(editing){const status=form.querySelector('[name="status"]'),reasonWrap=form.querySelector('.mw-bl-status-reason'),reasonField=form.querySelector('#mw-bl-status-reason');const sync=()=>{const changed=status?.value!==record.status;reasonWrap.hidden=!changed;reasonField.required=changed;if(!changed)reasonField.value='';};status?.addEventListener('change',sync);sync()}}
  d.querySelector('#mw-cancel').onclick=()=>closeDialog();
  form.querySelectorAll('[data-counted],textarea[name="description"]').forEach(input=>input.oninput=()=>{const count=form.querySelector('[data-count-for="'+(input.dataset.counted||input.name)+'"]');if(count)count.textContent=input.value.length});
- if(config.key==='business-lines'){const code=form.elements.code;if(code)code.addEventListener('input',()=>{const p=code.selectionStart;code.value=code.value.toUpperCase();code.setSelectionRange(p,p)})}
- form.onsubmit=async e=>{e.preventDefault();if(dialogSaving||!permitted(editing?'edit':'create'))return;if(!form.checkValidity()){if(config.key==='business-lines')form.querySelectorAll('.mw-bl-section details').forEach(section=>{section.open=true});form.reportValidity();return}const values=new FormData(form),error=d.querySelector('.mw-form-error');error.hidden=true;const body=Object.fromEntries(fields.filter(f=>f.type!=='readonly').map(f=>[f.key,f.type==='multi-select'?values.getAll(f.key).map(v=>String(v).trim()).filter(Boolean):String(values.get(f.key)||'').trim()]));if(editing)body.version=record.version;
+ if(['business-lines','regions'].includes(config.key)){const code=form.elements.code;if(code)code.addEventListener('input',()=>{const p=code.selectionStart;code.value=code.value.toUpperCase();code.setSelectionRange(p,p)})}
+ form.onsubmit=async e=>{e.preventDefault();if(dialogSaving||!permitted(editing?'edit':'create'))return;if(!form.checkValidity()){if(['business-lines','regions'].includes(config.key))form.querySelectorAll('.mw-bl-section details').forEach(section=>{section.open=true});form.reportValidity();return}const values=new FormData(form),error=d.querySelector('.mw-form-error');error.hidden=true;const body=Object.fromEntries(fields.filter(f=>f.type!=='readonly').map(f=>[f.key,f.type==='multi-select'?values.getAll(f.key).map(v=>String(v).trim()).filter(Boolean):String(values.get(f.key)||'').trim()]));if(editing)body.version=record.version;
  if(config.recordsFramework)body.timeZone=actionTimeZone();
  if(config.key==='business-lines'&&editing){
   const status=form.querySelector('[name="status"]')?.value||record.status;
@@ -363,12 +393,12 @@ function create(host,config) {
  const saveControls=[...d.querySelectorAll('input,select,textarea,button')].map(el=>[el,el.disabled]);
  dialogSaving=true;d.setAttribute('aria-busy','true');saveControls.forEach(([el])=>el.disabled=true);d.querySelector('#mw-save').textContent='Saving…';
  try{await api(config.endpoint+(editing?'/'+encodeURIComponent(record.id):''),editing?'PUT':'POST',body);if(dead||dialog!==d)return;dialogSaving=false;closeDialog(true);if(config.recordsFramework){if(!editing&&state.view==='dashboard'){state.view='home';renderViews()}recordsTools?.showLatest?.()}announce(config.singular+(editing?' updated.':' created.'));await load()}
- catch(e){if(dead||dialog!==d)return;dialogSaving=false;d.removeAttribute('aria-busy');saveControls.forEach(([el,disabled])=>el.disabled=disabled);error.textContent=e.message;error.hidden=false;d.querySelector('#mw-save').disabled=false;d.querySelector('#mw-save').textContent=config.key==='business-lines'?'Save':editing?'Save changes':'Create '+config.singular;error.scrollIntoView({block:'nearest'})}
+ catch(e){if(dead||dialog!==d)return;dialogSaving=false;d.removeAttribute('aria-busy');saveControls.forEach(([el,disabled])=>el.disabled=disabled);error.textContent=e.message;error.hidden=false;d.querySelector('#mw-save').disabled=false;d.querySelector('#mw-save').textContent=['business-lines','regions'].includes(config.key)?'Save':editing?'Save changes':'Create '+config.singular;error.scrollIntoView({block:'nearest'})}
  };
  form.querySelector('input:not([readonly]),select,textarea')?.focus();
  }
- async function readRecord(id){if(dead||!permitted('read'))return;if(config.key==='business-lines'){openBlRecord(id);return;}const d=openDialog('View '+config.singular,'<div class="mw-state">Loading record…</div>','<button type="button" class="mw-btn" id="mw-read-close">Close</button>',true);if(!d)return;d.querySelector('#mw-read-close').onclick=()=>closeDialog();try{const [{record},history,related]=await Promise.all([api(config.endpoint+'/'+encodeURIComponent(id)),permitted('history')?api(config.endpoint+'/'+encodeURIComponent(id)+'/history'):Promise.resolve({history:[]}),['countries','regions'].includes(config.key)?api(config.endpoint+'/'+encodeURIComponent(id)+'/related'):Promise.resolve(null)]);if(dead||dialog!==d)return;
- if(config.key==='business-lines'){d.querySelector('.mw-dialog-body').innerHTML='<div class="mw-bl-read">'+blFormSections(record,'read')+'</div>'+(permitted('history')?'<section class="mw-bl-section"><details><summary>Audit History <span class="mw-bl-chevron">⌄</span></summary><div class="mw-bl-section-content mw-history">'+((history.history||[]).length?(history.history||[]).map(h=>'<article><strong>'+esc(h.action)+'</strong> · '+esc(date(h.createdAt))+' · '+esc(h.actor||'System')+(h.reason?' · Reason: '+esc(h.reason):'')+'</article>').join(''):'<p>No history available.</p>')+'</div></details></section>':'');wireBlSections(d);if(permitted('edit')&&!record.archivedAt&&!record.deletedAt){const edit=document.createElement('button');edit.type='button';edit.className='mw-btn mw-primary';edit.textContent='Edit Business Line';edit.onclick=()=>editForm(record);d.querySelector('footer').append(edit)}return;}
+ async function readRecord(id){if(dead||!permitted('read'))return;if(['business-lines','regions'].includes(config.key)){openBlRecord(id);return;}const d=openDialog('View '+config.singular,'<div class="mw-state">Loading record…</div>','<button type="button" class="mw-btn" id="mw-read-close">Close</button>',true);if(!d)return;d.querySelector('#mw-read-close').onclick=()=>closeDialog();try{const [{record},history,related]=await Promise.all([api(config.endpoint+'/'+encodeURIComponent(id)),permitted('history')?api(config.endpoint+'/'+encodeURIComponent(id)+'/history'):Promise.resolve({history:[]}),['countries','regions'].includes(config.key)?api(config.endpoint+'/'+encodeURIComponent(id)+'/related'):Promise.resolve(null)]);if(dead||dialog!==d)return;
+ if(config.key==='business-lines'){d.querySelector('.mw-dialog-body').innerHTML='<div class="mw-bl-read">'+blFormSections(record,'read')+'</div>'+(config.key==='regions'?'<section class="mw-bl-section"><details><summary>Related / Used In <span class="mw-bl-chevron" aria-hidden="true">&#8964;</span></summary><div class="mw-bl-section-content"><div class="mw-details-grid">'+((related?.related||[]).length?(related.related||[]).map(item=>'<div><dt>'+esc(item.module)+'</dt><dd>'+Number(item.count).toLocaleString()+' linked records'+(Number(item.active)?' · '+Number(item.active).toLocaleString()+' active':'')+'</dd></div>').join(''):'<div><dt>CRM references</dt><dd>None</dd></div>')+'</div></div></details></section>':'')+(permitted('history')?'<section class="mw-bl-section"><details><summary>Audit History <span class="mw-bl-chevron">⌄</span></summary><div class="mw-bl-section-content mw-history">'+((history.history||[]).length?(history.history||[]).map(h=>'<article><strong>'+esc(h.action)+'</strong> · '+esc(date(h.createdAt))+' · '+esc(h.actor||'System')+(h.reason?' · Reason: '+esc(h.reason):'')+'</article>').join(''):'<p>No history available.</p>')+'</div></details></section>':'');wireBlSections(d);if(permitted('edit')&&!record.archivedAt&&!record.deletedAt){const edit=document.createElement('button');edit.type='button';edit.className='mw-btn mw-primary';edit.textContent='Edit Business Line';edit.onclick=()=>editForm(record);d.querySelector('footer').append(edit)}return;}
  d.querySelector('.mw-dialog-body').innerHTML='<div class="mw-detail-title"><div><span class="mw-id">'+esc(record.displayId)+'</span><h3>'+esc(record.name)+'</h3></div><span class="mw-status '+(record.status==='Active'?'mw-active':'mw-inactive')+'">'+esc(record.deletedAt?'Deleted':record.archivedAt?'Archived':record.status)+'</span></div><h3>Basic information</h3><dl class="mw-details-grid">'+allColumns.filter(c=>!c.system).map(c=>'<div class="'+(c.key==='remarks'?'mw-field-full':'')+'"><dt>'+esc(c.label)+'</dt><dd>'+esc(c.type==='date'?date(record[c.key]):record[c.key]||'—')+'</dd></div>').join('')+'</dl><h3>System information</h3><dl class="mw-details-grid">'+allColumns.filter(c=>c.system).map(c=>'<div><dt>'+esc(c.label)+'</dt><dd>'+esc(c.type==='date'?date(record[c.key]):record[c.key]||'—')+'</dd></div>').join('')+'</dl>'+(config.key==='countries'?'<h3>Related / Used In</h3><div class="mw-details-grid">'+((related?.businessLines||[]).length?'<div class="mw-field-full"><dt>Business Line Presence</dt><dd>'+esc((related.businessLines||[]).map(x=>(x.code||x.name)).join(', '))+'</dd></div>':'<div><dt>Business Line Presence</dt><dd>None</dd></div>')+(related?.related||[]).map(item=>'<div><dt>'+esc(item.module)+'</dt><dd>'+Number(item.count).toLocaleString()+' linked records</dd></div>').join('')+(!related?.total?'<div><dt>Other CRM references</dt><dd>None</dd></div>':'')+'</div>':config.key==='regions'?'<h3>Related / Used In</h3><div class="mw-details-grid">'+(related?.related||[]).map(item=>'<div><dt>'+esc(item.module)+'</dt><dd>'+Number(item.count).toLocaleString()+' linked records'+(Number(item.active)?' · '+Number(item.active).toLocaleString()+' active':'')+'</dd></div>').join('')+(!related?.total?'<div><dt>CRM references</dt><dd>None</dd></div>':'')+'</div>':'')+'<h3>Audit history</h3><div class="mw-history">'+((history.history||[]).length?(history.history||[]).map(h=>'<article><div><strong>'+esc(h.action)+'</strong><span>'+esc(date(h.createdAt))+'</span></div><p>'+esc(h.actor||'System')+'</p>'+Object.entries(h.changes||{}).map(([key,value])=>'<p class="mw-history-change"><b>'+esc(allColumns.find(c=>c.key===key)?.label||key)+':</b> '+esc(value?.before??'—')+' → '+esc(value?.after??'—')+'</p>').join('')+'</article>').join(''):'<p>No history available.</p>')+'</div>';
  if(!permitted('history')){const historyNode=d.querySelector('.mw-history');if(historyNode){historyNode.hidden=true;historyNode.previousElementSibling.hidden=true}}
  if(permitted('edit')&&!record.archivedAt){const edit=document.createElement('button');edit.type='button';edit.className='mw-btn mw-primary';edit.textContent='Edit '+config.singular;edit.onclick=()=>editForm(record);d.querySelector('footer').append(edit)}
@@ -397,34 +427,34 @@ function create(host,config) {
   let d=dialog;
   if(blDetail){if(!discardChecked&&!leaveBlAllowed())return;blDraft=null;dialogDirty=null;}
   else{
-   d=openDialog(startEdit?'Edit Business Line':'View Business Line','','<button type="button" class="mw-btn" id="bl-back">Close</button>',true);
+   d=openDialog(startEdit?'Edit '+config.singular:'View '+config.singular,'','<button type="button" class="mw-btn" id="bl-back">Close</button>',true);
    if(!d)return;d.classList.add('mw-bl-record-dialog');
   }
   blPopupHeader(d);
   const request=++blLoadSequence;
-  const page=document.createElement('section');page.className='mw-bl-detail-page';page.setAttribute('aria-label','Business Line record details');
+  const page=document.createElement('section');page.className='mw-bl-detail-page';page.setAttribute('aria-label',config.singular+' record details');
   page.innerHTML='<div class="mw-state" role="status"><span class="mw-spinner"></span> Loading record...</div>';
   blDetail=page;blRecord=null;d.querySelector('.mw-dialog-body').replaceChildren(page);
   d.querySelector('footer').innerHTML='<button type="button" class="mw-btn" id="bl-back">Close</button>';d.querySelector('#bl-back').onclick=()=>closeDialog();
-  d.querySelector('#mw-dialog-title').textContent=startEdit?'Edit Business Line':'View Business Line';d.querySelector('#mw-dialog-title').focus({preventScroll:true});
-  try{const {record}=await api(config.endpoint+'/'+encodeURIComponent(id));
+  d.querySelector('#mw-dialog-title').textContent=startEdit?'Edit '+config.singular:'View '+config.singular;d.querySelector('#mw-dialog-title').focus({preventScroll:true});
+  try{const [{record},related]=await Promise.all([api(config.endpoint+'/'+encodeURIComponent(id)),config.key==='regions'?api(config.endpoint+'/'+encodeURIComponent(id)+'/related'):Promise.resolve(null)]);
    if(dead||dialog!==d||request!==blLoadSequence)return;
-   renderBlRecordPage(record,startEdit?'edit':'read');refreshBlAudit(d,record.id);
+   renderBlRecordPage(record,startEdit?'edit':'read',related);refreshBlAudit(d,record.id);
   }catch(e){if(dead||dialog!==d||request!==blLoadSequence)return;page.innerHTML='<div class="mw-state"><p class="mw-form-error" role="alert">'+esc(e.message)+'</p><button type="button" class="mw-btn" data-bl-retry>Try again</button></div>';page.querySelector('[data-bl-retry]').onclick=()=>openBlRecord(id,startEdit);}
  }
- function renderBlRecordPage(record,mode='read'){
+ function renderBlRecordPage(record,mode='read',related=null){
   if(!blDetail||!dialog)return;
   const d=dialog,page=blDetail;blRecord=record;blRecordMode=mode;blDraft=null;dialogDirty=null;
   const editing=mode==='edit'&&permitted('edit')&&!record.archivedAt&&!record.deletedAt;
   const editable=permitted('edit')&&!record.archivedAt&&!record.deletedAt;
-  d.dataset.recordMode=editing?'edit':'read';d.querySelector('#mw-dialog-title').textContent=editing?'Edit Business Line':'View Business Line';
+  d.dataset.recordMode=editing?'edit':'read';d.querySelector('#mw-dialog-title').textContent=editing?'Edit '+config.singular:'View '+config.singular;
   const index=state.records.findIndex(r=>r.id===record.id),previous=index>0?state.records[index-1]:null,next=index>=0&&index<state.records.length-1?state.records[index+1]:null;
   const hasPrevious=!!previous||index===0&&state.page>1,hasNext=!!next||index>=0&&index===state.records.length-1&&state.page<state.totalPages;
   const status=record.deletedAt?'Deleted':record.archivedAt?'Archived':record.status;
   page.innerHTML='<header class="mw-bl-detail-heading"><div><h2>'+esc(record.name)+'</h2><div class="mw-bl-detail-meta"><span>'+esc(record.displayId||'')+'</span><span class="mw-status '+(status==='Active'?'mw-active':'mw-inactive')+'">'+esc(status)+'</span></div></div><div class="mw-bl-detail-actions"><button type="button" class="mw-btn" data-bl-prev'+(!hasPrevious?' disabled':'')+'>'+blPopupGlyph('previous')+'<span>Previous</span></button><button type="button" class="mw-btn" data-bl-next'+(!hasNext?' disabled':'')+'><span>Next</span>'+blPopupGlyph('next')+'</button></div></header>'
    +'<p class="mw-bl-record-notice" role="status" hidden></p>'
    +'<div class="mw-bl-detail-tools" role="group" aria-label="Section display"><button type="button" data-bl-expand="1">'+blPopupGlyph('expand')+'<span>Expand all</span></button><button type="button" data-bl-expand="0">'+blPopupGlyph('collapse')+'<span>Collapse all</span></button></div>'
-   +'<div class="mw-bl-detail-layout"><nav class="mw-bl-detail-index" aria-label="Jump to section">'+blGroups.map((g,i)=>'<button type="button" data-bl-jump="'+i+'">'+esc(g.name)+'</button>').join('')+'</nav><div class="mw-bl-detail-content">'
+   +'<div class="mw-bl-detail-layout"><nav class="mw-bl-detail-index" aria-label="Jump to section">'+masterGroups().map((g,i)=>'<button type="button" data-bl-jump="'+i+'">'+esc(g.name)+'</button>').join('')+'</nav><div class="mw-bl-detail-content">'
    +(editing?'<form id="mw-bl-page-form" class="mw-bl-form">'+blFormSections(record,'edit')+'<div class="mw-bl-status-reason" hidden><label for="mw-bl-page-reason">Reason for status change <span class="mw-required">*</span></label><textarea id="mw-bl-page-reason" name="lifecycleReason" maxlength="500" rows="2"></textarea></div><p class="mw-form-error" role="alert" hidden></p></form>':'<div class="mw-bl-read">'+blFormSections(record,'read')+'</div>')
    +(permitted('history')?'<section class="mw-bl-section"><details><summary>Audit History <span class="mw-bl-chevron" aria-hidden="true">&#8964;</span></summary><div class="mw-bl-section-content mw-history" data-bl-history>'+blAuditMarkup(null)+'</div></details></section>':'')+'</div></div>';
   const footer=d.querySelector('footer');
@@ -439,11 +469,11 @@ function create(host,config) {
   page.querySelector('.mw-bl-detail-layout').prepend(navigation);
   blDisclosureAffordance(page);
   const sections=[...page.querySelectorAll('.mw-bl-detail-content .mw-bl-section')];
-  const sectionKey='scrm:bl-sections:'+user.id;
+  const sectionKey='scrm:master-sections:'+user.id+':'+config.key;
   let saved=recordsTools?.sections()||{};if(!recordsTools?.enabled)try{saved=JSON.parse(localStorage.getItem(sectionKey)||'{}')||{}}catch{}
-  sections.slice(0,blGroups.length).forEach((section,i)=>{const details=section.querySelector('details'),name=blGroups[i].name;
+  sections.slice(0,masterGroups().length).forEach((section,i)=>{const details=section.querySelector('details'),name=masterGroups()[i].name;
    if(typeof saved[name]==='boolean')details.open=saved[name];
-   details.addEventListener('toggle',()=>{if(!section.isConnected||dialog!==d)return;try{const all=Object.fromEntries(sections.slice(0,blGroups.length).map((item,j)=>[blGroups[j].name,item.querySelector('details').open]));localStorage.setItem(sectionKey,JSON.stringify(all));for(const [key,open]of Object.entries(all))recordsTools?.section(key,open);}catch{}});
+   details.addEventListener('toggle',()=>{if(!section.isConnected||dialog!==d)return;try{const all=Object.fromEntries(sections.slice(0,masterGroups().length).map((item,j)=>[masterGroups()[j].name,item.querySelector('details').open]));localStorage.setItem(sectionKey,JSON.stringify(all));for(const [key,open]of Object.entries(all))recordsTools?.section(key,open);}catch{}});
   });
   page.querySelectorAll('[data-bl-expand]').forEach(b=>b.onclick=()=>sections.forEach(section=>{section.querySelector('details').open=b.dataset.blExpand==='1'}));
   page.querySelectorAll('[data-bl-jump]').forEach(b=>b.onclick=()=>{const section=sections[Number(b.dataset.blJump)];if(section){section.querySelector('details').open=true;section.scrollIntoView({block:'start',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});section.querySelector('summary').focus({preventScroll:true})}});
@@ -470,7 +500,7 @@ function create(host,config) {
   const baseline=formValues(form),mark=()=>{form.dataset.dirty=String(formValues(form)!==baseline)};
   form.addEventListener('input',mark);form.addEventListener('change',mark);
   const code=form.elements.code;if(code)code.addEventListener('input',()=>{const caret=code.selectionStart;code.value=code.value.toUpperCase();code.setSelectionRange(caret,caret);mark()});
-  const description=form.elements.description;description?.addEventListener('input',()=>{const count=form.querySelector('[data-count-for="description"]');if(count)count.textContent=description.value.length});
+  const counted=form.elements[config.key==='regions'?'remarks':'description'];counted?.addEventListener('input',()=>{const key=config.key==='regions'?'remarks':'description',count=form.querySelector('[data-count-for="'+key+'"]');if(count)count.textContent=counted.value.length});
   const statusField=form.elements.status,reason=form.querySelector('#mw-bl-page-reason'),reasonWrap=reason.parentElement;
   const syncStatus=()=>{const changed=statusField.value!==record.status;reasonWrap.hidden=!changed;reason.required=changed;if(!changed){reason.value='';reason.setCustomValidity('');reason.dispatchEvent(new Event('input',{bubbles:true}));}mark()};
   statusField.addEventListener('change',syncStatus);syncStatus();
@@ -479,7 +509,7 @@ function create(host,config) {
    e.preventDefault();if(blBusy||!permitted('edit'))return;
    const error=form.querySelector('.mw-form-error');error.hidden=true;
    if(!form.checkValidity()){sections.forEach(x=>x.querySelector('details').open=true);error.textContent='Review the highlighted fields before saving.';error.hidden=false;form.reportValidity();return}
-   const values=new FormData(form),payload={version:record.version,name:String(values.get('name')||'').trim(),code:String(values.get('code')||'').trim(),description:String(values.get('description')||'').trim(),timeZone:actionTimeZone()};
+   const values=new FormData(form),payload=config.key==='regions'?{version:record.version,businessLineRef:String(values.get('businessLineRef')||'').trim(),name:String(values.get('name')||'').trim(),code:String(values.get('code')||'').trim(),regionalManager:String(values.get('regionalManager')||'').trim(),remarks:String(values.get('remarks')||'').trim(),timeZone:actionTimeZone()}:{version:record.version,name:String(values.get('name')||'').trim(),code:String(values.get('code')||'').trim(),description:String(values.get('description')||'').trim(),timeZone:actionTimeZone()};
    if(statusField.value!==record.status){const text=reason.value.trim();if(!text){error.textContent='Reason is mandatory for status changes.';error.hidden=false;reason.focus();return}payload.status=statusField.value;payload.reason=text;}
    blBusy=true;dialogSaving=true;
    const controls=[...d.querySelectorAll('input,select,textarea,button')].map(el=>[el,el.disabled]);controls.forEach(([el])=>el.disabled=true);d.setAttribute('aria-busy','true');d.querySelector('#bl-save').textContent='Saving...';
@@ -496,7 +526,7 @@ function create(host,config) {
    // Keep the tab/query/sort/page and column preferences; refresh failures must
    // never be presented as failed writes or reopen the completed form.
    blBusy=false;dialogSaving=false;blDraft=null;dialogDirty=null;
-   closeDialog(true);recordsTools?.showLatest?.();announce('Business Line saved successfully.');
+   closeDialog(true);recordsTools?.showLatest?.();announce(config.singular+' saved successfully.');
    await load();
    if(!dead&&!dialog&&(document.activeElement===document.body||!document.activeElement?.isConnected))restoreDialogFocus();
   };
@@ -564,7 +594,7 @@ function create(host,config) {
  const keys=allColumns.map(c=>c.key),required=allColumns.filter(c=>c.locked).map(c=>c.key);
  let order=[...prefs.columns,...keys.filter(k=>!prefs.columns.includes(k))],enabled=new Set(prefs.columns),view='my',term='';
  const d=openDialog('Column Selection','<p class="mw-muted">Choose a view or customize your own. Required identity columns cannot be hidden.</p><div class="mw-column-presets" role="group" aria-label="Select table view"><button type="button" id="mw-view-default" class="mw-btn">Default View</button><button type="button" id="mw-view-my" class="mw-btn">My View</button><button type="button" id="mw-view-all" class="mw-btn">All Columns</button></div><label class="mw-field">Search columns<input type="search" id="mw-column-search" placeholder="Find a column..."></label><div class="mw-column-quick"><button type="button" id="mw-column-select-all" class="mw-btn">Select all permitted</button><button type="button" id="mw-column-clear" class="mw-btn">Clear optional</button></div><div id="mw-column-options"></div><label class="mw-checkbox-label"><input id="mw-freeze" type="checkbox" '+(prefs.freeze?'checked':'')+'> Freeze identity columns on wider screens</label>','<button class="mw-btn" type="button" id="mw-columns-reset">Reset default</button><button class="mw-btn mw-primary" type="button" id="mw-columns-save">Save My View</button>',true);if(!d)return;
- const group=c=>config.key==='business-lines'?(['name','displayId','code','status','description'].includes(c.key)?'Basic Information':['owner','ownerId'].includes(c.key)?'Ownership Details':['createdBy','createdAt','createdById','updatedBy','updatedAt','updatedById'].includes(c.key)?'Record Information':'Lifecycle Information'):(c.system?'Record Information':'Basic Information');
+ const group=c=>config.key==='business-lines'?(['name','displayId','code','status','description'].includes(c.key)?'Basic Information':['owner','ownerId'].includes(c.key)?'Ownership Details':['createdBy','createdAt','createdById','updatedBy','updatedAt','updatedById'].includes(c.key)?'Record Information':'Lifecycle Information'):config.key==='regions'?(['name','displayId','code','status','businessLine','regionalManager','remarks'].includes(c.key)?'Region Information':['owner','ownerId'].includes(c.key)?'Ownership Details':['businessLineId','createdBy','createdAt','createdById','updatedBy','updatedAt','updatedById'].includes(c.key)?'Record Information':'Lifecycle Information'):(c.system?'Record Information':'Basic Information');
  const groups=[...new Set(allColumns.map(group))];
  function draw(){
   const matched=order.filter(k=>allColumns.some(c=>c.key===k&&(c.label.toLowerCase().includes(term)||k.toLowerCase().includes(term))));
