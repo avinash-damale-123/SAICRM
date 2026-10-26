@@ -863,7 +863,7 @@ test('Country CSV import is dry-run validated with immutable-ID matching and Bus
  const {superAdmin}=await businessActors();
  const line=await businessCreate('Country Import Validation Line');
  const csv=['Country Name,Country Code,ISO 3-Letter Code,ISO Numeric Code,International Dialing Code,Default Currency,Nationality,Continent,Business Line Presence',
-  'Country Import Fixture,QX,QXX,997,+123,USD,QA Nationality,Asia,'+line.code].join('\\n')+'\\n';
+  'Country Import Fixture,QX,QXX,997,+123,USD,QA Nationality,Asia,'+line.code].join('\n')+'\n';
  const template=await call('countries/imports/template?format=csv','GET',undefined,superAdmin);
  assert.equal(template.status,200,JSON.stringify(template.body));
  assert.match(Buffer.from(template.body.data,'base64').toString('utf8'),/ISO Numeric Code/);
