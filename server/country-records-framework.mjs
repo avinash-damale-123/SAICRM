@@ -7,7 +7,7 @@ import {uploadImport,validateImport,exportPlan,createExport,bulkPlan,createBulk,
 
 async function overviewCounts(client,query,effective){const options=queryOptions(query||{},effective.allowed),where=compileWhere(options,effective.allowed);return (await client.query(`SELECT count(*)::int AS total,count(*) FILTER(WHERE c.archived_at IS NULL AND c.deleted_at IS NULL AND c.status='Active')::int AS active,count(*) FILTER(WHERE c.archived_at IS NULL AND c.deleted_at IS NULL AND c.status='Inactive')::int AS inactive,count(*) FILTER(WHERE c.archived_at IS NOT NULL AND c.deleted_at IS NULL)::int AS archived,count(*) FILTER(WHERE c.deleted_at IS NOT NULL)::int AS deleted `+joinSQL+where.sql,where.params)).rows[0];}
 
-export async function recordsFramework(context){const {client,user,path,method,url,body}=context,permissions=countryPermissions(user);if(!permissions.read)fail(403,'You do not have access to Countries');const requirePermission=action=>{if(permissions[action]!==true)fail(403,'You do not have permission for this action');};
+export async function countryRecordsFramework(context){const {client,user,path,method,url,body}=context,permissions=countryPermissions(user);if(!permissions.read)fail(403,'You do not have access to Countries');const requirePermission=action=>{if(permissions[action]!==true)fail(403,'You do not have permission for this action');};
  if(path[1]==='overview-export'&&method==='POST'&&path.length===2){
   requirePermission('dashboard');requirePermission('export');keys(body,['query','format','timeZone']);
   const format=body.format||'xlsx';if(!['csv','xlsx'].includes(format))fail(400,'Choose CSV or XLSX format');
