@@ -24,6 +24,8 @@ const paths = {
 };
 const svg = name => '<svg class="scrm-ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(paths[name]||paths.suitcase)+'</svg>';
 let sharedSearch = null, currentPage = 'home', currentLabel = 'Home', restoringSearchFocus = false;
+const isCompactMaster=label=>label==='Business Lines'||label==='Countries';
+const singularMaster=label=>label==='Business Lines'?'Business Line':label==='Countries'?'Country':'Record';
 function searchNode() {
  const current=document.getElementById('globalSearchBtn');
  if(current?.querySelector('#crmSearchInput'))sharedSearch=current;
@@ -62,9 +64,9 @@ function control(button,kind,label) {
 function tab(button,view,label) {
  button.innerHTML=svg(view)+'<span class="scrm-view-copy"><small class="scrm-view-context"></small><strong class="scrm-view-title"></strong></span>';
  button.querySelector('small').textContent=label;
- button.querySelector('strong').textContent=view==='dashboard'?'Overview':label==='Business Lines'?'Records':'Home';
+ button.querySelector('strong').textContent=view==='dashboard'?'Overview':isCompactMaster(label)?'Records':'Home';
  button.classList.add('scrm-view');
- button.title=label+' '+(view==='dashboard'?'Overview':label==='Business Lines'?'Records':'Home');
+ button.title=label+' '+(view==='dashboard'?'Overview':isCompactMaster(label)?'Records':'Home');
  button.setAttribute('aria-label',button.title);
 }
 function decorate(row,page,label) {
@@ -98,7 +100,7 @@ function decorate(row,page,label) {
    control(button,'add','Add');
   }
  });
- if(label==='Business Lines'){
+ if(isCompactMaster(label)){
   row.classList.add('scrm-bl-clean');
   // Keep visual and keyboard action order consistent with the compact toolbar.
   const filter=actions.querySelector('[data-mw="filter-toggle"]');
@@ -107,7 +109,7 @@ function decorate(row,page,label) {
   const settings=actions.querySelector('.mw-settings-menu');
   for(const node of [importer,exporter,filter,settings])if(node)actions.append(node);
   const customize=settings?.querySelector('summary');
-  if(customize){customize.setAttribute('aria-label','Customize Business Lines');customize.title='Customize Business Lines';}
+  if(customize){customize.setAttribute('aria-label','Customize '+label);customize.title='Customize '+label;}
 
   const home=tabs.querySelector('[data-mw="home"]');
   if(home)tabs.prepend(home);
@@ -115,7 +117,7 @@ function decorate(row,page,label) {
   if(add){
    const primary=document.createElement('div');primary.className='scrm-bl-primary';
    primary.append(add);
-   add.querySelector('.scrm-action-label').textContent='Add Business Line';
+   add.querySelector('.scrm-action-label').textContent='Add '+singularMaster(label);
    row.dataset.scrmBlPrimary='yes';
    row._scrmBlPrimary=primary;
   }
@@ -123,7 +125,7 @@ function decorate(row,page,label) {
  const slot=document.createElement('div');slot.className='scrm-search-slot';
  const legacy=document.createElement('div');legacy.hidden=true;legacy.className='scrm-legacy-search';
  const legacySearch=row.querySelector('.mw-search');if(legacySearch)legacy.append(legacySearch);
- if(label==='Business Lines'&&row._scrmBlPrimary)row.replaceChildren(identity,tabs,slot,actions,row._scrmBlPrimary,legacy);else row.replaceChildren(identity,tabs,slot,actions,legacy);
+ if(isCompactMaster(label)&&row._scrmBlPrimary)row.replaceChildren(identity,tabs,slot,actions,row._scrmBlPrimary,legacy);else row.replaceChildren(identity,tabs,slot,actions,legacy);
  row.classList.add('scrm-workbar');row.dataset.scrmHeader=page;
 }
 function sync(page,label) {
