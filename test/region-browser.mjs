@@ -62,7 +62,15 @@ try{
    if(method==='PUT'){storedPrefs=body.data;preferenceVersion++;}
    response={policy:effective(),preferences:prefs()};
   }else if(path==='regions/framework')response={version:1,fields:publicColumns(),importFields,limits:fileLimits,policy:effective(),preferences:prefs(),permissions};
-  else if(path==='regions/configuration')response={...configuration,history:[]};
+  else if(path==='regions/configuration'){
+   if(method==='GET')response={...configuration,history:[{id:1,action:'publish',created_at:now,actor_id:'UID-000001',actor:user.name}]};
+   else{
+    assert.deepEqual(Object.keys(body).sort(),['action','config','version']);
+    assert.equal(body.version,0);
+    assert.equal(body.action,'draft');
+    response={version:1,config:configuration.config,draft:body.config};
+   }
+  }
   else if(path.startsWith('regions/')){
    const [,id,action]=path.split('/'),record=records.find(r=>r.id===id);
    if(!record){status=404;response={error:'Region not found'};}
@@ -91,6 +99,16 @@ try{
  assert.equal(await page.locator('.crm-module-host .crm-disabled-import').count(),0,'No duplicate disabled Import placeholder remains');
  assert.match(await page.locator('.crm-module-host [data-mw="create"]').innerText(),/Add Region/,'Region Add action uses the full Business Lines-style label');
  assert.equal(await page.locator('.mw-results .rf-table tbody tr').count(),0,'Region Master starts empty');
+
+ await page.locator('.crm-module-host .mw-settings-menu > summary').click();
+ await page.locator('.crm-module-host [data-mw="column-customization"]').click();
+ await page.locator('dialog[open]').waitFor();
+ assert.match(await page.locator('#mw-dialog-title').innerText(),/Regions: Arrange Columns/,'Region Arrange Columns opens instead of throwing');
+ assert.equal(await page.locator('#rf-policy-rows tr').count(),22,'Region Arrange Columns shows all Region columns');
+ assert.match(await page.locator('dialog[open]').innerText(),/Configuration history/);
+ await page.locator('dialog[open] [data-rf="draft"]').click();
+ await page.locator('dialog').waitFor({state:'detached'});
+ assert.ok(requests.some(r=>r.path==='regions/configuration'&&r.method==='PUT'&&r.body?.action==='draft'),'Region Arrange Columns Save Draft uses the shared configuration API contract');
 
  await page.locator('.mw-state [data-mw="create"]').click();
  await page.locator('#mw-record-form').waitFor();

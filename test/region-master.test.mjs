@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {fieldKeys,queryOptions,compileWhere,compileOrder,normalizeFilters,publicColumns} from '../server/region-records-schema.mjs';
-import {baseline,effectivePolicy,reconcilePreferences,validatePolicy,moduleKey} from '../server/region-records-policy.mjs';
+import {baseline,effectivePolicy,reconcilePreferences,validatePolicy,moduleKey,configureColumns} from '../server/region-records-policy.mjs';
 import {regionPermissions,regionResource} from '../server/resources.mjs';
 import {regions,regionView} from '../server/regions.mjs';
 import {importFields,template,parseCSV} from '../server/region-records-files.mjs';
@@ -54,6 +54,27 @@ test('Region table/filter preferences preserve immutable identity columns',()=>{
  assert.ok(prefs.selectedColumns.includes('displayId'));
  assert.ok(prefs.selectedColumns.includes('name'));
  assert.throws(()=>validatePolicy({...policy,locked:['displayId']}));
+});
+
+test('Region Arrange Columns uses the shared configuration contract and returns history',async()=>{
+ const calls=[];
+ const history=[{id:7,action:'publish',created_at:'2026-10-27T02:00:00.000Z',actor_id:'UID-000001',actor:'Region QA Admin'}];
+ const client={query:async(sql,params=[])=>{
+  calls.push({sql,params});
+  if(sql.startsWith('SELECT version,published_version,config,draft,updated_at FROM crm_column_policy'))return {rows:[]};
+  if(sql.startsWith('SELECT a.id,a.action,a.created_at'))return {rows:history};
+  return {rows:[],rowCount:1};
+ }};
+ const loaded=await configureColumns(client,superAdmin,'GET',{});
+ assert.deepEqual(loaded.history,history);
+ assert.deepEqual(loaded.config.order,baseline().order);
+ const draft=await configureColumns(client,superAdmin,'PUT',{version:0,action:'draft',config:baseline()});
+ assert.equal(draft.version,1);
+ assert.deepEqual(draft.config,baseline());
+ assert.deepEqual(draft.draft,baseline());
+ assert.ok(calls.some(call=>call.sql.includes('pg_advisory_xact_lock')));
+ assert.ok(calls.some(call=>call.sql.includes('INSERT INTO crm_configuration_audit')));
+ await assert.rejects(()=>configureColumns(client,superAdmin,'PUT',{version:0,config:baseline(),publish:true}),/Unknown or protected field/);
 });
 
 test('Region import template contains stable matching ID and Business Line Code',async()=>{
