@@ -14,8 +14,8 @@ const endpoint='https://crm.invalid/api/regions';
 test('Region Master declares all 22 finalized fields and eight data default columns',()=>{
  assert.equal(fieldKeys.length,22);
  assert.equal(new Set(fieldKeys).size,22);
- assert.deepEqual(fieldKeys.slice(0,6),['displayId','businessLine','businessLineId','name','code','regionalManager']);
- assert.deepEqual(baseline().roles.super_admin.defaults,['displayId','businessLine','name','code','regionalManager','status','owner','updatedAt']);
+ assert.deepEqual(fieldKeys.slice(0,8),['name','displayId','businessLine','businessLineId','code','regionalManager','remarks','status']);
+ assert.deepEqual(baseline().roles.super_admin.defaults,['name','displayId','businessLine','code','regionalManager','status','owner','updatedAt']);
  assert.ok(fieldKeys.includes('archivedAt'));
  assert.ok(fieldKeys.includes('deletedAt'));
  assert.ok(publicColumns().every(field=>!('sql' in field)));
@@ -46,7 +46,7 @@ test('Region search, filters and sorting compile parameterized SQL only',()=>{
 
 test('Region table/filter preferences preserve immutable identity columns',()=>{
  const policy=baseline();
- assert.deepEqual(validatePolicy(policy).locked,['displayId','name']);
+ assert.deepEqual(validatePolicy(policy).locked,['name','displayId']);
  const effective=effectivePolicy({version:0,publishedVersion:0,config:policy},superAdmin);
  assert.ok(effective.allowed.includes('businessLineId'));
  assert.ok(effective.filters.quick.includes('businessLine'));
@@ -127,7 +127,7 @@ test('Region visible lifecycle actions follow the strict sequence before backend
 
 test('Region parity release cache-busts the shared visible UI assets',async()=>{
  const html=await readFile(new URL('../index.html',import.meta.url),'utf8');
- assert.match(html,/records-tools\.js\?v=20261027-(?:region-parity-r1|country-region-parity)/);
- assert.match(html,/module-workspace\.js\?v=20261027-(?:region-parity-r1|country-region-parity)/);
- assert.match(html,/region-ui\.js\?v=20261027-region-parity-r1/);
+ assert.match(html,/records-tools\.js\?v=20261027-(?:region-parity-r1|country-region-parity|region-shell-parity-r2)/);
+ assert.match(html,/module-workspace\.js\?v=20261027-(?:region-parity-r1|country-region-parity|region-shell-parity-r2)/);
+ assert.match(html,/region-ui\.js\?v=20261027-(?:region-parity-r1|region-shell-parity-r2)/);
 });

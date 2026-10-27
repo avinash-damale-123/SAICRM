@@ -7,24 +7,24 @@ export function keys(value,allowed){object(value);if(Object.keys(value).some(key
 export function text(value,label,max,required=false){if(typeof value!=='string')fail(400,label+' must be text');const s=value.trim();if((required&&!s)||s.length>max||/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(s))fail(400,'Invalid '+label);return s;}
 const groups=['Region Information','Ownership','Record Information','Lifecycle Information'];
 const definitions=[
+ ['name','Region Name','text','r.name',0],
  ['displayId','Region ID','text','r.display_id',0],
  ['businessLine','Business Line','text','bl.name',0],
  ['businessLineId','Business Line ID','text','bl.display_id',0],
- ['name','Region Name','text','r.name',0],
  ['code','Region Code','text','r.code',0],
  ['regionalManager','Regional Manager','text','r.regional_manager',0],
  ['remarks','Remarks','text','r.remarks',0],
  ['status','Status','enum',"CASE WHEN r.deleted_at IS NOT NULL THEN 'Deleted' WHEN r.archived_at IS NOT NULL THEN 'Archived' ELSE r.status END",0],
  ['owner','Owner','text','o.name',1],['ownerId','Owner ID','user','o.display_id',1],
- ['createdBy','Created By','text','cr.name',2],['createdById','Created By ID','user','cr.display_id',2],['createdAt','Created At','date','r.created_at',2],
- ['updatedBy','Last Modified By','text','u.name',2],['updatedById','Last Modified By ID','user','u.display_id',2],['updatedAt','Last Modified At','date','r.updated_at',2],
- ['archivedBy','Archived By','text','a.name',3],['archivedById','Archived By ID','user','a.display_id',3],['archivedAt','Archived At','date','r.archived_at',3],
- ['deletedBy','Deleted By','text','d.name',3],['deletedById','Deleted By ID','user','d.display_id',3],['deletedAt','Deleted At','date','r.deleted_at',3]
+ ['createdBy','Created By','text','cr.name',2],['createdAt','Created At','date','r.created_at',2],['createdById','Created By ID','user','cr.display_id',2],
+ ['updatedBy','Last Modified By','text','u.name',2],['updatedAt','Last Modified At','date','r.updated_at',2],['updatedById','Last Modified By ID','user','u.display_id',2],
+ ['archivedBy','Archived By','text','a.name',3],['archivedAt','Archived At','date','r.archived_at',3],['archivedById','Archived By ID','user','a.display_id',3],
+ ['deletedBy','Deleted By','text','d.name',3],['deletedAt','Deleted At','date','r.deleted_at',3],['deletedById','Deleted By ID','user','d.display_id',3]
 ];
 export const schema=Object.freeze(Object.fromEntries(definitions.map(([key,label,type,sql,g])=>[key,Object.freeze({key,label,type,sql,group:groups[g],sortable:true,filterable:true})])));
 export const fieldKeys=Object.freeze(Object.keys(schema));
-export const lockedFields=Object.freeze(['displayId','name']);
-export const defaultColumns=Object.freeze(['displayId','businessLine','name','code','regionalManager','status','owner','updatedAt']);
+export const lockedFields=Object.freeze(['name','displayId']);
+export const defaultColumns=Object.freeze(['name','displayId','businessLine','code','regionalManager','status','owner','updatedAt']);
 export const selectSQL="SELECT r.*,bl.name business_line_name,bl.display_id business_line_display_id,bl.code business_line_code,bl.status business_line_status,bl.archived_at business_line_archived_at,bl.deleted_at business_line_deleted_at,o.name owner_name,o.display_id owner_display_id,cr.name creator_name,cr.display_id creator_display_id,u.name updater_name,u.display_id updater_display_id,a.name archive_name,a.display_id archive_display_id,d.name delete_name,d.display_id delete_display_id FROM regions r JOIN business_lines bl ON bl.id=r.business_line_id JOIN users o ON o.id=r.owner_id JOIN users cr ON cr.id=r.created_by JOIN users u ON u.id=r.updated_by LEFT JOIN users a ON a.id=r.archived_by LEFT JOIN users d ON d.id=r.deleted_by";
 export const joinSQL=selectSQL.slice(selectSQL.indexOf('FROM regions'));
 export const operators={text:['contains','notContains','equals','notEquals','startsWith','endsWith','in','notIn','isEmpty','isNotEmpty'],user:['equals','notEquals','in','notIn','isEmpty','isNotEmpty'],enum:['equals','notEquals','in','notIn','isEmpty','isNotEmpty'],number:['equals','notEquals','gt','gte','lt','lte','between','isEmpty','isNotEmpty'],date:['equals','before','after','between','lastDays','isEmpty','isNotEmpty'],boolean:['equals','notEquals']};
