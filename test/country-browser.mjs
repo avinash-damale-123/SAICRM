@@ -88,6 +88,12 @@ try{
  await page.locator('[data-nav="countries"]').waitFor({state:'attached'});
  await page.evaluate(()=>document.querySelector('[data-nav="countries"]').click());
  await page.waitForFunction(()=>document.querySelector('.mw-results')?.getAttribute('aria-busy')==='false');
+ await page.waitForFunction(()=>document.querySelector('.mw-module-header.scrm-bl-clean .scrm-bl-primary [data-mw="create"]')!==null);
+ assert.equal(await page.locator('.mw-module-header .scrm-view[data-mw="home"] .scrm-view-title').innerText(),'Records');
+ assert.equal(await page.locator('.mw-module-header .scrm-view[data-mw="dashboard"] .scrm-view-title').innerText(),'Overview');
+ assert.equal(await page.locator('.mw-module-header .scrm-bl-primary [data-mw="create"] .scrm-action-label').innerText(),'Add Country');
+ assert.equal(await page.locator('.mw-module-header .mw-settings-menu>summary').getAttribute('aria-label'),'Customize Countries');
+
  assert.equal(await page.locator('.mw-results .rf-table tbody tr').count(),0,'Country Master starts empty');
  await page.locator('.mw-module-tab[data-mw="dashboard"]').click();
  await page.locator('[data-country-overview="live"]').waitFor();
