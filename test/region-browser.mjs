@@ -63,7 +63,7 @@ try{
    response={policy:effective(),preferences:prefs()};
   }else if(path==='regions/framework')response={version:1,fields:publicColumns(),importFields,limits:fileLimits,policy:effective(),preferences:prefs(),permissions};
   else if(path==='regions/configuration'){
-   if(method==='GET')response={...configuration,history:[{id:1,action:'publish',created_at:now,actor_id:'UID-000001',actor:user.name}]};
+   if(method==='GET')response={...configuration};
    else{
     assert.deepEqual(Object.keys(body).sort(),['action','config','version']);
     assert.equal(body.version,0);
@@ -106,9 +106,22 @@ try{
  assert.match(await page.locator('#mw-dialog-title').innerText(),/Regions: Arrange Columns/,'Region Arrange Columns opens instead of throwing');
  assert.equal(await page.locator('#rf-policy-rows tr').count(),22,'Region Arrange Columns shows all Region columns');
  assert.match(await page.locator('dialog[open]').innerText(),/Configuration history/);
+ const configHistory=page.locator('dialog[open] details.rf-group').filter({has:page.getByText('Configuration history',{exact:true})});
+ await configHistory.locator('summary').click();
+ assert.match(await configHistory.innerText(),/No configuration history available\./,'Arrange Columns survives a missing history array instead of throwing undefined.map');
  await page.locator('dialog[open] [data-rf="draft"]').click();
  await page.locator('dialog').waitFor({state:'detached'});
  assert.ok(requests.some(r=>r.path==='regions/configuration'&&r.method==='PUT'&&r.body?.action==='draft'),'Region Arrange Columns Save Draft uses the shared configuration API contract');
+
+ await page.locator('.crm-module-host [data-mw="import"]').click();
+ await page.locator('dialog[open]').waitFor();
+ await page.locator('dialog[open] #rf-import-file').waitFor();
+ const dependencyGuide=page.locator('dialog[open] details.rf-group').filter({has:page.getByText('Field rules and dependencies',{exact:true})});
+ await dependencyGuide.locator('summary').click();
+ assert.match(await dependencyGuide.innerText(),/Regions require an existing Active Business Line/,'Region Import guidance uses Region-specific parent-master rules');
+ assert.doesNotMatch(await dependencyGuide.innerText(),/Business Lines has no geography dependency/,'Region Import does not leak Business Lines-only guidance');
+ await page.locator('dialog[open] [data-rf="cancel"]').click();
+ await page.locator('dialog').waitFor({state:'detached'});
 
  await page.locator('.mw-state [data-mw="create"]').click();
  await page.locator('#mw-record-form').waitFor();
