@@ -106,7 +106,9 @@ try{
  assert.match(await page.locator('#mw-dialog-title').innerText(),/Regions: Arrange Columns/,'Region Arrange Columns opens instead of throwing');
  assert.equal(await page.locator('#rf-policy-rows tr').count(),22,'Region Arrange Columns shows all Region columns');
  assert.match(await page.locator('dialog[open]').innerText(),/Configuration history/);
- assert.match(await page.locator('dialog[open]').innerText(),/No configuration history available\./,'Arrange Columns survives a missing history array instead of throwing undefined.map');
+ const configHistory=page.locator('dialog[open] details.rf-group').filter({has:page.getByText('Configuration history',{exact:true})});
+ await configHistory.locator('summary').click();
+ assert.match(await configHistory.innerText(),/No configuration history available\./,'Arrange Columns survives a missing history array instead of throwing undefined.map');
  await page.locator('dialog[open] [data-rf="draft"]').click();
  await page.locator('dialog').waitFor({state:'detached'});
  assert.ok(requests.some(r=>r.path==='regions/configuration'&&r.method==='PUT'&&r.body?.action==='draft'),'Region Arrange Columns Save Draft uses the shared configuration API contract');
