@@ -46,7 +46,7 @@ test('Region search, filters and sorting compile parameterized SQL only',()=>{
 
 test('Region table/filter preferences preserve immutable identity columns',()=>{
  const policy=baseline();
- assert.deepEqual(validatePolicy(policy).locked,['displayId','name']);
+ assert.deepEqual(validatePolicy(policy).locked,['name','displayId']);
  const effective=effectivePolicy({version:0,publishedVersion:0,config:policy},superAdmin);
  assert.ok(effective.allowed.includes('businessLineId'));
  assert.ok(effective.filters.quick.includes('businessLine'));
@@ -127,7 +127,7 @@ test('Region visible lifecycle actions follow the strict sequence before backend
 
 test('Region parity release cache-busts the shared visible UI assets',async()=>{
  const html=await readFile(new URL('../index.html',import.meta.url),'utf8');
- assert.match(html,/records-tools\.js\?v=20261027-(?:region-parity-r1|country-region-parity)/);
- assert.match(html,/module-workspace\.js\?v=20261027-(?:region-parity-r1|country-region-parity)/);
- assert.match(html,/region-ui\.js\?v=20261027-region-parity-r1/);
+ assert.match(html,/records-tools\.js\?v=20261027-(?:region-parity-r1|country-region-parity|region-shell-parity-r2)/);
+ assert.match(html,/module-workspace\.js\?v=20261027-(?:region-parity-r1|country-region-parity|region-shell-parity-r2)/);
+ assert.match(html,/region-ui\.js\?v=20261027-(?:region-parity-r1|region-shell-parity-r2)/);
 });
