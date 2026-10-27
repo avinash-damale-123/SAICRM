@@ -17,28 +17,28 @@ window.SCRMRegions = {
     {key:'remarks',label:'Remarks',type:'textarea',maxLength:1000,full:true}
    ],
    columns:[
+    {key:'name',label:'Region Name',locked:true},
     {key:'displayId',label:'Region ID',type:'id',locked:true},
     {key:'businessLine',label:'Business Line'},
-    {key:'name',label:'Region Name',locked:true},
+    {key:'businessLineId',label:'Business Line ID',type:'id',system:true,default:false},
     {key:'code',label:'Region Code'},
     {key:'regionalManager',label:'Regional Manager'},
+    {key:'remarks',label:'Remarks',default:false},
     {key:'status',label:'Status'},
     {key:'owner',label:'Owner'},
-    {key:'updatedAt',system:true,label:'Last Modified At',type:'date'},
-    {key:'businessLineId',label:'Business Line ID',type:'id',system:true,default:false},
-    {key:'remarks',label:'Remarks',default:false},
     {key:'ownerId',system:true,label:'Owner ID',type:'id',default:false},
     {key:'createdBy',system:true,label:'Created By',default:false},
-    {key:'createdById',system:true,label:'Created By ID',type:'id',default:false},
     {key:'createdAt',system:true,label:'Created At',type:'date',default:false},
+    {key:'createdById',system:true,label:'Created By ID',type:'id',default:false},
     {key:'updatedBy',system:true,label:'Last Modified By',default:false},
+    {key:'updatedAt',system:true,label:'Last Modified At',type:'date'},
     {key:'updatedById',system:true,label:'Last Modified By ID',type:'id',default:false},
     {key:'archivedBy',system:true,label:'Archived By',default:false},
-    {key:'archivedById',system:true,label:'Archived By ID',type:'id',default:false},
     {key:'archivedAt',system:true,label:'Archived At',type:'date',default:false},
+    {key:'archivedById',system:true,label:'Archived By ID',type:'id',default:false},
     {key:'deletedBy',system:true,label:'Deleted By',default:false},
-    {key:'deletedById',system:true,label:'Deleted By ID',type:'id',default:false},
-    {key:'deletedAt',system:true,label:'Deleted At',type:'date',default:false}
+    {key:'deletedAt',system:true,label:'Deleted At',type:'date',default:false},
+    {key:'deletedById',system:true,label:'Deleted By ID',type:'id',default:false}
    ]
   });
  }
