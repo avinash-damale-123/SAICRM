@@ -78,6 +78,8 @@ try{
   }
   const shortcuts=await modal().locator('[data-bl-field-edit]').evaluateAll(buttons=>buttons.map(b=>b.dataset.blFieldEdit).sort());
   assert.deepEqual(shortcuts,mode.startsWith('create')?['code','description','name']:['code','description','name','status'],mode+' shortcuts only for editable fields');
+  // Wait for the 120ms hover transition before asserting the final neutral color.
+  await page.waitForTimeout(180);
   const sections=await modal().locator('.mw-bl-section>details>summary:visible').evaluateAll(items=>items.map(el=>getComputedStyle(el).backgroundColor));
   for(const color of sections)assert.equal(color,'rgb(241, 243, 242)',mode+' uses restrained neutral section headers');
   if(!mode.includes('long values')&&await page.evaluate(()=>innerWidth>760)){

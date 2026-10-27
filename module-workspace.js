@@ -10,7 +10,7 @@ function create(host,config) {
  const allColumns=config.columns.map(c=>({...c})),defaults=allColumns.filter(c=>c.default!==false).map(c=>c.key);
  let prefs={columns:defaults,freeze:true,pageSize:25};
  try{const p=JSON.parse(localStorage.getItem(storageKey));if(p&&Array.isArray(p.columns)){prefs.columns=[...new Set([...allColumns.filter(c=>c.locked).map(c=>c.key),...p.columns.filter(k=>allColumns.some(c=>c.key===k&&!c.locked))])];prefs.freeze=p.freeze!==false;if([25,50,75,100].includes(p.pageSize))prefs.pageSize=p.pageSize}}catch{}
- const state={q:'',status:'all',archived:'exclude',filters:[],sort:'updatedAt',direction:'desc',page:1,pageSize:prefs.pageSize,records:[],total:0,totalPages:1,counts:null,owners:[],referenceData:{},limits:{selectedExport:250},selected:new Set(),loading:true,error:'',message:'',view:'home',filtersOpen:false,permissions:{},permissionsKnown:false};
+ const state={q:'',status:'all',archived:'exclude',filters:[],sort:'updatedAt',direction:'desc',page:1,pageSize:prefs.pageSize,records:[],total:0,totalPages:1,counts:null,overviewInsights:null,owners:[],referenceData:{},limits:{selectedExport:250},selected:new Set(),loading:true,error:'',message:'',view:'home',filtersOpen:false,permissions:{},permissionsKnown:false};
  let dead=false,sequence=0,timer=null,dialog=null,dialogDirty=null,dialogSaving=false,previousFocus=null,moduleHeader=null,headerRestore=null,blDetail=null,blDraft=null,blBusy=false,blRecord=null,blRecordMode='read',blLoadSequence=0,dialogReturnTarget=null,recordsTools=null;
  const find=selector=>host.querySelector(selector)||moduleHeader?.querySelector(selector);
  const permitted=action=>state.permissions[action]===true;
@@ -70,6 +70,13 @@ function create(host,config) {
  find('#mw-status').onchange=e=>{if(!permitted('filter'))return;state.status=e.target.value;state.page=1;load()};
  find('#mw-archived').onchange=e=>{if(!permitted('filter'))return;state.archived=e.target.value;state.page=1;load()};
  host.addEventListener('click',click);host.addEventListener('change',change);
+  if(config.key==='countries')host.addEventListener('click',event=>{
+   const link=event.target.closest('[data-country-line-id]');
+   if(!link||!host.contains(link)||!permitted('read'))return;
+   const id=link.dataset.countryLineId;if(!id||!window.SCRM?.navigateRecord)return;
+   event.preventDefault();
+   Promise.resolve(window.SCRM.navigateRecord('businesslines',id,'Business Line')).catch(error=>announce(error.message));
+  });
  render();
  }
  function renderViews(){
@@ -91,11 +98,12 @@ function create(host,config) {
  if(state.loading&&!state.counts){target.innerHTML='<div class="mw-state"><span class="mw-spinner"></span><strong>Loading '+esc(config.title.toLowerCase())+' dashboard…</strong></div>';return}
  if(state.error){target.innerHTML='<div class="mw-state mw-error" role="alert"><strong>Dashboard unavailable</strong><p>'+esc(state.error)+'</p>'+button('Try again','refresh')+'</div>';return}
  const c=state.counts;if(!c){target.innerHTML='<div class="mw-state"><strong>No dashboard data available</strong></div>';return}
+ if(typeof config.renderOverview==='function'){target.innerHTML=config.renderOverview({counts:c,insights:state.overviewInsights,query:{q:state.q,status:state.status,archived:state.archived}});return;}
  const total=Number(c.total)||0,items=[['Active',Number(c.active)||0,'active'],['Inactive',Number(c.inactive)||0,'inactive'],['Archived',Number(c.archived)||0,'archived']];
  const active=Number(c.active)||0,inactive=Number(c.inactive)||0,archived=Number(c.archived)||0;
  const pct=value=>total?Math.round(value/total*100):0;
  const donut=total?'conic-gradient(#0b9965 0 '+(active/total*100)+'%,#f59a29 '+(active/total*100)+'% '+((active+inactive)/total*100)+'%,#90a2bb '+((active+inactive)/total*100)+'% 100%)':'conic-gradient(#e6ecf3 0 100%)';
- target.innerHTML='<div class="mw-dashboard-metrics">'+[['Total Business Lines',total,'total'],['Active',active,'active'],['Inactive',inactive,'inactive'],['Archived',archived,'archived']].map(([label,value,key])=>'<article class="mw-dashboard-metric mw-dashboard-metric-'+key+'"><span>'+label+'</span><strong>'+value.toLocaleString()+'</strong><span class="mw-metric-glyph" aria-hidden="true">'+({total:'▣',active:'↗',inactive:'◷',archived:'▤'})[key]+'</span></article>').join('')+'</div><div class="mw-dashboard-visuals"><section class="mw-visual-card"><h3>Status Distribution</h3><div class="mw-donut-layout"><div class="mw-donut" role="img" aria-label="'+esc(items.map(([label,value])=>label+': '+value).join(', '))+'" style="background:'+donut+'"><div class="mw-donut-center"><strong>'+total.toLocaleString()+'</strong><span>Total</span></div></div><div class="mw-donut-legend">'+items.map(([label,value,key])=>'<div><span class="mw-legend-dot mw-legend-'+key+'"></span><span>'+label+'</span><strong>'+value+' ('+pct(value)+'%)</strong></div>').join('')+'</div></div></section><section class="mw-visual-card"><h3>Business Line Status</h3><p class="mw-visual-subtitle">Live counts from your CRM database</p><div class="mw-status-chart">'+items.map(([label,value,key])=>'<div class="mw-chart-row"><span>'+label+'</span><div class="mw-chart-track"><div class="mw-chart-bar mw-chart-'+key+'" style="width:'+pct(value)+'%"></div></div><strong>'+value.toLocaleString()+'</strong></div>').join('')+'</div></section><section class="mw-visual-card mw-visual-summary"><h3>At a Glance</h3><p class="mw-visual-subtitle">Business-line coverage overview</p><div class="mw-summary-feature"><strong>'+pct(active)+'%</strong><span>of business lines are active</span></div><div class="mw-summary-divider"></div><div class="mw-summary-detail"><span>Current records</span><strong>'+(active+inactive)+'</strong></div><div class="mw-summary-detail"><span>Archived records</span><strong>'+archived+'</strong></div><p class="mw-summary-footnote">Creation trends and recent activity will appear once reporting endpoints are available.</p></section></div>';
+ target.innerHTML='<div class="mw-dashboard-metrics">'+[['Total '+esc(config.title)+'',total,'total'],['Active',active,'active'],['Inactive',inactive,'inactive'],['Archived',archived,'archived']].map(([label,value,key])=>'<article class="mw-dashboard-metric mw-dashboard-metric-'+key+'"><span>'+label+'</span><strong>'+value.toLocaleString()+'</strong><span class="mw-metric-glyph" aria-hidden="true">'+({total:'▣',active:'↗',inactive:'◷',archived:'▤'})[key]+'</span></article>').join('')+'</div><div class="mw-dashboard-visuals"><section class="mw-visual-card"><h3>Status Distribution</h3><div class="mw-donut-layout"><div class="mw-donut" role="img" aria-label="'+esc(items.map(([label,value])=>label+': '+value).join(', '))+'" style="background:'+donut+'"><div class="mw-donut-center"><strong>'+total.toLocaleString()+'</strong><span>Total</span></div></div><div class="mw-donut-legend">'+items.map(([label,value,key])=>'<div><span class="mw-legend-dot mw-legend-'+key+'"></span><span>'+label+'</span><strong>'+value+' ('+pct(value)+'%)</strong></div>').join('')+'</div></div></section><section class="mw-visual-card"><h3>'+esc(config.singular)+' Status</h3><p class="mw-visual-subtitle">Live counts from your CRM database</p><div class="mw-status-chart">'+items.map(([label,value,key])=>'<div class="mw-chart-row"><span>'+label+'</span><div class="mw-chart-track"><div class="mw-chart-bar mw-chart-'+key+'" style="width:'+pct(value)+'%"></div></div><strong>'+value.toLocaleString()+'</strong></div>').join('')+'</div></section><section class="mw-visual-card mw-visual-summary"><h3>At a Glance</h3><p class="mw-visual-subtitle">'+esc(config.singular)+' coverage overview</p><div class="mw-summary-feature"><strong>'+pct(active)+'%</strong><span>of '+esc(config.title.toLowerCase())+' are active</span></div><div class="mw-summary-divider"></div><div class="mw-summary-detail"><span>Current records</span><strong>'+(active+inactive)+'</strong></div><div class="mw-summary-detail"><span>Archived records</span><strong>'+archived+'</strong></div><p class="mw-summary-footnote">Creation trends and recent activity will appear once reporting endpoints are available.</p></section></div>';
  }
  function render(){
  if(dead)return;renderViews();stats();
@@ -122,7 +130,7 @@ function create(host,config) {
  find('.mw-footer').innerHTML='<div class="mw-range" role="status">'+(state.loading?'Loading records…':state.error?'Records unavailable':'Showing '+start.toLocaleString()+'–'+end.toLocaleString()+' of '+state.total.toLocaleString())+'</div><label class="mw-page-size">Rows <select id="mw-page-size" aria-label="Records per page">'+[25,50,75,100].map(n=>'<option '+(n===state.pageSize?'selected':'')+'>'+n+'</option>').join('')+'</select></label><nav class="mw-pagination" aria-label="Records pagination"><button type="button" data-mw="page" data-page="1" '+(p<=1||state.loading?'disabled':'')+' aria-label="First page">«</button><button type="button" data-mw="page" data-page="'+(p-1)+'" '+(p<=1||state.loading?'disabled':'')+' aria-label="Previous page">‹</button>'+links+'<button type="button" data-mw="page" data-page="'+(p+1)+'" '+(p>=max||state.loading?'disabled':'')+' aria-label="Next page">›</button><button type="button" data-mw="page" data-page="'+max+'" '+(p>=max||state.loading?'disabled':'')+' aria-label="Last page">»</button></nav><form class="mw-jump"><label>Go to <input name="page" type="number" min="1" max="'+max+'" value="'+p+'" aria-label="Go to page"></label><button type="submit">Go</button></form>';
  find('.mw-jump').onsubmit=e=>{e.preventDefault();const val=Number(new FormData(e.target).get('page'));if(Number.isInteger(val)&&val>=1&&val<=max){state.page=val;load()}else announce('Enter a page number between 1 and '+max+'.')};
  }
- async function load(){if(dead)return;recordsTools?.beforeLoad();const current=++sequence;state.loading=true;state.error='';render();try{const data=await api(config.endpoint+'?'+params());if(dead||current!==sequence)return;state.records=data.records||[];state.total=Number(data.total)||0;state.totalPages=Math.max(1,Number(data.totalPages)||Math.ceil(state.total/state.pageSize));state.counts=data.counts;state.owners=data.owners||[];state.referenceData=data.referenceData||{};state.permissions=Object.fromEntries(Object.entries(data.permissions||{}).map(([key,value])=>[key,value===true]));state.permissionsKnown=true;if(permitted('read')&&recordsTools?.receive(data))return load();if(!permitted('read')){state.records=[];state.total=0;state.counts=null;state.loading=false;state.error='You do not have access to this module.';render();return}state.limits={selectedExport:250,...data.resource?.limits};if(state.page>state.totalPages){state.page=state.totalPages;return load()}state.loading=false;render();recordsTools?.save();}catch(e){if(dead||current!==sequence)return;state.loading=false;state.error=e.message||'Please try again.';render()}}
+ async function load(){if(dead)return;recordsTools?.beforeLoad();const current=++sequence;state.loading=true;state.error='';render();try{const data=await api(config.endpoint+'?'+params());if(dead||current!==sequence)return;state.records=data.records||[];state.total=Number(data.total)||0;state.totalPages=Math.max(1,Number(data.totalPages)||Math.ceil(state.total/state.pageSize));state.counts=data.counts;state.overviewInsights=data.ui?.overviewInsights||null;state.owners=data.owners||[];state.referenceData=data.referenceData||{};state.permissions=Object.fromEntries(Object.entries(data.permissions||{}).map(([key,value])=>[key,value===true]));state.permissionsKnown=true;if(permitted('read')&&recordsTools?.receive(data))return load();if(!permitted('read')){state.records=[];state.total=0;state.counts=null;state.loading=false;state.error='You do not have access to this module.';render();return}state.limits={selectedExport:250,...data.resource?.limits};if(state.page>state.totalPages){state.page=state.totalPages;return load()}state.loading=false;render();recordsTools?.save();}catch(e){if(dead||current!==sequence)return;state.loading=false;state.error=e.message||'Please try again.';render()}}
  function rowFor(button){const id=button.dataset.record||button.closest('tr')?.querySelector('[data-record-id]')?.dataset.recordId;return state.records.find(r=>r.id===id)}
  async function click(event){const b=event.target.closest('[data-mw]');if(dead||!b||(!host.contains(b)&&!moduleHeader?.contains(b)))return;const action=b.dataset.mw;const access={create:'create',read:'read',edit:'edit',archive:'archive',restore:'restore',filters:'filter','filter-toggle':'filter','hide-filters':'filter',columns:'settings','column-customization':'settings','sort-table':'settings','filter-customization':'settings',refresh:'read',export:'export','export-selected':'export',dashboard:'dashboard',home:'read',import:'import','clear-filters':'filter','clear-all-filters':'filter','remove-filter':'filter',sort:'read',page:'read','clear-selection':'read'};if(access[action]&&!permitted(access[action])&&!(action==='refresh'&&state.error&&!state.permissionsKnown)){announce('You do not have permission to perform this action.');return}moduleHeader?.querySelectorAll('.mw-settings-menu[open]').forEach(menu=>menu.open=false);
  if(recordsTools?.enabled&&await recordsTools.handle(action,event,b))return;
@@ -132,7 +140,7 @@ function create(host,config) {
  else if(action==='refresh'){clearTimeout(timer);load()}
  else if(action==='create')editForm();
  else if(action==='read'){const r=rowFor(b);if(r&&permitted('read'))readRecord(r.id)}
- else if(action==='edit'){const r=rowFor(b);if(r&&!r.archivedAt&&!r.deletedAt){if(['countries','regions'].includes(config.key)){const full=await api(config.endpoint+'/'+encodeURIComponent(r.id));editForm(full.record)}else editForm(r)}}
+ else if(action==='edit'){const r=rowFor(b);if(r&&!r.archivedAt&&!r.deletedAt){if(config.key==='countries'){openCountryRecord(r.id,true)}else if(config.key==='regions'){openBlRecord(r.id,true)}else editForm(r)}}
  else if(['archive','restore','soft-delete','restore-deleted'].includes(action)){const r=rowFor(b);if(r)archiveRecord(r,action,b.dataset.targetStatus||'')}
  else if(action==='status-change'){const r=rowFor(b);if(r)statusRecord(r)}
  else if(action==='reassign-owner'){const r=rowFor(b);if(r)ownerRecord(r)}
@@ -228,7 +236,7 @@ function create(host,config) {
    edit=document.createElement('button');edit.id='bl-edit-top';edit.type='button';edit.className='mw-icon-btn mw-bl-quick-edit';
    edit.setAttribute('aria-label','Edit '+config.singular);edit.title='Edit '+config.singular;edit.innerHTML=blPopupGlyph('edit');
    // Delegate to the same permission-checked footer action, never create a second write path.
-   edit.onclick=()=>{if(dialog!==d||dialogSaving||blBusy)return;const action=d.querySelector('#bl-edit');if(action&&!action.disabled)action.click();};
+   edit.onclick=()=>{if(dialog!==d||dialogSaving||blBusy)return;const action=d.querySelector(config.key==='countries'?'#country-edit':'#bl-edit');if(action&&!action.disabled)action.click();};
    actions.prepend(edit);
   }
  }
@@ -372,14 +380,15 @@ function create(host,config) {
   return '<form id="mw-record-form" class="mw-bl-form"><div class="mw-bl-section-tools" role="group" aria-label="Region form sections"><button type="button" class="mw-bl-section-action" data-bl-sections="expand">Expand all</button><button type="button" class="mw-bl-section-action" data-bl-sections="collapse">Collapse all</button></div>'+section('Region Information',info,true)+section('Ownership',owner,false)+section('Record Information',audit,false)+'<p class="mw-form-error" role="alert" hidden></p></form>';
  }
  const body=['business-lines','regions'].includes(config.key)?'<form id="mw-record-form" class="mw-bl-form">'+blFormSections(record,editing?'edit':'create')+(editing?'<div class="mw-bl-status-reason" hidden><label for="mw-bl-status-reason">Reason for status change <span class="mw-required">*</span></label><textarea id="mw-bl-status-reason" maxlength="500" rows="2" placeholder="Explain why the status is changing"></textarea><small>Required only when changing Active / Inactive.</small></div>':'')+'<p class="mw-form-error" role="alert" hidden></p></form>':config.key==='countries'?countryForm():'<form id="mw-record-form"><p class="mw-form-intro">'+(editing?'Update details. Record identifiers and audit fields are protected.':'Create this record. The record owner will be you.')+'</p><h3>Basic information</h3><div class="mw-form-grid">'+fields.map(fieldHTML).join('')+'</div>'+(editing?'<h3>System information</h3><dl class="mw-details-grid"><div><dt>'+esc(allColumns.find(c=>c.key==='displayId')?.label||'Record ID')+'</dt><dd>'+esc(record.displayId)+'</dd></div><div><dt>Last modified</dt><dd>'+esc(date(record.updatedAt))+'</dd></div></dl>':'')+'<p class="mw-form-error" role="alert" hidden></p></form>';
- const d=openDialog(['business-lines','regions'].includes(config.key)?(editing?'Edit '+config.singular:'New '+config.singular):(editing?'Edit ':'Create ')+config.singular,body,'<button type="button" class="mw-btn" id="mw-cancel">Cancel</button><button type="submit" form="mw-record-form" class="mw-btn mw-primary" id="mw-save">'+(['business-lines','regions'].includes(config.key)?'Save':editing?'Save changes':'Create '+esc(config.singular))+'</button>');if(!d)return;
- if(['business-lines','countries','regions'].includes(config.key)){d.classList.add('mw-bl-create-dialog');blPopupHeader(d);if(config.key==='countries')d.querySelector('.mw-dialog-body')?.setAttribute('aria-label','Scrollable Country details');if(config.key==='regions')d.querySelector('.mw-dialog-body')?.setAttribute('aria-label','Scrollable Region details');}
+ const d=openDialog(['business-lines','regions','countries'].includes(config.key)?(editing?'Edit '+config.singular:'New '+config.singular):(editing?'Edit ':'Create ')+config.singular,body,'<button type="button" class="mw-btn" id="mw-cancel">Cancel</button><button type="submit" form="mw-record-form" class="mw-btn mw-primary" id="mw-save">'+(['business-lines','regions','countries'].includes(config.key)?'Save':editing?'Save changes':'Create '+esc(config.singular))+'</button>');if(!d)return;
+ if(['business-lines','countries','regions'].includes(config.key)){d.classList.add('mw-bl-create-dialog');if(config.key==='countries')d.classList.add('mw-country-create-dialog');blPopupHeader(d);if(config.key==='countries')d.querySelector('.mw-dialog-body')?.setAttribute('aria-label','Scrollable Country details');if(config.key==='regions')d.querySelector('.mw-dialog-body')?.setAttribute('aria-label','Scrollable Region details');}
  const form=d.querySelector('form'),base=formValues(form);dialogDirty=()=>formValues(form)!==base;recordsTools?.wireForm(form);
  if(config.key==='countries'){wireBlSections(d);form.addEventListener('invalid',event=>{const section=event.target.closest('.mw-bl-section details');if(section)section.open=true;},true);}
  if(['business-lines','regions'].includes(config.key)){wireBlSections(d);wireBlFieldActions(form,record,editing?'edit':'create');form.addEventListener('invalid',event=>{const section=event.target.closest('.mw-bl-section details');if(section)section.open=true},true);if(editing){const status=form.querySelector('[name="status"]'),reasonWrap=form.querySelector('.mw-bl-status-reason'),reasonField=form.querySelector('#mw-bl-status-reason');const sync=()=>{const changed=status?.value!==record.status;reasonWrap.hidden=!changed;reasonField.required=changed;if(!changed)reasonField.value='';};status?.addEventListener('change',sync);sync()}}
  d.querySelector('#mw-cancel').onclick=()=>closeDialog();
  form.querySelectorAll('[data-counted],textarea[name="description"]').forEach(input=>input.oninput=()=>{const count=form.querySelector('[data-count-for="'+(input.dataset.counted||input.name)+'"]');if(count)count.textContent=input.value.length});
  if(['business-lines','regions'].includes(config.key)){const code=form.elements.code;if(code)code.addEventListener('input',()=>{const p=code.selectionStart;code.value=code.value.toUpperCase();code.setSelectionRange(p,p)})}
+ if(config.key==='countries')form.querySelectorAll('[name="code"],[name="iso3"],[name="defaultCurrency"]').forEach(field=>field.addEventListener('input',()=>{const caret=field.selectionStart;field.value=field.value.toUpperCase();field.setSelectionRange(caret,caret)}));
  form.onsubmit=async e=>{e.preventDefault();if(dialogSaving||!permitted(editing?'edit':'create'))return;if(!form.checkValidity()){if(['business-lines','regions'].includes(config.key))form.querySelectorAll('.mw-bl-section details').forEach(section=>{section.open=true});form.reportValidity();return}const values=new FormData(form),error=d.querySelector('.mw-form-error');error.hidden=true;const body=Object.fromEntries(fields.filter(f=>f.type!=='readonly').map(f=>[f.key,f.type==='multi-select'?values.getAll(f.key).map(v=>String(v).trim()).filter(Boolean):String(values.get(f.key)||'').trim()]));if(editing)body.version=record.version;
  if(config.recordsFramework)body.timeZone=actionTimeZone();
  if(config.key==='business-lines'&&editing){
@@ -393,11 +402,225 @@ function create(host,config) {
  const saveControls=[...d.querySelectorAll('input,select,textarea,button')].map(el=>[el,el.disabled]);
  dialogSaving=true;d.setAttribute('aria-busy','true');saveControls.forEach(([el])=>el.disabled=true);d.querySelector('#mw-save').textContent='Saving…';
  try{await api(config.endpoint+(editing?'/'+encodeURIComponent(record.id):''),editing?'PUT':'POST',body);if(dead||dialog!==d)return;dialogSaving=false;closeDialog(true);if(config.recordsFramework){if(!editing&&state.view==='dashboard'){state.view='home';renderViews()}recordsTools?.showLatest?.()}announce(config.singular+(editing?' updated.':' created.'));await load()}
- catch(e){if(dead||dialog!==d)return;dialogSaving=false;d.removeAttribute('aria-busy');saveControls.forEach(([el,disabled])=>el.disabled=disabled);error.textContent=e.message;error.hidden=false;d.querySelector('#mw-save').disabled=false;d.querySelector('#mw-save').textContent=['business-lines','regions'].includes(config.key)?'Save':editing?'Save changes':'Create '+config.singular;error.scrollIntoView({block:'nearest'})}
+ catch(e){if(dead||dialog!==d)return;dialogSaving=false;d.removeAttribute('aria-busy');saveControls.forEach(([el,disabled])=>el.disabled=disabled);error.textContent=e.message;error.hidden=false;d.querySelector('#mw-save').disabled=false;d.querySelector('#mw-save').textContent=['business-lines','regions','countries'].includes(config.key)?'Save':editing?'Save changes':'Create '+config.singular;error.scrollIntoView({block:'nearest'})}
  };
  form.querySelector('input:not([readonly]),select,textarea')?.focus();
  }
- async function readRecord(id){if(dead||!permitted('read'))return;if(['business-lines','regions'].includes(config.key)){openBlRecord(id);return;}const d=openDialog('View '+config.singular,'<div class="mw-state">Loading record…</div>','<button type="button" class="mw-btn" id="mw-read-close">Close</button>',true);if(!d)return;d.querySelector('#mw-read-close').onclick=()=>closeDialog();try{const [{record},history,related]=await Promise.all([api(config.endpoint+'/'+encodeURIComponent(id)),permitted('history')?api(config.endpoint+'/'+encodeURIComponent(id)+'/history'):Promise.resolve({history:[]}),['countries','regions'].includes(config.key)?api(config.endpoint+'/'+encodeURIComponent(id)+'/related'):Promise.resolve(null)]);if(dead||dialog!==d)return;
+ const countrySections=[
+  {name:'Country Information',fields:[
+   ['name','Country Name'],['displayId','Country ID'],['code','Country Code'],['iso3','ISO 3-Letter Code'],
+   ['isoNumeric','ISO Numeric Code'],['dialingCode','International Dialing Code'],
+   ['defaultCurrency','Default Currency'],['nationality','Nationality'],['continent','Continent'],
+   ['alias','Country Alias / Short Name'],['flag','Country Flag'],['status','Country Status'],
+   ['description','Description / Remarks']
+  ]},
+  {name:'Business Line Presence',fields:[['businessLineIds','Business Line Presence']]},
+  {name:'Ownership',fields:[['owner','Owner'],['ownerId','Owner ID']]},
+  {name:'Record Information',fields:[
+   ['createdBy','Created By'],['createdById','Created By ID'],['createdAt','Created At'],
+   ['updatedBy','Last Modified By'],['updatedById','Last Modified By ID'],['updatedAt','Last Modified At']
+  ]},
+  {name:'Lifecycle Information',fields:[
+   ['archivedBy','Archived By'],['archivedById','Archived By ID'],['archivedAt','Archived At'],
+   ['deletedBy','Deleted By'],['deletedById','Deleted By ID'],['deletedAt','Deleted At']
+  ]}
+ ];
+ const countryEditable=new Set(['name','code','iso3','isoNumeric','dialingCode','defaultCurrency','nationality','continent','alias','description','status','businessLineIds']);
+ const countryRequired=new Set(['name','code','iso3','isoNumeric','dialingCode','defaultCurrency','nationality','continent']);
+ const countryLimits={name:150,code:2,iso3:3,isoNumeric:3,dialingCode:16,defaultCurrency:40,nationality:150,alias:150,description:500};
+ const countryContinentOptions=['Africa','Asia','Europe','North America','South America','Oceania','Antarctica'];
+ function countryDetailField(key,label,record,mode){
+  const editing=mode==='edit'&&countryEditable.has(key);
+  const full=['description','businessLineIds'].includes(key);
+  const current=record?.[key],value=key==='businessLineIds'
+   ?(record?.businessLines||[]).map(line=>line.code||line.name).join(', ') 
+   :['createdAt','updatedAt','archivedAt','deletedAt'].includes(key)?date(current)
+   :current===null||current===undefined||current===''?'—':String(current);
+  const id='mw-country-detail-'+key;
+  const text=editing?(current??''):value;
+  const head='<label id="'+id+'-label"'+(editing?' for="'+id+'"':'')+'><span>'+esc(label)+(editing&&countryRequired.has(key)?' <span class="mw-required">*</span>':'')+'</span></label>';
+  let control;
+  if(!editing){
+   control='<div class="mw-bl-read-value'+(full?' mw-bl-read-description':'')+'" aria-labelledby="'+id+'-label">'+esc(value)+'</div>';
+  }else if(key==='businessLineIds'){
+   const selected=new Set(record?.businessLineIds||[]);
+   const options=[...(state.referenceData.businessLines||[])];
+   for(const line of record?.businessLines||[])if(!options.some(option=>option.id===line.id))options.push({...line,name:line.name+' (Inactive — existing mapping)'});
+   control='<select id="'+id+'" name="businessLineIds" multiple size="'+Math.min(7,Math.max(3,options.length))+'" aria-label="Business Line Presence">'
+    +options.map(line=>'<option value="'+esc(line.id)+'"'+(selected.has(line.id)?' selected':'')+'>'+esc((line.code?line.code+' — ':'')+line.name)+'</option>').join('')+'</select>'
+    +'<small class="mw-bl-hint">Select multiple with Ctrl/Cmd-click. Only Active Business Lines can be newly assigned.</small>';
+  }else if(key==='continent'||key==='status'){
+   const choices=key==='continent'?countryContinentOptions:['Active','Inactive'];
+   control='<select id="'+id+'" name="'+key+'"'+(countryRequired.has(key)?' required':'')+'>'
+    +choices.map(option=>'<option value="'+esc(option)+'"'+(option===current?' selected':'')+'>'+esc(option)+'</option>').join('')+'</select>';
+  }else if(key==='description'){
+   control='<textarea id="'+id+'" name="'+key+'" maxlength="500" rows="3">'+esc(text)+'</textarea><small class="mw-bl-hint">Maximum 500 characters.</small>';
+  }else{
+   control='<input type="text" id="'+id+'" name="'+key+'" value="'+esc(text)+'"'
+    +(countryRequired.has(key)?' required':'')+(countryLimits[key]?' maxlength="'+countryLimits[key]+'"':'')
+    +(key==='code'||key==='iso3'?' autocapitalize="characters"':'')+' autocomplete="off">';
+   if(key==='isoNumeric')control+='<small class="mw-bl-hint">Exactly three digits; leading zeroes are preserved.</small>';
+   if(key==='dialingCode')control+='<small class="mw-bl-hint">Include the international prefix, for example +91.</small>';
+  }
+  const pencil=!editing&&countryEditable.has(key)&&!record?.archivedAt&&!record?.deletedAt&&permitted('edit')
+   ?'<button type="button" class="mw-bl-field-edit" data-country-edit-field="'+esc(key)+'" aria-label="Edit '+esc(label)+'" title="Edit '+esc(label)+'">'+blPopupGlyph('edit')+'</button>':'';
+  return '<div class="mw-bl-field'+(full?' mw-bl-full':'')+(editing?' mw-bl-editable':' mw-bl-readonly')+(pencil?' mw-bl-field-actionable':'')+'">'
+   +head+'<div class="mw-bl-value-cell">'+control+pencil+'</div></div>';
+ }
+ function countryRelatedMarkup(related,record){
+  const lines=Array.isArray(related?.businessLines)?related.businessLines:record?.businessLines||[];
+  const modules=Array.isArray(related?.related)?related.related:[];
+  const lineRows=lines.length?lines.map(line=>'<button type="button" class="mw-country-relationship" data-country-linked-line="'+esc(line.id)+'" aria-label="View Business Line '+esc(line.name||line.code)+'"><strong>'+esc(line.code||line.display_id||line.name)+'</strong><span>'+esc(line.name||'Business Line')+'</span><span class="mw-country-link-action">View Business Line</span></button>').join('')
+   :'<p class="mw-country-empty">No Business Line Presence has been assigned to this Country.</p>';
+  const moduleRows=modules.length?modules.map(item=>'<div class="mw-country-reference-row"><span>'+esc(item.module)+'</span><strong>'+Number(item.count||0).toLocaleString()+' linked records</strong></div>').join('')
+   :'<p class="mw-country-empty">No supported CRM record references were found.</p>';
+  return '<div class="mw-country-detail-links"><div><h4>Business Line Presence</h4><p class="mw-bl-hint">Current mappings to Business Lines; click a line to review its master record.</p>'+lineRows+'</div>'
+   +'<div><h4>CRM Records Using This Country</h4><p class="mw-bl-hint">Existing references identified through supported Country fields.</p>'+moduleRows+'</div></div>';
+ }
+ function countryHistoryMarkup(history){
+  if(history===null)return '<p role="status">Loading audit history…</p>';
+  if(!Array.isArray(history))return '<p role="status">Audit history is unavailable; Country details remain accessible.</p>';
+  if(!history.length)return '<p>No recorded changes yet.</p>';
+  return history.map(item=>{
+   const changes=Object.entries(item.changes||{}).filter(([key])=>key!=='_context');
+   return '<article><strong>'+esc(item.action)+'</strong> · '+esc(date(item.createdAt))+' · '+esc(item.actor||'System')
+    +(item.reason?' · Reason: '+esc(item.reason):'')
+    +(changes.length?'<div class="mw-country-change-list">'+changes.slice(0,20).map(([key,value])=>'<div>'+esc(allColumns.find(c=>c.key===key)?.label||key)+': '+esc(value?.before??'—')+' → '+esc(value?.after??'—')+'</div>').join('')+'</div>':'')+'</article>';
+  }).join('');
+ }
+ async function openCountryRecord(id,startEdit=false,discardChecked=false){
+  if(dead||!permitted('read')||(startEdit&&!permitted('edit')))return;
+  let d=dialog;
+  if(blDetail){if(!discardChecked&&!leaveBlAllowed())return;blDraft=null;dialogDirty=null;}
+  else{d=openDialog(startEdit?'Edit Country':'View Country','','<button type="button" class="mw-btn" id="bl-back">Close</button>',true);if(!d)return;d.classList.add('mw-bl-record-dialog','mw-country-record-dialog');}
+  blPopupHeader(d);
+  const request=++blLoadSequence;
+  const page=document.createElement('section');page.className='mw-bl-detail-page mw-country-detail-page';page.setAttribute('aria-label','Country record details');
+  page.innerHTML='<div class="mw-state" role="status"><span class="mw-spinner"></span> Loading Country…</div>';
+  blDetail=page;blRecord=null;d.querySelector('.mw-dialog-body').replaceChildren(page);
+  d.querySelector('footer').innerHTML='<button type="button" class="mw-btn" id="bl-back">Close</button>';
+  d.querySelector('#bl-back').onclick=()=>closeDialog();
+  d.querySelector('#mw-dialog-title').textContent=startEdit?'Edit Country':'View Country';
+  try{
+   const {record}=await api(config.endpoint+'/'+encodeURIComponent(id));
+   if(dead||dialog!==d||request!==blLoadSequence)return;
+   const results=await Promise.allSettled([
+    permitted('history')?api(config.endpoint+'/'+encodeURIComponent(id)+'/history'):Promise.resolve({history:[]}),
+    api(config.endpoint+'/'+encodeURIComponent(id)+'/related')
+   ]);
+   if(dead||dialog!==d||request!==blLoadSequence)return;
+   const history=results[0].status==='fulfilled'?results[0].value.history||[]:undefined;
+   const related=results[1].status==='fulfilled'?results[1].value:null;
+   renderCountryRecordPage(record,startEdit?'edit':'read',related,history);
+  }catch(error){
+   if(dead||dialog!==d||request!==blLoadSequence)return;
+   page.innerHTML='<div class="mw-state"><p class="mw-form-error" role="alert">'+esc(error.message)+'</p><button type="button" class="mw-btn" data-country-retry>Try again</button></div>';
+   page.querySelector('[data-country-retry]').onclick=()=>openCountryRecord(id,startEdit,true);
+  }
+ }
+ function renderCountryRecordPage(record,mode='read',related=null,history=null){
+  if(!blDetail||!dialog)return;
+  const d=dialog,page=blDetail;blRecord=record;blRecordMode=mode;blDraft=null;dialogDirty=null;
+  const editing=mode==='edit'&&permitted('edit')&&!record.archivedAt&&!record.deletedAt;
+  const editable=permitted('edit')&&!record.archivedAt&&!record.deletedAt;
+  const status=record.deletedAt?'Deleted':record.archivedAt?'Archived':record.status;
+  const index=state.records.findIndex(row=>row.id===record.id),previous=index>0?state.records[index-1]:null,next=index>=0&&index<state.records.length-1?state.records[index+1]:null;
+  const hasPrevious=!!previous||index===0&&state.page>1,hasNext=!!next||index>=0&&index===state.records.length-1&&state.page<state.totalPages;
+  const groups=[...countrySections,{name:'Related / Used In'},{name:'Audit History'}];
+  const content=countrySections.map((group,i)=>
+   '<section class="mw-bl-section"><details '+(i===0||!editing&&i===1?'open':'')+'><summary>'+esc(group.name)+' <span class="mw-bl-chevron" aria-hidden="true">⌄</span></summary><div class="mw-bl-section-content"><div class="mw-bl-grid">'
+   +group.fields.map(([key,label])=>countryDetailField(key,label,record,editing?'edit':'read')).join('')
+   +'</div></div></details></section>').join('');
+  const relationships='<section class="mw-bl-section"><details open><summary>Related / Used In <span class="mw-bl-chevron" aria-hidden="true">⌄</span></summary><div class="mw-bl-section-content">'+countryRelatedMarkup(related,record)+'</div></details></section>';
+  const audit=permitted('history')?'<section class="mw-bl-section"><details><summary>Audit History <span class="mw-bl-chevron" aria-hidden="true">⌄</span></summary><div class="mw-bl-section-content mw-history" data-country-audit>'+countryHistoryMarkup(history)+'</div></details></section>':'';
+  page.innerHTML='<header class="mw-bl-detail-heading"><div><h2>'+esc((record.flag?record.flag+' ':'')+record.name)+'</h2><div class="mw-bl-detail-meta"><span>'+esc(record.displayId)+'</span><span class="mw-status '+(status==='Active'?'mw-active':'mw-inactive')+'">'+esc(status)+'</span></div></div>'
+   +'<div class="mw-bl-detail-actions"><button type="button" class="mw-btn" data-bl-prev'+(!hasPrevious?' disabled':'')+'>'+blPopupGlyph('previous')+'<span>Previous</span></button><button type="button" class="mw-btn" data-bl-next'+(!hasNext?' disabled':'')+'><span>Next</span>'+blPopupGlyph('next')+'</button></div></header>'
+   +'<p class="mw-bl-record-notice" role="status" hidden></p>'
+   +'<div class="mw-bl-detail-layout"><div class="mw-bl-navigation"><nav class="mw-bl-detail-index" aria-label="Jump to Country section">'+groups.filter(g=>g.name!=='Audit History'||permitted('history')).map((g,i)=>'<button type="button" data-country-jump="'+i+'">'+esc(g.name)+'</button>').join('')+'</nav><div class="mw-bl-detail-tools" role="group" aria-label="Section display"><button type="button" data-country-expand="1">Expand all</button><button type="button" data-country-expand="0">Collapse all</button></div></div>'
+   +'<div class="mw-bl-detail-content">'+(editing?'<form id="mw-record-form" class="mw-bl-form">'+content+'<div class="mw-bl-status-reason" hidden><label for="mw-country-status-reason">Reason for Status Change <span class="mw-required">*</span></label><textarea id="mw-country-status-reason" maxlength="500" rows="3" placeholder="Explain the status change"></textarea></div><p class="mw-form-error" role="alert" hidden></p></form>':content)+relationships+audit+'</div></div>';
+  const footer=d.querySelector('footer');
+  footer.innerHTML='<button type="button" class="mw-btn" id="bl-back">Close</button>'
+   +(editing?'<span class="mw-bl-footer-hint">* Required fields</span><button type="button" class="mw-btn mw-bl-cancel" id="country-cancel">Cancel</button><button type="submit" form="mw-record-form" class="mw-btn mw-primary" id="mw-save">Save</button>'
+    :editable?'<button type="button" class="mw-btn mw-primary" id="country-edit">Edit Country</button>':'');
+  footer.querySelector('#bl-back').onclick=()=>closeDialog();
+  footer.querySelector('#country-edit')?.addEventListener('click',()=>renderCountryRecordPage(record,'edit',related,history));
+  footer.querySelector('#country-cancel')?.addEventListener('click',()=>{if(leaveBlAllowed())renderCountryRecordPage(record,'read',related,history);});
+  d.dataset.recordMode=editing?'edit':'read';
+  d.querySelector('#mw-dialog-title').textContent=editing?'Edit Country':'View Country';
+  blPopupHeader(d,!editing&&editable);
+  blDisclosureAffordance(page);
+  const sections=[...page.querySelectorAll('.mw-bl-detail-content .mw-bl-section')];
+  page.querySelectorAll('[data-country-expand]').forEach(button=>button.onclick=()=>sections.forEach(section=>section.querySelector('details').open=button.dataset.countryExpand==='1'));
+  page.querySelectorAll('[data-country-jump]').forEach(button=>button.onclick=()=>{
+   const section=sections[Number(button.dataset.countryJump)];if(section){
+    section.querySelector('details').open=true;
+    section.scrollIntoView({block:'nearest',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});
+    section.querySelector('summary')?.focus({preventScroll:true});
+   }
+  });
+  page.querySelectorAll('[data-country-edit-field]').forEach(button=>button.onclick=()=>{
+   const key=button.dataset.countryEditField;if(!editable)return;
+   renderCountryRecordPage(record,'edit',related,history);
+   const control=page.querySelector('[name="'+key+'"]');control?.closest('details')?.setAttribute('open','');control?.focus({preventScroll:true});
+  });
+  page.querySelectorAll('[data-country-linked-line]').forEach(button=>button.onclick=async()=>{
+   if(!leaveBlAllowed()||!window.SCRM?.navigateRecord)return;
+   const lineId=button.dataset.countryLinkedLine;closeDialog(true);
+   await window.SCRM.navigateRecord('businesslines',lineId,'Business Line');
+  });
+  const navigate=async direction=>{
+   if(!leaveBlAllowed())return;
+   const adjacent=direction<0?previous:next;
+   if(adjacent){await openCountryRecord(adjacent.id,false,true);return;}
+   const nextPage=state.page+(direction<0?-1:1);if(nextPage<1||nextPage>state.totalPages)return;
+   const priorPage=state.page;state.page=nextPage;
+   try{await load();if(state.error||!state.records.length)throw new Error(state.error||'Unable to load adjacent Countries.');
+    await openCountryRecord((direction<0?state.records.at(-1):state.records[0]).id,false,true);
+   }catch(e){state.page=priorPage;const notice=page.querySelector('.mw-bl-record-notice');if(notice){notice.textContent=e.message;notice.hidden=false;}}
+  };
+  page.querySelector('[data-bl-prev]').onclick=()=>navigate(-1);
+  page.querySelector('[data-bl-next]').onclick=()=>navigate(1);
+  d.querySelector('.mw-dialog-body').scrollTop=0;
+  if(!editing)return;
+  const form=page.querySelector('#mw-record-form');blDraft=form;recordsTools?.wireForm(form);
+  const initial=formValues(form),mark=()=>{form.dataset.dirty=String(formValues(form)!==initial)};
+  form.addEventListener('input',mark);form.addEventListener('change',mark);
+  form.querySelectorAll('[name="code"],[name="iso3"],[name="defaultCurrency"]').forEach(field=>field.addEventListener('input',()=>{
+   const pos=field.selectionStart;field.value=field.value.toUpperCase();field.setSelectionRange(pos,pos);mark();
+  }));
+  const statusField=form.elements.namedItem('status'),reason=form.querySelector('#mw-country-status-reason'),reasonWrap=reason.parentElement;
+  const syncStatus=()=>{const changed=statusField?.value!==record.status;reasonWrap.hidden=!changed;reason.required=changed;if(!changed)reason.value='';mark();};
+  statusField.addEventListener('change',syncStatus);syncStatus();
+  form.addEventListener('invalid',event=>event.target.closest('details')?.setAttribute('open',''),true);
+  form.onsubmit=async event=>{
+   event.preventDefault();if(blBusy||!permitted('edit'))return;
+   const error=form.querySelector('.mw-form-error');error.hidden=true;
+   if(!form.checkValidity()){sections.forEach(s=>s.querySelector('details').open=true);form.reportValidity();error.textContent='Review the highlighted Country fields.';error.hidden=false;return;}
+   const values=new FormData(form),payload={version:record.version,timeZone:actionTimeZone()};
+   for(const key of countryEditable)if(key!=='status'&&key!=='businessLineIds')payload[key]=String(values.get(key)||'').trim();
+   payload.businessLineIds=values.getAll('businessLineIds').map(x=>String(x).trim()).filter(Boolean);
+   if(statusField.value!==record.status){
+    if(!reason.value.trim()){error.textContent='Reason is mandatory for status changes.';error.hidden=false;reason.focus();return;}
+    payload.status=statusField.value;payload.reason=reason.value.trim();
+   }
+   blBusy=true;dialogSaving=true;
+   const controls=[...d.querySelectorAll('input,select,textarea,button')].map(el=>[el,el.disabled]);controls.forEach(([el])=>el.disabled=true);
+   d.setAttribute('aria-busy','true');d.querySelector('#mw-save').textContent='Saving…';
+   try{
+    await api(config.endpoint+'/'+encodeURIComponent(record.id),'PUT',payload);
+    if(dead||dialog!==d||blDetail!==page)return;
+   }catch(e){
+    if(dead||dialog!==d||blDetail!==page)return;
+    blBusy=false;dialogSaving=false;d.removeAttribute('aria-busy');controls.forEach(([el,disabled])=>el.disabled=disabled);
+    error.textContent=e.message;error.hidden=false;error.tabIndex=-1;error.focus();d.querySelector('#mw-save').textContent='Save';return;
+   }
+   blBusy=false;dialogSaving=false;blDraft=null;dialogDirty=null;
+   closeDialog(true);recordsTools?.showLatest?.();announce('Country saved successfully.');await load();
+  };
+  form.querySelector('input:not([readonly]),select,textarea')?.focus({preventScroll:true});
+ }
+
+ async function readRecord(id){if(dead||!permitted('read'))return;if(['business-lines','regions'].includes(config.key)){openBlRecord(id);return;}if(config.key==='countries'){openCountryRecord(id);return;}const d=openDialog('View '+config.singular,'<div class="mw-state">Loading record…</div>','<button type="button" class="mw-btn" id="mw-read-close">Close</button>',true);if(!d)return;d.querySelector('#mw-read-close').onclick=()=>closeDialog();try{const [{record},history,related]=await Promise.all([api(config.endpoint+'/'+encodeURIComponent(id)),permitted('history')?api(config.endpoint+'/'+encodeURIComponent(id)+'/history'):Promise.resolve({history:[]}),['countries','regions'].includes(config.key)?api(config.endpoint+'/'+encodeURIComponent(id)+'/related'):Promise.resolve(null)]);if(dead||dialog!==d)return;
  if(config.key==='business-lines'){d.querySelector('.mw-dialog-body').innerHTML='<div class="mw-bl-read">'+blFormSections(record,'read')+'</div>'+(config.key==='regions'?'<section class="mw-bl-section"><details><summary>Related / Used In <span class="mw-bl-chevron" aria-hidden="true">&#8964;</span></summary><div class="mw-bl-section-content"><div class="mw-details-grid">'+((related?.related||[]).length?(related.related||[]).map(item=>'<div><dt>'+esc(item.module)+'</dt><dd>'+Number(item.count).toLocaleString()+' linked records'+(Number(item.active)?' · '+Number(item.active).toLocaleString()+' active':'')+'</dd></div>').join(''):'<div><dt>CRM references</dt><dd>None</dd></div>')+'</div></div></details></section>':'')+(permitted('history')?'<section class="mw-bl-section"><details><summary>Audit History <span class="mw-bl-chevron">⌄</span></summary><div class="mw-bl-section-content mw-history">'+((history.history||[]).length?(history.history||[]).map(h=>'<article><strong>'+esc(h.action)+'</strong> · '+esc(date(h.createdAt))+' · '+esc(h.actor||'System')+(h.reason?' · Reason: '+esc(h.reason):'')+'</article>').join(''):'<p>No history available.</p>')+'</div></details></section>':'');wireBlSections(d);if(permitted('edit')&&!record.archivedAt&&!record.deletedAt){const edit=document.createElement('button');edit.type='button';edit.className='mw-btn mw-primary';edit.textContent='Edit Business Line';edit.onclick=()=>editForm(record);d.querySelector('footer').append(edit)}return;}
  d.querySelector('.mw-dialog-body').innerHTML='<div class="mw-detail-title"><div><span class="mw-id">'+esc(record.displayId)+'</span><h3>'+esc(record.name)+'</h3></div><span class="mw-status '+(record.status==='Active'?'mw-active':'mw-inactive')+'">'+esc(record.deletedAt?'Deleted':record.archivedAt?'Archived':record.status)+'</span></div><h3>Basic information</h3><dl class="mw-details-grid">'+allColumns.filter(c=>!c.system).map(c=>'<div class="'+(c.key==='remarks'?'mw-field-full':'')+'"><dt>'+esc(c.label)+'</dt><dd>'+esc(c.type==='date'?date(record[c.key]):record[c.key]||'—')+'</dd></div>').join('')+'</dl><h3>System information</h3><dl class="mw-details-grid">'+allColumns.filter(c=>c.system).map(c=>'<div><dt>'+esc(c.label)+'</dt><dd>'+esc(c.type==='date'?date(record[c.key]):record[c.key]||'—')+'</dd></div>').join('')+'</dl>'+(config.key==='countries'?'<h3>Related / Used In</h3><div class="mw-details-grid">'+((related?.businessLines||[]).length?'<div class="mw-field-full"><dt>Business Line Presence</dt><dd>'+esc((related.businessLines||[]).map(x=>(x.code||x.name)).join(', '))+'</dd></div>':'<div><dt>Business Line Presence</dt><dd>None</dd></div>')+(related?.related||[]).map(item=>'<div><dt>'+esc(item.module)+'</dt><dd>'+Number(item.count).toLocaleString()+' linked records</dd></div>').join('')+(!related?.total?'<div><dt>Other CRM references</dt><dd>None</dd></div>':'')+'</div>':config.key==='regions'?'<h3>Related / Used In</h3><div class="mw-details-grid">'+(related?.related||[]).map(item=>'<div><dt>'+esc(item.module)+'</dt><dd>'+Number(item.count).toLocaleString()+' linked records'+(Number(item.active)?' · '+Number(item.active).toLocaleString()+' active':'')+'</dd></div>').join('')+(!related?.total?'<div><dt>CRM references</dt><dd>None</dd></div>':'')+'</div>':'')+'<h3>Audit history</h3><div class="mw-history">'+((history.history||[]).length?(history.history||[]).map(h=>'<article><div><strong>'+esc(h.action)+'</strong><span>'+esc(date(h.createdAt))+'</span></div><p>'+esc(h.actor||'System')+'</p>'+Object.entries(h.changes||{}).map(([key,value])=>'<p class="mw-history-change"><b>'+esc(allColumns.find(c=>c.key===key)?.label||key)+':</b> '+esc(value?.before??'—')+' → '+esc(value?.after??'—')+'</p>').join('')+'</article>').join(''):'<p>No history available.</p>')+'</div>';
  if(!permitted('history')){const historyNode=d.querySelector('.mw-history');if(historyNode){historyNode.hidden=true;historyNode.previousElementSibling.hidden=true}}

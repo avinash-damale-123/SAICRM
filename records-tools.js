@@ -242,7 +242,15 @@ function attach(ctx){
   const describe=f=>f.closest('.mw-bl-field,.mw-bl-status-reason')?.querySelector('label')?.textContent.replace('*','').trim()||f.name||'Reason';
   const validate=(f,show)=>{
    f.setCustomValidity('');
-   if(f.name==='code'&&f.value&&!/^[A-Z0-9-]{1,20}$/.test(f.value))f.setCustomValidity('Use 1-20 uppercase letters, numbers or hyphens, without spaces.');
+   if(f.name==='code'&&f.value){
+    if(config.key==='countries'&&!/^[A-Z]{2}$/.test(f.value))f.setCustomValidity('Country Code must contain exactly two uppercase letters.');
+    else if(config.key!=='countries'&&!/^[A-Z0-9-]{1,20}$/.test(f.value))f.setCustomValidity('Use 1-20 uppercase letters, numbers or hyphens, without spaces.');
+   }
+   if(config.key==='countries'){
+    if(f.name==='iso3'&&f.value&&!/^[A-Z]{3}$/.test(f.value))f.setCustomValidity('ISO 3-Letter Code must contain exactly three uppercase letters.');
+    if(f.name==='isoNumeric'&&f.value&&!/^[0-9]{3}$/.test(f.value))f.setCustomValidity('ISO Numeric Code must contain exactly three digits, including leading zeros.');
+    if(f.name==='dialingCode'&&f.value&&!/^\+[0-9]{1,15}$/.test(f.value))f.setCustomValidity('International Dialing Code must start with + and contain digits.');
+   }
    if(f.required&&!f.value.trim())f.setCustomValidity(describe(f)+' is required.');
    const valid=f.checkValidity();let error=form.querySelector('[data-error-for="'+f.id+'"]');
    if(show&&!valid){if(!error){error=document.createElement('small');error.className='rf-field-error';error.dataset.errorFor=f.id;error.id=f.id+'-error';f.after(error);}error.textContent=f.validationMessage;error.hidden=false;f.setAttribute('aria-invalid','true');f.setAttribute('aria-describedby',error.id);f.closest('details')?.setAttribute('open','');}
