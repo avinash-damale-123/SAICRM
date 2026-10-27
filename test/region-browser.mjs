@@ -115,8 +115,11 @@ try{
 
  await page.locator('.crm-module-host [data-mw="import"]').click();
  await page.locator('dialog[open]').waitFor();
- assert.match(await page.locator('dialog[open]').innerText(),/Regions require an existing Active Business Line/,'Region Import guidance uses Region-specific parent-master rules');
- assert.doesNotMatch(await page.locator('dialog[open]').innerText(),/Business Lines has no geography dependency/,'Region Import does not leak Business Lines-only guidance');
+ await page.locator('dialog[open] #rf-import-file').waitFor();
+ const dependencyGuide=page.locator('dialog[open] details.rf-group').filter({has:page.getByText('Field rules and dependencies',{exact:true})});
+ await dependencyGuide.locator('summary').click();
+ assert.match(await dependencyGuide.innerText(),/Regions require an existing Active Business Line/,'Region Import guidance uses Region-specific parent-master rules');
+ assert.doesNotMatch(await dependencyGuide.innerText(),/Business Lines has no geography dependency/,'Region Import does not leak Business Lines-only guidance');
  await page.locator('dialog[open] [data-rf="cancel"]').click();
  await page.locator('dialog').waitFor({state:'detached'});
 
