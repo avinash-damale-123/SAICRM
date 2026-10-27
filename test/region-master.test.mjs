@@ -100,3 +100,11 @@ test('Region migration enforces parent Business Line, composite name uniqueness 
  assert.ok(!/INSERT INTO regions\s*\(/i.test(sql));
  assert.match(sql,/INSERT INTO schema_migrations\(version\) VALUES\(9\)/);
 });
+
+test('Country parity retains Region asset versions while cache-busting shared updates',async()=>{
+ const html=await readFile(new URL('../index.html',import.meta.url),'utf8');
+ assert.match(html,/records-tools\\.js\\?v=20261027-country-validation/);
+ assert.match(html,/module-workspace\\.js\\?v=20261027-country-parity/);
+ assert.match(html,/region-ui\\.js\\?v=20261027-region-parity-r1/);
+ assert.match(html,/country-ui\\.js\\?v=20261027-country-overview/);
+});
