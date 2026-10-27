@@ -14,8 +14,8 @@ const endpoint='https://crm.invalid/api/regions';
 test('Region Master declares all 22 finalized fields and eight data default columns',()=>{
  assert.equal(fieldKeys.length,22);
  assert.equal(new Set(fieldKeys).size,22);
- assert.deepEqual(fieldKeys.slice(0,6),['displayId','businessLine','businessLineId','name','code','regionalManager']);
- assert.deepEqual(baseline().roles.super_admin.defaults,['displayId','businessLine','name','code','regionalManager','status','owner','updatedAt']);
+ assert.deepEqual(fieldKeys.slice(0,8),['name','displayId','businessLine','businessLineId','code','regionalManager','remarks','status']);
+ assert.deepEqual(baseline().roles.super_admin.defaults,['name','displayId','businessLine','code','regionalManager','status','owner','updatedAt']);
  assert.ok(fieldKeys.includes('archivedAt'));
  assert.ok(fieldKeys.includes('deletedAt'));
  assert.ok(publicColumns().every(field=>!('sql' in field)));
