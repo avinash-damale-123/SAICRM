@@ -81,6 +81,15 @@ try{
  await page.locator('[data-nav="regions"]').waitFor({state:'attached'});
  await page.evaluate(()=>document.querySelector('[data-nav="regions"]').click());
  await page.waitForFunction(()=>document.querySelector('.mw-results')?.getAttribute('aria-busy')==='false');
+ assert.equal(await page.locator('.topbar #globalSearchBtn').count(),1,'Region global search stays in the top shell like Business Lines');
+ assert.equal(await page.locator('.crm-module-host #globalSearchBtn').count(),0,'Region module bar does not contain the global search');
+ assert.equal(await page.locator('.crm-module-host').getAttribute('class').then(v=>v.includes('crm-module-host')),true);
+ assert.equal(await page.locator('.crm-module-host .scrm-bl-clean').count(),1,'Region uses the compact Business Lines workbar');
+ assert.match(await page.locator('.crm-module-host [data-mw="home"]').innerText(),/Records/,'Region primary view is Records, not Home');
+ assert.match(await page.locator('.crm-module-host [data-mw="dashboard"]').innerText(),/Overview/);
+ assert.equal(await page.locator('.crm-module-host [data-mw="import"]').count(),1,'Region exposes one Import action');
+ assert.equal(await page.locator('.crm-module-host .crm-disabled-import').count(),0,'No duplicate disabled Import placeholder remains');
+ assert.match(await page.locator('.crm-module-host [data-mw="create"]').innerText(),/Add Region/,'Region Add action uses the full Business Lines-style label');
  assert.equal(await page.locator('.mw-results .rf-table tbody tr').count(),0,'Region Master starts empty');
 
  await page.locator('.mw-state [data-mw="create"]').click();
@@ -98,6 +107,8 @@ try{
  await page.locator('#mw-save').click();
  await page.locator('dialog').waitFor({state:'detached'});
  await page.waitForFunction(()=>document.querySelector('.rf-table tbody')?.textContent.includes('RN-001'));
+ const headers=await page.locator('.rf-table thead th[data-column-key]').evaluateAll(nodes=>nodes.map(n=>n.dataset.columnKey));
+ assert.deepEqual(headers.slice(0,8),['name','displayId','businessLine','code','regionalManager','status','owner','updatedAt'],'Region default table order follows the Business Lines business-first pattern');
  assert.equal(await page.locator('.rf-table [data-mw="archive"]').count(),0,'Active Region does not show Archive before Deactivate');
 
  await page.locator('.rf-table [data-mw="read"][data-record]').first().click();
