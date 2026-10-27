@@ -108,7 +108,7 @@ function decorate(row,page,label) {
   const settings=actions.querySelector('.mw-settings-menu');
   for(const node of [importer,exporter,filter,settings])if(node)actions.append(node);
   const customize=settings?.querySelector('summary');
-  if(customize){customize.setAttribute('aria-label','Customize Business Lines');customize.title='Customize Business Lines';}
+  if(customize){customize.setAttribute('aria-label','Customize '+label);customize.title='Customize '+label;}
 
   const home=tabs.querySelector('[data-mw="home"]');
   if(home)tabs.prepend(home);
