@@ -20,6 +20,7 @@ const staticFiles = [
   'business-lines-ui.js',
   'country-ui.js',
   'region-ui.js',
+  'branch-master-ui.js',
   'records-tools.js',
   'records-tools.css',
   'round-10-enhancements.css',
