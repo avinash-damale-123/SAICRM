@@ -65,8 +65,7 @@ CREATE TABLE IF NOT EXISTS branch_master_events (
  created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS branch_master_events_record_v10 ON branch_master_events(branch_id,id);
-DROP TRIGGER IF EXISTS branch_master_events_append_only ON branch_master_events;
-CREATE TRIGGER branch_master_events_append_only BEFORE UPDATE OR DELETE ON branch_master_events FOR EACH ROW EXECUTE FUNCTION prevent_audit_mutation();
+CREATE OR REPLACE TRIGGER branch_master_events_append_only BEFORE UPDATE OR DELETE ON branch_master_events FOR EACH ROW EXECUTE FUNCTION prevent_audit_mutation();
 
 -- Validate actual Business Line / Region / Country presence at the database boundary.
 -- Editing contact text on an older historical Branch must not require reactivating its parents.
@@ -93,8 +92,7 @@ BEGIN
  END IF;
  RETURN NEW;
 END $$;
-DROP TRIGGER IF EXISTS branch_masters_validate_mapping ON branch_masters;
-CREATE TRIGGER branch_masters_validate_mapping BEFORE INSERT OR UPDATE ON branch_masters
+CREATE OR REPLACE TRIGGER branch_masters_validate_mapping BEFORE INSERT OR UPDATE ON branch_masters
 FOR EACH ROW EXECUTE FUNCTION branch_masters_validate_mapping_v10();
 
 CREATE OR REPLACE FUNCTION prevent_active_branch_dependency_v10() RETURNS trigger
@@ -122,17 +120,13 @@ BEGIN
  END IF;
  RETURN NEW;
 END $$;
-DROP TRIGGER IF EXISTS active_branch_presence_guard ON country_business_lines;
-CREATE TRIGGER active_branch_presence_guard BEFORE UPDATE ON country_business_lines
+CREATE OR REPLACE TRIGGER active_branch_presence_guard BEFORE UPDATE ON country_business_lines
  FOR EACH ROW EXECUTE FUNCTION prevent_active_branch_dependency_v10();
-DROP TRIGGER IF EXISTS active_branch_region_guard ON regions;
-CREATE TRIGGER active_branch_region_guard BEFORE UPDATE ON regions
+CREATE OR REPLACE TRIGGER active_branch_region_guard BEFORE UPDATE ON regions
  FOR EACH ROW EXECUTE FUNCTION prevent_active_branch_dependency_v10();
-DROP TRIGGER IF EXISTS active_branch_country_guard ON countries;
-CREATE TRIGGER active_branch_country_guard BEFORE UPDATE ON countries
+CREATE OR REPLACE TRIGGER active_branch_country_guard BEFORE UPDATE ON countries
  FOR EACH ROW EXECUTE FUNCTION prevent_active_branch_dependency_v10();
-DROP TRIGGER IF EXISTS active_branch_business_line_guard ON business_lines;
-CREATE TRIGGER active_branch_business_line_guard BEFORE UPDATE ON business_lines
+CREATE OR REPLACE TRIGGER active_branch_business_line_guard BEFORE UPDATE ON business_lines
  FOR EACH ROW EXECUTE FUNCTION prevent_active_branch_dependency_v10();
 
 DO $runtime_access$
