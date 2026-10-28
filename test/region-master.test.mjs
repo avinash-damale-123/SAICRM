@@ -125,7 +125,7 @@ test('Region migration enforces parent Business Line, composite name uniqueness 
 
 test('Region visible workspace uses the Business Lines master record experience',async()=>{
  const workspace=await readFile(new URL('../module-workspace.js',import.meta.url),'utf8');
- assert.match(workspace,/\['business-lines','regions'\]\.includes\(config\.key\).*openBlRecord/s);
+ assert.match(workspace,/\['business-lines','regions','branch-master'\]\.includes\(config\.key\).*openBlRecord/s);
  assert.match(workspace,/const regionGroups=\[/);
  assert.match(workspace,/Region Information/);
  assert.match(workspace,/Ownership Details/);
