@@ -701,3 +701,10 @@ dialog.mw-bl-dialog:is(.mw-bl-create-dialog,.mw-bl-record-dialog) :is(#mw-cancel
 
 .mw-country-overview-link{appearance:none;border:0;background:transparent;color:#087544;font:inherit;font-weight:650;text-align:left;min-width:0;padding:3px 0;cursor:pointer;overflow-wrap:anywhere;text-decoration:underline;text-underline-offset:3px}
 .mw-country-overview-link:hover,.mw-country-overview-link:focus-visible{color:#125b37}
+
+/* Branch Master: match shared Business Lines popup instead of falling back to raw form styles. */
+dialog.mw-bl-dialog.mw-bl-create-dialog:has(#mw-record-form [name="businessLineRef"]){width:min(930px,calc(100vw - 32px))!important}
+dialog.mw-bl-dialog.mw-bl-create-dialog:has(#mw-record-form [name="businessLineRef"]) .mw-bl-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 14px!important}
+dialog.mw-bl-dialog.mw-bl-create-dialog:has(#mw-record-form [name="businessLineRef"]) .mw-bl-field{min-width:0}
+dialog.mw-bl-dialog.mw-bl-create-dialog:has(#mw-record-form [name="businessLineRef"]) .mw-bl-field .mw-bl-value-cell{min-width:0}
+@media(max-width:700px){dialog.mw-bl-dialog.mw-bl-create-dialog:has(#mw-record-form [name="businessLineRef"]) .mw-bl-grid{grid-template-columns:minmax(0,1fr)!important}}

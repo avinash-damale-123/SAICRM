@@ -148,7 +148,7 @@ test('Region visible lifecycle actions follow the strict sequence before backend
 
 test('Region parity release cache-busts the shared visible UI assets',async()=>{
  const html=await readFile(new URL('../index.html',import.meta.url),'utf8');
- assert.match(html,/records-tools\.js\?v=20261027-(?:region-parity-r1|country-region-parity|region-shell-parity-r2)/);
- assert.match(html,/module-workspace\.js\?v=20261027-(?:region-parity-r1|country-region-parity|region-shell-parity-r2)/);
+ assert.match(html,/records-tools\.js\?v=20261027-(?:region-parity-r1|country-region-parity|region-shell-parity-r2|branch-parity-r2)/);
+ assert.match(html,/module-workspace\.js\?v=(?:20261027-(?:region-parity-r1|country-region-parity|region-shell-parity-r2)|20261028-branch-parity-r2)/);
  assert.match(html,/region-ui\.js\?v=20261027-(?:region-parity-r1|region-shell-parity-r2)/);
 });
