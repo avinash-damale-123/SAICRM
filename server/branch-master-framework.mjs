@@ -2,7 +2,8 @@ import {branchMasters,branchMasterView,branchMasterLookup} from './branch-master
 import {branchMasterResource,branchMasterPermissions} from './resources.mjs';
 import {fail,queryOptions,compileWhere,compileOrder,selectSQL,joinSQL,publicColumns,keys} from './branch-master-schema.mjs';
 import {loadPolicy,effectivePolicy,preferences,savePreferences,configureColumns,projectRecord} from './branch-master-policy.mjs';
-import {importFields,fileLimits,template,fileResponse} from './branch-master-files.mjs';
+import {importFields,fileLimits,template,fileResponse,fileBytes,exportTimeZone,exportFilename} from './branch-master-files.mjs';
+import {uploadImport,validateImport,exportPlan,createExport,bulkPlan,createBulk,startJob,stepJob,jobHistory,jobDetails,jobFile,errorReport,cancelJob,jobGuidelines,resultReport} from './branch-master-jobs.mjs';
 
 export async function branchMasterFramework(context){
  const {client,user,path,method,url,body={}}=context;
@@ -21,6 +22,39 @@ export async function branchMasterFramework(context){
   return {version:1,fields:publicColumns(effective.allowed),importFields,limits:fileLimits,policy:effective,preferences:await preferences(client,user,effective),permissions};
  }
  if(path[1]==='imports'&&path[2]==='template'&&path.length===3&&method==='GET'){need('import');const format=url.searchParams.get('format')||'xlsx';return fileResponse(await template(format),'branches-import-template.'+format);}
+ if(path[1]==='imports'&&path[2]==='guidelines'&&path.length===3&&method==='GET'){need('import');const format=url.searchParams.get('format')||'csv';const {importGuidelines}=await import('./branch-master-files.mjs');return fileResponse(await importGuidelines(format),'branches-import-guidelines.'+format);}
+ if(path[1]==='imports'&&path[2]==='analyze'&&method==='POST')return uploadImport(client,user,body);
+ if(path[1]==='imports'&&path[3]==='validate'&&method==='POST')return validateImport(client,user,path[2],body);
+ if(path[1]==='exports'&&path[2]==='plan'&&method==='POST')return exportPlan(client,user,body);
+ if(path[1]==='exports'&&path.length===2&&method==='POST')return createExport(client,user,body);
+ if(path[1]==='bulk'&&path[2]==='plan'&&method==='POST')return bulkPlan(client,user,body);
+ if(path[1]==='bulk'&&path.length===2&&method==='POST')return createBulk(client,user,body);
+ if(path[1]==='jobs'){
+  if(path.length===2&&method==='GET')return jobHistory(client,user);
+  if(path.length===3&&method==='GET')return jobDetails(client,user,path[2]);
+  if(method==='POST'&&path.length===4){
+   if(path[3]==='start')return startJob(client,user,path[2],body);
+   keys(body,[]);
+   if(path[3]==='step')return stepJob(client,user,path[2]);
+   if(path[3]==='cancel')return cancelJob(client,user,path[2]);
+  }
+  if(method==='GET'&&path.length===4){
+   if(path[3]==='file')return jobFile(client,user,path[2],url.searchParams.get('part')||1);
+   if(path[3]==='errors')return errorReport(client,user,path[2],url.searchParams.get('part')||1);
+   if(path[3]==='guidelines')return jobGuidelines(client,user,path[2],url.searchParams.get('format')||'csv');
+   if(path[3]==='results')return resultReport(client,user,path[2],url.searchParams.get('part')||1,url.searchParams.get('format')||'csv');
+  }
+  fail(405,'Unsupported Branch transfer job action');
+ }
+ if(path[1]==='overview-export'&&path.length===2&&method==='POST'){
+  need('dashboard');need('export');keys(body,['query','format','timeZone']);const format=body.format||'xlsx';
+  if(!['csv','xlsx'].includes(format))fail(400,'Choose CSV or XLSX');
+  const effective=effectivePolicy(await loadPolicy(client),user);
+  const opt=queryOptions(body.query||{},effective.allowed),where=compileWhere(opt,effective.allowed);
+  const c=(await client.query("SELECT count(*)::int total,count(*) FILTER(WHERE r.status='Active' AND r.archived_at IS NULL AND r.deleted_at IS NULL)::int active,count(*) FILTER(WHERE r.status='Inactive' AND r.archived_at IS NULL AND r.deleted_at IS NULL)::int inactive,count(*) FILTER(WHERE r.archived_at IS NOT NULL AND r.deleted_at IS NULL)::int archived,count(*) FILTER(WHERE r.deleted_at IS NOT NULL)::int deleted "+joinSQL+where.sql,where.params)).rows[0];
+  const data=Object.entries(c).map(([metric,value])=>({metric,value})),tz=exportTimeZone(body.timeZone??'UTC');
+  return fileResponse(await fileBytes(format,['metric','value'],data,{metric:'Metric',value:'Matching records'},{title:'Branches Overview',timeZone:tz}),exportFilename('Branches Overview',format,{timeZone:tz}));
+ }
  if(path[1]==='references'&&method==='GET')return branchMasters(context);
  if(path.length===1&&method==='GET'){
   const effective=effectivePolicy(await loadPolicy(client),user),options=queryOptions(Object.fromEntries(url.searchParams),effective.allowed);
