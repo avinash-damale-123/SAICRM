@@ -99,7 +99,7 @@ try{
  assert.equal(requests.filter(r=>r.path==='branch-master'&&r.method==='POST').length,1);
  await page.locator('.rf-table [data-mw="read"][data-record]').first().click();
  await page.locator('.mw-bl-detail-page').waitFor();
- assert.ok(await page.locator('.mw-bl-section summary').filter({hasText:'Contact Information'}).count());
+ await page.locator('.mw-bl-section summary').filter({hasText:'Contact Information'}).waitFor({state:'attached'});
  assert.ok(await page.locator('.mw-bl-section summary').filter({hasText:'Management'}).count());
  await page.locator('#bl-edit').click();
  const edit=page.locator('#mw-bl-page-form');await edit.waitFor();
