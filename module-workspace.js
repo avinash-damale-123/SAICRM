@@ -359,7 +359,7 @@ function create(host,config) {
  const fieldHTML=f=>{const value=currentValue(f),label='<label class="mw-field '+(f.full?'mw-field-full':'')+'">'+esc(f.label)+(f.required?' <span class="mw-required" aria-hidden="true">*</span>':'');const attrs='name="'+esc(f.key)+'" '+(f.required?'required ':'')+(f.maxLength?'maxlength="'+f.maxLength+'" ':'');
  if(f.type==='readonly')return label+'<input value="'+esc(value)+'" readonly aria-readonly="true"></label>';
  if(f.type==='multi-select'){const selected=new Set(Array.isArray(value)?value:[]),options=[...(f.optionsFrom?(state.referenceData[f.optionsFrom]||[]):(f.options||[]))];if(f.key==='businessLineIds'&&record?.businessLines){for(const line of record.businessLines)if(!options.some(option=>typeof option==='object'&&option.id===line.id))options.push({...line,name:line.name+' (Inactive — existing mapping)'});}return label+'<select '+attrs+' multiple size="'+Math.min(7,Math.max(3,options.length||3))+'">'+options.map(option=>{const key=typeof option==='object'?option.id:option,text=typeof option==='object'?(option.code?option.code+' — ':'')+(option.name||option.label||option.id):option;return '<option value="'+esc(key)+'" '+(selected.has(key)?'selected':'')+'>'+esc(text)+'</option>';}).join('')+'</select><span class="mw-field-hint">Use Ctrl/Cmd-click to select multiple Business Lines.</span></label>';}
- if(f.type==='select'){const rawOptions=f.optionsFrom?(state.referenceData[f.optionsFrom]||[]):(f.options||[]);const options=config.key==='branch-master'&&['regionRef','countryRef'].includes(f.key)?rawOptions.filter(option=>option.businessLineRef===(form?.elements?.namedItem('businessLineRef')?.value||record?.businessLineRef)):rawOptions;const rendered=options.map(option=>{const key=typeof option==='object'?option.id:option,text=typeof option==='object'?(option.code?option.code+' — ':'')+(option.name||option.label||option.id):option;return '<option value="'+esc(key)+'" '+(key===value?'selected':'')+'>'+esc(text)+'</option>';}).join('');return label+'<select '+attrs+'>'+(f.optionsFrom?'<option value="">- Select -</option>':'')+rendered+'</select></label>';}
+ if(f.type==='select'){const rawOptions=f.optionsFrom?(state.referenceData[f.optionsFrom]||[]):(f.options||[]);const options=config.key==='branch-master'&&['regionRef','countryRef'].includes(f.key)?rawOptions.filter(option=>option.businessLineRef===(record?.businessLineRef||'')):rawOptions;const rendered=options.map(option=>{const key=typeof option==='object'?option.id:option,text=typeof option==='object'?(option.code?option.code+' — ':'')+(option.name||option.label||option.id):option;return '<option value="'+esc(key)+'" '+(key===value?'selected':'')+'>'+esc(text)+'</option>';}).join('');return label+'<select '+attrs+'>'+(f.optionsFrom?'<option value="">- Select -</option>':'')+rendered+'</select></label>';}
  if(f.type==='textarea')return label+'<textarea '+attrs+' rows="4" data-counted="'+esc(f.key)+'">'+esc(value)+'</textarea>'+(f.maxLength?'<span class="mw-field-hint"><span data-count-for="'+esc(f.key)+'">'+String(value).length+'</span>/'+f.maxLength+' characters</span>':'')+'</label>';
  return label+'<input '+attrs+'type="'+esc(f.type||'text')+'" autocomplete="off" value="'+esc(value)+'"></label>'};
  function countryForm(){
@@ -389,9 +389,22 @@ function create(host,config) {
  form.querySelectorAll('[data-counted],textarea[name="description"]').forEach(input=>input.oninput=()=>{const count=form.querySelector('[data-count-for="'+(input.dataset.counted||input.name)+'"]');if(count)count.textContent=input.value.length});
  if(['business-lines','regions'].includes(config.key)){const code=form.elements.code;if(code)code.addEventListener('input',()=>{const p=code.selectionStart;code.value=code.value.toUpperCase();code.setSelectionRange(p,p)})}
  if(config.key==='countries')form.querySelectorAll('[name="code"],[name="iso3"],[name="defaultCurrency"]').forEach(field=>field.addEventListener('input',()=>{const caret=field.selectionStart;field.value=field.value.toUpperCase();field.setSelectionRange(caret,caret)}));
+ if(config.key==='branch-master'){
+  const line=form.elements.namedItem('businessLineRef');
+  const sync=()=>{
+   for(const [key,source] of [['regionRef','regions'],['countryRef','countries']]){
+    const el=form.elements.namedItem(key);if(!el)continue;
+    const previous=el.value,options=(state.referenceData[source]||[]).filter(o=>o.businessLineRef===line.value);
+    el.innerHTML='<option value="">- Select -</option>'+options.map(o=>'<option value="'+esc(o.id)+'">'+esc((o.code?o.code+' — ':'')+o.name)+'</option>').join('');
+    if(options.some(o=>o.id===previous))el.value=previous;
+   }
+  };
+  line?.addEventListener('change',sync);sync();
+  const code=form.elements.namedItem('code');code?.addEventListener('input',()=>{const start=code.selectionStart;code.value=code.value.toUpperCase();code.setSelectionRange(start,start)});
+ }
  form.onsubmit=async e=>{e.preventDefault();if(dialogSaving||!permitted(editing?'edit':'create'))return;if(!form.checkValidity()){if(['business-lines','regions'].includes(config.key))form.querySelectorAll('.mw-bl-section details').forEach(section=>{section.open=true});form.reportValidity();return}const values=new FormData(form),error=d.querySelector('.mw-form-error');error.hidden=true;const body=Object.fromEntries(fields.filter(f=>f.type!=='readonly').map(f=>[f.key,f.type==='multi-select'?values.getAll(f.key).map(v=>String(v).trim()).filter(Boolean):String(values.get(f.key)||'').trim()]));if(editing)body.version=record.version;
  if(config.recordsFramework&&config.key!=='branch-master')body.timeZone=actionTimeZone();
- if(config.key==='business-lines'&&editing){
+ if(['business-lines','branch-master'].includes(config.key)&&editing){
   const status=form.querySelector('[name="status"]')?.value||record.status;
   if(status!==record.status){const reason=form.querySelector('#mw-bl-status-reason')?.value.trim()||'';
    if(!reason){error.textContent='Reason is mandatory for status changes.';error.hidden=false;form.querySelector('#mw-bl-status-reason')?.focus();return;}
