@@ -82,9 +82,9 @@ export async function validateImport(client,user,id,body){
  const lineMap=new Map(lines.map(r=>[r.code,r.id]));
  const regionMap=new Map(regions.map(r=>[r.code+'|'+r.business_line_id,r.id]));
  const countryMap=new Map(countries.map(r=>[r.code+'|'+r.business_line_id,r.id]));
- for(const row of valid){const p=row.payload,line=lineMap.get(p.businessLineCode);if(!line){row.error='Unknown or inactive Business Line Code';row.status='failed';continue;}const region=regionMap.get(p.regionCode+'|'+line),country=countryMap.get(p.countryCode+'|'+line);if(!region||!country){row.error=!region?'Branch not Active in this Business Line':'Country is not Active or lacks Business Line presence';row.status='failed';continue;}p.businessLineRef=line;p.regionRef=region;p.countryRef=country;}
+ for(const row of valid){const p=row.payload,line=lineMap.get(p.businessLineCode);if(!line){row.error='Unknown or inactive Business Line Code';row.status='failed';continue;}const region=regionMap.get(p.regionCode+'|'+line),country=countryMap.get(p.countryCode+'|'+line);if(!region||!country){row.error=!region?'Region is not Active in this Business Line':'Country is not Active or lacks Business Line presence';row.status='failed';continue;}p.businessLineRef=line;p.regionRef=region;p.countryRef=country;}
  const eligible=rows.filter(r=>!r.error);
- const existing=(await client.query("SELECT r.id,r.display_id,r.business_line_id,r.country_id,r.region_id,r.name,r.code,r.version,r.archived_at,r.deleted_at,lower(regexp_replace(btrim(r.name),'[[:space:]]+',' ','g')) name_key FROM branch_masters r WHERE r.display_id=ANY($1::text[]) OR r.code=ANY($2::text[]) OR (r.business_line_id=ANY($3::uuid[]) AND r.country_id=ANY($4::uuid[]) AND lower(regexp_replace(btrim(r.name),'[[:space:]]+',' ','g'))=ANY($5::text[]))",[
+ const existing=(await client.query("SELECT r.*,lower(regexp_replace(btrim(r.name),'[[:space:]]+',' ','g')) name_key FROM branch_masters r WHERE r.display_id=ANY($1::text[]) OR r.code=ANY($2::text[]) OR (r.business_line_id=ANY($3::uuid[]) AND r.country_id=ANY($4::uuid[]) AND lower(regexp_replace(btrim(r.name),'[[:space:]]+',' ','g'))=ANY($5::text[]))",[
   eligible.map(r=>r.payload.displayId||''),eligible.map(r=>r.payload.code),eligible.map(r=>r.payload.businessLineRef),eligible.map(r=>r.payload.countryRef),eligible.map(r=>r.payload.name.toLowerCase())
  ])).rows;
  const byId=new Map(existing.map(r=>[r.display_id,r])),byCode=new Map(existing.map(r=>[r.code,r])),byName=new Map(existing.map(r=>[r.business_line_id+'|'+r.country_id+'|'+r.name_key,r]));
@@ -97,7 +97,22 @@ export async function validateImport(client,user,id,body){
   else if(byName.has(key)&&byName.get(key).id!==match?.id)error='Branch Name already used within Business Line and Country';
   if(error){row.status='failed';row.error=error;continue;}
   row.record_id=match?.id||null;row.expected_version=match?.version||null;
-  if(match&&match.name===p.name&&match.code===p.code&&match.business_line_id===p.businessLineRef&&match.region_id===p.regionRef&&match.country_id===p.countryRef&&Object.keys(p).every(k=>!['name','code','businessLineRef','regionRef','countryRef'].includes(k)||true)&&false){row.status='skipped';row.error='No change';}
+  const importToColumn={
+   businessLineRef:'business_line_id',regionRef:'region_id',countryRef:'country_id',
+   name:'name',code:'code',fullName:'full_name',branchType:'branch_type',city:'city',
+   stateProvince:'state_province',timeZone:'time_zone',addressLine1:'address_line1',
+   addressLine2:'address_line2',landmark:'landmark',postalCode:'postal_code',
+   phoneDialCode:'phone_dial_code',primaryContact:'primary_contact',
+   alternateContact:'alternate_contact',officialEmail:'official_email',
+   website:'website',operationalStartDate:'operational_start_date',
+   legacyBranchCode:'legacy_branch_code',remarks:'remarks'
+  };
+  const unchanged=match&&Object.entries(importToColumn).every(([key,col])=>{
+   if(!own(p,key))return true;
+   const previous=match[col] instanceof Date?match[col].toISOString().slice(0,10):match[col];
+   return String(previous??'')===String(p[key]??'');
+  });
+  if(unchanged){row.status='skipped';row.error='No changes: this Branch already contains the supplied values.';}
  }
  await client.query('DELETE FROM crm_transfer_items WHERE job_id=$1',[id]);await putItems(client,id,rows);
  const failed=rows.filter(r=>r.status==='failed').length,unchanged=rows.filter(r=>r.status==='skipped').length,validationToken=randomUUID();
@@ -180,7 +195,7 @@ export async function jobFile(client,user,id,part){const job=await jobFor(client
 export async function errorReport(client,user,id,part){
  const job=await jobFor(client,user,id);
  const rows=(await client.query("SELECT ordinal,error,payload FROM crm_transfer_items WHERE job_id=$1 AND status=ANY($3::text[]) ORDER BY ordinal LIMIT 1000 OFFSET $2",[id,(integer(part,1,1,Math.max(1,Math.ceil(job.total/1000)))-1)*1000,job.kind==='import'?['failed']:['failed','skipped']])).rows;
- return fileResponse({bytes:csvBytes(['Source Row','Branch ID','Business Line Code','Branch Name','Branch Code','Branchal Manager','Remarks','Error'],rows.map(r=>[r.ordinal,r.payload.displayId||'',r.payload.businessLineCode||'',r.payload.name||'',r.payload.code||'',r.payload.city||'',r.payload.remarks||'',r.error])),mime:'text/csv;charset=utf-8'},exportFilename('Branches Failed Rows','csv',{generatedAt:job.created_at,suffix:'part-'+String(part).padStart(3,'0')}));
+ return fileResponse({bytes:csvBytes(['Source Row','Branch ID','Business Line Code','Branch Name','Branch Code','City','Remarks','Error'],rows.map(r=>[r.ordinal,r.payload.displayId||'',r.payload.businessLineCode||'',r.payload.name||'',r.payload.code||'',r.payload.city||'',r.payload.remarks||'',r.error])),mime:'text/csv;charset=utf-8'},exportFilename('Branches Failed Rows','csv',{generatedAt:job.created_at,suffix:'part-'+String(part).padStart(3,'0')}));
 }
 export async function jobGuidelines(client,user,id,format='csv'){
  const job=await jobFor(client,user,id);if(job.kind!=='export')fail(400,'Choose an export job');
@@ -193,7 +208,7 @@ export async function resultReport(client,user,id,part=1,format='csv'){
  const job=await jobFor(client,user,id);if(job.kind!=='import')fail(400,'Choose an import job');
  const rows=(await client.query('SELECT ordinal,status,error,payload,record_id,expected_version FROM crm_transfer_items WHERE job_id=$1 ORDER BY ordinal LIMIT 1000 OFFSET $2',[id,(integer(part,1,1,Math.max(1,Math.ceil(job.total/1000)))-1)*1000])).rows;
  const records=rows.map(r=>({sourceRow:r.ordinal,outcome:r.status==='succeeded'?(r.payload._result?.action||(r.expected_version?'Updated':'Created')):r.status==='skipped'?'Unchanged':r.status==='failed'?'Failed':'Pending',displayId:r.payload._result?.displayId||r.payload.displayId||'',businessLineCode:r.payload.businessLineCode||'',name:r.payload.name||'',code:r.payload.code||'',city:r.payload.city||'',remarks:r.payload.remarks||'',message:r.error||''}));
- const columns=['sourceRow','outcome','displayId','businessLineCode','name','code','city','remarks','message'],labels={sourceRow:'Source Row',outcome:'Outcome',businessLineCode:'Business Line Code',city:'Branchal Manager',remarks:'Remarks',message:'Result / correction needed'};
+ const columns=['sourceRow','outcome','displayId','businessLineCode','name','code','city','remarks','message'],labels={sourceRow:'Source Row',outcome:'Outcome',businessLineCode:'Business Line Code',city:'City',remarks:'Remarks',message:'Result / correction needed'};
  return fileResponse(await fileBytes(format,columns,records,labels,{title:'Branches Import Outcome',generatedAt:job.created_at}),exportFilename('Branches Import Outcome',format,{generatedAt:job.created_at,suffix:'part-'+String(part).padStart(3,'0')}));
 }
 export async function cancelJob(client,user,id){const job=await jobFor(client,user,id,true);if(!terminal.has(job.status)){await client.query("UPDATE crm_transfer_jobs SET status='cancelled',updated_at=now() WHERE id=$1",[id]);await audit(client,user,'Transfer cancelled; committed batches retained',id);}return {job:jobView(await jobFor(client,user,id))};}
