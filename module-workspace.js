@@ -384,7 +384,48 @@ function create(host,config) {
    if(!section.open&&field&&field===document.activeElement)section.querySelector('summary')?.focus();
   }));
  }
- function formValues(form){return JSON.stringify([...new FormData(form).entries()])}
+ function wireBranchGeography(form,record=null){
+   const line=form.elements.namedItem('businessLineRef');
+   if(!line)return;
+   const note=document.createElement('div');note.className='mw-branch-dependency-notice';
+   note.setAttribute('role','status');note.setAttribute('aria-live','polite');
+   const tools=form.querySelector(':scope > .mw-bl-section-tools');
+   if(tools)tools.after(note);else form.prepend(note);
+   const fields=[['regionRef','regions','Region','Regions'],['countryRef','countries','Country','Countries (Business Line Presence)']];
+   const hints=new Map();
+   for(const [key,,label] of fields){
+    const el=form.elements.namedItem(key);if(!el)continue;
+    const hint=document.createElement('small');hint.className='mw-branch-geo-hint';hint.hidden=true;
+    hint.id='mw-branch-'+key+'-help';hint.setAttribute('role','status');
+    el.closest('.mw-bl-value-cell')?.append(hint);el.setAttribute('aria-describedby',hint.id);
+    hints.set(key,hint);
+   }
+   const sync=()=>{
+    const lineId=line.value,name=line.options[line.selectedIndex]?.textContent?.trim()||'selected Business Line';
+    const missing=[];
+    for(const [key,source,label,master] of fields){
+     const el=form.elements.namedItem(key);if(!el)continue;
+     const prior=el.value;
+     const options=(state.referenceData[source]||[]).filter(o=>o.businessLineRef===lineId);
+     if(record&&lineId===record.businessLineRef&&record[key]&&!options.some(o=>o.id===record[key])){
+      const name=record[key==='regionRef'?'region':'country']||'Current '+label;
+      options.push({id:record[key],name:name+' (historical mapping)'});
+     }
+     const placeholder=!lineId?'Select Business Line first':options.length?'- Select -':'No '+(key==='regionRef'?'Active Regions':'Country presence')+' configured';
+     el.innerHTML='<option value="">'+esc(placeholder)+'</option>'+options.map(o=>'<option value="'+esc(o.id)+'">'+esc((o.code?o.code+' — ':'')+o.name)+'</option>').join('');
+     if(options.some(o=>o.id===prior))el.value=prior;
+     const hint=hints.get(key);
+     if(hint){const unavailable=!!lineId&&!options.length;hint.hidden=!unavailable;hint.textContent=unavailable?'No '+label+' is available for '+name+'. Configure it under Settings & Masters → '+master+'.':'';}
+     if(lineId&&!options.length)missing.push(key==='regionRef'?'Active Region':'Country presence');
+    }
+    note.hidden=!!lineId&&!missing.length;
+    if(!lineId)note.innerHTML='<strong>Choose a Business Line first.</strong> Its available Regions and Countries will then appear.';
+    else if(missing.length)note.innerHTML='<strong>Branch setup is incomplete for '+esc(name)+'.</strong> Missing '+esc(missing.join(' and '))+'. Configure the linked Region and Country relationships in Settings & Masters before creating a Branch.';
+    else note.textContent='';
+   };
+   line.addEventListener('change',sync);sync();
+  }
+  function formValues(form){return JSON.stringify([...new FormData(form).entries()])}
  function editForm(record){
  if(dead||!permitted(record?'edit':'create'))return;
  if(record&&['business-lines','regions','branch-master'].includes(config.key)){openBlRecord(record.id,true);return;}
