@@ -28,11 +28,13 @@ async function validateMapping(client,line,region,country){if(![line,region,coun
  if(!rg.rowCount)fail(409,'Select an Active Region belonging to the selected Business Line');
  if(!ct.rowCount)fail(409,'Select an Active Country where the Business Line has presence');
 }
-async function dependencies(client,row){const [scopes,records]=await Promise.all([
- client.query("SELECT count(*)::int AS count FROM user_scopes us JOIN users u ON u.id=us.user_id WHERE us.branch=$1 AND us.line=$2 AND u.status='approved'",[row.code,row.business_line_code]),
- client.query("SELECT module,count(*)::int AS count FROM records WHERE (data->>'branchId'=$1 OR data->>'branch_id'=$1 OR (scope_branch=$2 AND scope_line=$3)) AND lower(COALESCE(data->>'status','Active')) NOT IN ('inactive','archived','deleted','completed','cancelled','closed','closed won','closed lost','converted','lost') GROUP BY module ORDER BY module",[row.id,row.code,row.business_line_code])]);
- const list=[{module:'Active user assignments',count:Number(scopes.rows[0]?.count||0)},...records.rows.map(r=>({module:r.module,count:Number(r.count)}))];
- return {related:list,total:list.reduce((n,r)=>n+r.count,0),active:list.reduce((n,r)=>n+r.count,0)};
+async function dependencies(client,row){
+ const [scopes,records]=await Promise.all([
+  client.query("SELECT count(*)::int AS count,count(*) FILTER (WHERE u.status='approved')::int AS active FROM user_scopes us JOIN users u ON u.id=us.user_id WHERE us.branch=$1 AND us.line=$2",[row.code,row.business_line_code]),
+  client.query("SELECT module,count(*)::int AS count,count(*) FILTER (WHERE lower(COALESCE(data->>'status','Active')) NOT IN ('inactive','archived','deleted','completed','cancelled','closed','closed won','closed lost','converted','lost'))::int AS active FROM records WHERE (data->>'branchId'=$1 OR data->>'branch_id'=$1 OR (scope_branch=$2 AND scope_line=$3)) GROUP BY module ORDER BY module",[row.id,row.code,row.business_line_code])
+ ]);
+ const related=[{module:'User assignments',count:Number(scopes.rows[0]?.count||0),active:Number(scopes.rows[0]?.active||0)},...records.rows.map(r=>({module:r.module,count:Number(r.count),active:Number(r.active)}))];
+ return {related,total:related.reduce((n,r)=>n+r.count,0),active:related.reduce((n,r)=>n+r.active,0)};
 }
 const change=(a,b)=>Object.fromEntries(Object.keys(b).filter(k=>!['id','version'].includes(k)&&JSON.stringify(a?.[k]??null)!==JSON.stringify(b[k]??null)).map(k=>[k,{before:a?.[k]??null,after:b[k]??null}]));
 async function event(client,user,id,action,before,after,reason=null){await client.query('INSERT INTO branch_master_events(branch_id,actor_id,action,changes,reason) VALUES($1,$2,$3,$4,$5)',[id,user.id,action,change(before,after),reason]);await client.query('INSERT INTO audit(actor,action,module,record_id) VALUES($1,$2,$3,$4)',[user.id,action,'branch-master',id]);}
@@ -66,9 +68,11 @@ export async function branchMasters({client,user,path,method,url,body={}}){
  if(path.length===2&&method==='PUT'){need('edit');checkKeys(body,editable);version(body.version);const old=await load(client,path[1],true),before=view(old);if(old.version!==body.version)fail(409,'This Branch changed; reload before saving');if(old.archived_at||old.deleted_at)fail(409,'Restore Branch before editing');
  const v=data(body,old),line=body.businessLineRef??old.business_line_id,region=body.regionRef??old.region_id,country=body.countryRef??old.country_id;
  const changed=line!==old.business_line_id||region!==old.region_id||country!==old.country_id;
+ const codeChanged=v.code!==old.code;
  const status=body.status??old.status;if(!['Active','Inactive'].includes(status))fail(400,'Invalid Branch status');
- const deps=changed||status==='Inactive'&&old.status==='Active'?await dependencies(client,old):null;
- if(deps?.total)fail(409,'Branch is linked to Active Users or operational work. Review Related / Used In first.');
+ const deps=changed||codeChanged||status==='Inactive'&&old.status==='Active'?await dependencies(client,old):null;
+ if((changed||codeChanged)&&deps?.total)fail(409,'Branch Code or organizational mapping cannot change while records are linked, including historical references. Review Related / Used In first.');
+ if(status==='Inactive'&&old.status==='Active'&&deps?.active)fail(409,'Deactivate is blocked by Active User assignments or open work. Review Related / Used In first.');
  if(changed||status==='Active'&&old.status!=='Active')await validateMapping(client,line,region,country);
  let m=old.branch_manager_id;if(own(body,'branchManagerRef'))m=await manager(client,body.branchManagerRef);
  let owner=old.owner_id;if(own(body,'ownerId')){need('reassignOwner');const r=await client.query("SELECT id FROM users WHERE display_id=$1 AND status='approved' AND email_verified=true",[body.ownerId]);if(!r.rowCount)fail(400,'Owner is not eligible');owner=r.rows[0].id;}
@@ -81,7 +85,7 @@ export async function branchMasters({client,user,path,method,url,body={}}){
  return {record:after};}
  if(path.length===3&&['archive','restore','soft-delete','restore-deleted'].includes(path[2])&&method==='POST'){
  const action=path[2],grant={archive:'archive',restore:'restore','soft-delete':'softDelete','restore-deleted':'restoreDeleted'}[action];need(grant);checkKeys(body,['version','reason','timeZone']);version(body.version);const old=await load(client,path[1],true),before=view(old);if(old.version!==body.version)fail(409,'This Branch changed. Reload before continuing');const why=reason(body.reason);
- if(action==='archive'){if(old.status!=='Inactive'||old.archived_at||old.deleted_at)fail(409,'Deactivate Branch before archiving');const d=await dependencies(client,old);if(d.total)fail(409,'Branch is still linked to active work');await client.query('UPDATE branch_masters SET archived_at=now(),archived_by=$2,updated_at=now(),updated_by=$2,version=version+1 WHERE id=$1',[old.id,user.id]);}
+ if(action==='archive'){if(old.status!=='Inactive'||old.archived_at||old.deleted_at)fail(409,'Deactivate Branch before archiving');const d=await dependencies(client,old);if(d.active)fail(409,'Branch is still linked to active work');await client.query('UPDATE branch_masters SET archived_at=now(),archived_by=$2,updated_at=now(),updated_by=$2,version=version+1 WHERE id=$1',[old.id,user.id]);}
  if(action==='restore'){if(old.deleted_at||!old.archived_at)fail(409,'Branch is not Archived');await client.query("UPDATE branch_masters SET archived_at=NULL,archived_by=NULL,status='Inactive',updated_at=now(),updated_by=$2,version=version+1 WHERE id=$1",[old.id,user.id]);}
  if(action==='soft-delete'){if(!old.archived_at||old.deleted_at)fail(409,'Only Archived Branch can be deleted');const d=await dependencies(client,old);if(d.total)fail(409,'Branch is still linked to active work');await client.query('UPDATE branch_masters SET deleted_at=now(),deleted_by=$2,updated_at=now(),updated_by=$2,version=version+1 WHERE id=$1',[old.id,user.id]);}
  if(action==='restore-deleted'){if(!old.deleted_at)fail(409,'Branch is not Deleted');await client.query('UPDATE branch_masters SET deleted_at=NULL,deleted_by=NULL,archived_at=COALESCE(archived_at,now()),archived_by=COALESCE(archived_by,$2),status=$3,updated_at=now(),updated_by=$2,version=version+1 WHERE id=$1',[old.id,user.id,'Inactive']);}
