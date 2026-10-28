@@ -78,6 +78,10 @@ try{
  await page.waitForFunction(()=>document.querySelector('.mw-results')?.getAttribute('aria-busy')==='false');
  await page.locator('.mw-state [data-mw="create"]').click();
  const form=page.locator('#mw-record-form');await form.waitFor();
+ assert.ok(await page.locator('dialog[open].mw-bl-dialog.mw-bl-create-dialog').count(),'Branch Create uses shared master modal');
+ assert.equal(await form.locator('[data-bl-field-edit]').count(),0,'Create inputs must not have redundant pencil buttons');
+ assert.equal(await form.locator('[name="timeZone"]').evaluate(el=>el.tagName),'SELECT','Time Zone is selected from IANA names');
+ assert.ok(await page.locator('dialog[open]').evaluate(d=>d.getBoundingClientRect().width>700),'Branch Create has readable desktop width');
  await form.locator('[name="businessLineRef"]').selectOption(lineA);
  assert.deepEqual(await form.locator('[name="regionRef"] option').evaluateAll(nodes=>nodes.map(n=>n.value).filter(Boolean)),[regionA]);
  assert.deepEqual(await form.locator('[name="countryRef"] option').evaluateAll(nodes=>nodes.map(n=>n.value).filter(Boolean)),[countryA]);
@@ -101,12 +105,14 @@ try{
  await page.locator('.mw-bl-detail-page').waitFor();
  await page.locator('.mw-bl-section summary').filter({hasText:'Contact Information'}).waitFor({state:'attached'});
  assert.ok(await page.locator('.mw-bl-section summary').filter({hasText:'Management'}).count());
+ assert.ok(await page.locator('.mw-bl-section summary').filter({hasText:'Related / Used In'}).count(),'Branch details show related CRM use');
  await page.locator('#bl-edit').click();
  const edit=page.locator('#mw-bl-page-form');await edit.waitFor();
  assert.equal(await edit.locator('[name="businessLineRef"]').inputValue(),lineA);
  assert.equal(await edit.locator('[name="regionRef"]').inputValue(),regionA);
  assert.equal(await edit.locator('[name="countryRef"]').inputValue(),countryA);
  await edit.locator('[name="fullName"]').fill('Nairobi Branch Office');
+ assert.equal(await edit.locator('[data-bl-field-edit]').count(),0,'Edit fields use clean inputs without pencil overlays');
  await page.locator('#bl-save').click();
  await page.waitForFunction(()=>!document.querySelector('dialog[open]'));
  assert.equal(records[0].fullName,'Nairobi Branch Office');
