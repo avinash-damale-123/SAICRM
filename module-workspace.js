@@ -432,7 +432,7 @@ function create(host,config) {
   line?.addEventListener('change',sync);sync();
   const code=form.elements.namedItem('code');code?.addEventListener('input',()=>{const start=code.selectionStart;code.value=code.value.toUpperCase();code.setSelectionRange(start,start)});
  }
- form.onsubmit=async e=>{e.preventDefault();if(dialogSaving||!permitted(editing?'edit':'create'))return;if(!form.checkValidity()){if(['business-lines','regions','branch-master'].includes(config.key))form.querySelectorAll('.mw-bl-section details').forEach(section=>{section.open=true});form.reportValidity();return}const values=new FormData(form),error=d.querySelector('.mw-form-error');error.hidden=true;const body=Object.fromEntries(fields.filter(f=>f.type!=='readonly').map(f=>[f.key,f.type==='multi-select'?values.getAll(f.key).map(v=>String(v).trim()).filter(Boolean):String(values.get(f.key)||'').trim()]));if(editing)body.version=record.version;
+ form.onsubmit=async e=>{e.preventDefault();if(dialogSaving||!permitted(editing?'edit':'create'))return;if(!form.checkValidity()){if(['business-lines','regions','branch-master'].includes(config.key))form.querySelectorAll('.mw-bl-section details').forEach(section=>{section.open=true});form.reportValidity();return}const values=new FormData(form),error=d.querySelector('.mw-form-error');error.hidden=true;const body=Object.fromEntries(fields.filter(f=>f.type!=='readonly'&&(!f.views||f.views.includes(editing?'edit':'create'))).map(f=>[f.key,f.type==='multi-select'?values.getAll(f.key).map(v=>String(v).trim()).filter(Boolean):String(values.get(f.key)||'').trim()]));if(editing)body.version=record.version;
  if(config.recordsFramework&&config.key!=='branch-master')body.timeZone=actionTimeZone();
  if(['business-lines','branch-master'].includes(config.key)&&editing){
   const status=form.querySelector('[name="status"]')?.value||record.status;
@@ -763,6 +763,16 @@ function create(host,config) {
   wireBlFieldActions(page,record,editing?'edit':'read');
   if(!editing){d.querySelector('#mw-dialog-title').focus({preventScroll:true});return;}
   const form=page.querySelector('#mw-bl-page-form');blDraft=form;recordsTools?.wireForm(form);
+  if(config.key==='branch-master'){
+   const line=form.elements.namedItem('businessLineRef');
+   const sync=()=>{for(const [key,source] of [['regionRef','regions'],['countryRef','countries']]){
+    const el=form.elements.namedItem(key);if(!el)continue;const prior=el.value;
+    const items=(state.referenceData[source]||[]).filter(o=>o.businessLineRef===line.value);
+    el.innerHTML='<option value="">- Select -</option>'+items.map(o=>'<option value="'+esc(o.id)+'">'+esc((o.code?o.code+' — ':'')+o.name)+'</option>').join('');
+    if(items.some(o=>o.id===prior))el.value=prior;
+   }};
+   line?.addEventListener('change',sync);sync();
+  }
   const baseline=formValues(form),mark=()=>{form.dataset.dirty=String(formValues(form)!==baseline)};
   form.addEventListener('input',mark);form.addEventListener('change',mark);
   const code=form.elements.code;if(code)code.addEventListener('input',()=>{const caret=code.selectionStart;code.value=code.value.toUpperCase();code.setSelectionRange(caret,caret);mark()});
