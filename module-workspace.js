@@ -319,8 +319,12 @@ function create(host,config) {
    if(editingField){
     if(f.type==='select'){
      const opts=[...source].filter(o=>typeof o!=='object'||!['regionRef','countryRef'].includes(key)||o.businessLineRef===(record?.businessLineRef||''));
+      if(mode==='edit'&&selected&&!opts.some(o=>(typeof o==='object'?o.id:o)===selected)){
+       const currentLabel={businessLineRef:record?.businessLine,regionRef:record?.region,countryRef:record?.country,branchManagerRef:record?.branchManager}[key];
+       opts.push({id:selected,code:'',name:(currentLabel||'Existing selection')+' (current)'});
+      }
      control='<select id="'+id+'" name="'+key+'"'+(required?' required':'')+'><option value="">- Select -</option>'+opts.map(o=>{const v=typeof o==='object'?o.id:o,label=typeof o==='object'?(o.code?o.code+' — ':'')+(o.name||o.label||o.id):o;return '<option value="'+esc(v)+'"'+(v===selected?' selected':'')+'>'+esc(label)+'</option>'}).join('')+'</select>';
-    }else if(f.type==='timezone'){const zones=['UTC',...Intl.supportedValuesOf('timeZone')];if(selected&&!zones.includes(selected))zones.push(selected);control='<select id="'+id+'" name="'+key+'"'+(required?' required':'')+'>'+zones.map(zone=>'<option value="'+esc(zone)+'"'+(zone===selected?' selected':'')+'>'+esc(zone)+'</option>').join('')+'</select>'; }else if(f.type==='textarea')control='<textarea id="'+id+'" name="'+key+'" rows="2"'+(limit?' maxlength="'+limit+'"':'')+'>'+esc(selected)+'</textarea>';
+    }else if(f.type==='timezone'){const zones=['UTC',...Intl.supportedValuesOf('timeZone')];if(selected&&!zones.includes(selected))zones.push(selected);control='<select id="'+id+'" name="'+key+'"'+(required?' required':'')+'><option value="">- Select Time Zone -</option>'+zones.map(zone=>'<option value="'+esc(zone)+'"'+(zone===selected?' selected':'')+'>'+esc(zone)+'</option>').join('')+'</select>'; }else if(f.type==='textarea')control='<textarea id="'+id+'" name="'+key+'" rows="2"'+(limit?' maxlength="'+limit+'"':'')+'>'+esc(selected)+'</textarea>';
     else control='<input id="'+id+'" name="'+key+'" type="'+(['date','email','url'].includes(f.type)?f.type:'text')+'" value="'+esc(selected)+'"'+(required?' required':'')+(limit?' maxlength="'+limit+'"':'')+'>';
    }
    const action=mode==='read'&&blFieldActionAllowed(key,record,mode)?'<button type="button" class="mw-bl-field-edit" data-bl-field-edit="'+esc(key)+'" title="Edit '+esc(label)+'" aria-label="Edit '+esc(label)+'">'+blPopupGlyph('edit')+'</button>':'';
@@ -359,7 +363,7 @@ function create(host,config) {
  function blFormSections(record,mode){
   const groups=masterGroups();
   if(mode==='create'&&config.key==='branch-master'){
-   return '<div class="mw-bl-section-tools" role="group" aria-label="Section display"><button type="button" class="mw-bl-section-action" data-bl-sections="expand">Expand all</button><button type="button" class="mw-bl-section-action" data-bl-sections="collapse">Collapse all</button></div>'+groups.slice(0,3).map((group,i)=>'<section class="mw-bl-section"><details '+(i===0?'open':'')+'><summary>'+esc(group.name)+' <span class="mw-bl-chevron">⌄</span></summary><div class="mw-bl-section-content"><div class="mw-bl-grid">'+group.fields.filter(([key])=>masterCreateKeys().includes(key)).map(([key,label])=>blInput(key,label,record,mode)).join('')+'</div></div></details></section>').join('');
+   return '<div class="mw-bl-section-tools" role="group" aria-label="Section display"><button type="button" class="mw-bl-section-action" data-bl-sections="expand">Expand all</button><button type="button" class="mw-bl-section-action" data-bl-sections="collapse">Collapse all</button></div>'+groups.slice(0,3).map((group,i)=>'<section class="mw-bl-section"><details '+(i===0?'open':'')+'><summary>'+esc(group.name)+' <span class="mw-bl-chevron">⌄</span></summary><div class="mw-bl-section-content"><div class="mw-bl-grid">'+(i===0?[...group.fields].sort(([a],[b])=>{const order=['businessLineRef','regionRef','countryRef','name','code','fullName','branchType','city','stateProvince','timeZone'];return order.indexOf(a)-order.indexOf(b)}):group.fields).filter(([key])=>masterCreateKeys().includes(key)).map(([key,label])=>blInput(key,label,record,mode)).join('')+'</div></div></details></section>').join('');
   }
   if(mode==='create'){
    const fields=config.key==='regions'
@@ -380,7 +384,48 @@ function create(host,config) {
    if(!section.open&&field&&field===document.activeElement)section.querySelector('summary')?.focus();
   }));
  }
- function formValues(form){return JSON.stringify([...new FormData(form).entries()])}
+ function wireBranchGeography(form,record=null){
+   const line=form.elements.namedItem('businessLineRef');
+   if(!line)return;
+   const note=document.createElement('div');note.className='mw-branch-dependency-notice';
+   note.setAttribute('role','status');note.setAttribute('aria-live','polite');
+   const tools=form.querySelector(':scope > .mw-bl-section-tools');
+   if(tools)tools.after(note);else form.prepend(note);
+   const fields=[['regionRef','regions','Region','Regions'],['countryRef','countries','Country','Countries (Business Line Presence)']];
+   const hints=new Map();
+   for(const [key,,label] of fields){
+    const el=form.elements.namedItem(key);if(!el)continue;
+    const hint=document.createElement('small');hint.className='mw-branch-geo-hint';hint.hidden=true;
+    hint.id='mw-branch-'+key+'-help';hint.setAttribute('role','status');
+    el.closest('.mw-bl-value-cell')?.append(hint);el.setAttribute('aria-describedby',hint.id);
+    hints.set(key,hint);
+   }
+   const sync=()=>{
+    const lineId=line.value,name=line.options[line.selectedIndex]?.textContent?.trim()||'selected Business Line';
+    const missing=[];
+    for(const [key,source,label,master] of fields){
+     const el=form.elements.namedItem(key);if(!el)continue;
+     const prior=el.value;
+     const options=(state.referenceData[source]||[]).filter(o=>o.businessLineRef===lineId);
+     if(record&&lineId===record.businessLineRef&&record[key]&&!options.some(o=>o.id===record[key])){
+      const name=record[key==='regionRef'?'region':'country']||'Current '+label;
+      options.push({id:record[key],name:name+' (historical mapping)'});
+     }
+     const placeholder=!lineId?'Select Business Line first':options.length?'- Select -':'No '+(key==='regionRef'?'Active Regions':'Country presence')+' configured';
+     el.innerHTML='<option value="">'+esc(placeholder)+'</option>'+options.map(o=>'<option value="'+esc(o.id)+'">'+esc((o.code?o.code+' — ':'')+o.name)+'</option>').join('');
+     if(options.some(o=>o.id===prior))el.value=prior;
+     const hint=hints.get(key);
+     if(hint){const unavailable=!!lineId&&!options.length;hint.hidden=!unavailable;hint.textContent=unavailable?'No '+label+' is available for '+name+'. Configure it under Settings & Masters → '+master+'.':'';}
+     if(lineId&&!options.length)missing.push(key==='regionRef'?'Active Region':'Country presence');
+    }
+    note.hidden=!!lineId&&!missing.length;
+    if(!lineId)note.innerHTML='<strong>Choose a Business Line first.</strong> Its available Regions and Countries will then appear.';
+    else if(missing.length)note.innerHTML='<strong>Branch setup is incomplete for '+esc(name)+'.</strong> Missing '+esc(missing.join(' and '))+'. Configure the linked Region and Country relationships in Settings & Masters before creating a Branch.';
+    else note.textContent='';
+   };
+   line.addEventListener('change',sync);sync();
+  }
+  function formValues(form){return JSON.stringify([...new FormData(form).entries()])}
  function editForm(record){
  if(dead||!permitted(record?'edit':'create'))return;
  if(record&&['business-lines','regions','branch-master'].includes(config.key)){openBlRecord(record.id,true);return;}
@@ -420,16 +465,7 @@ function create(host,config) {
  if(['business-lines','regions','branch-master'].includes(config.key)){const code=form.elements.code;if(code)code.addEventListener('input',()=>{const p=code.selectionStart;code.value=code.value.toUpperCase();code.setSelectionRange(p,p)})}
  if(config.key==='countries')form.querySelectorAll('[name="code"],[name="iso3"],[name="defaultCurrency"]').forEach(field=>field.addEventListener('input',()=>{const caret=field.selectionStart;field.value=field.value.toUpperCase();field.setSelectionRange(caret,caret)}));
  if(config.key==='branch-master'){
-  const line=form.elements.namedItem('businessLineRef');
-  const sync=()=>{
-   for(const [key,source] of [['regionRef','regions'],['countryRef','countries']]){
-    const el=form.elements.namedItem(key);if(!el)continue;
-    const previous=el.value,options=(state.referenceData[source]||[]).filter(o=>o.businessLineRef===line.value);
-    el.innerHTML='<option value="">- Select -</option>'+options.map(o=>'<option value="'+esc(o.id)+'">'+esc((o.code?o.code+' — ':'')+o.name)+'</option>').join('');
-    if(options.some(o=>o.id===previous))el.value=previous;
-   }
-  };
-  line?.addEventListener('change',sync);sync();
+  wireBranchGeography(form,record);
   const code=form.elements.namedItem('code');code?.addEventListener('input',()=>{const start=code.selectionStart;code.value=code.value.toUpperCase();code.setSelectionRange(start,start)});
  }
  form.onsubmit=async e=>{e.preventDefault();if(dialogSaving||!permitted(editing?'edit':'create'))return;if(!form.checkValidity()){if(['business-lines','regions','branch-master'].includes(config.key))form.querySelectorAll('.mw-bl-section details').forEach(section=>{section.open=true});form.reportValidity();return}const values=new FormData(form),error=d.querySelector('.mw-form-error');error.hidden=true;const body=Object.fromEntries(fields.filter(f=>f.type!=='readonly'&&(!f.views||f.views.includes(editing?'edit':'create'))).map(f=>[f.key,f.type==='multi-select'?values.getAll(f.key).map(v=>String(v).trim()).filter(Boolean):String(values.get(f.key)||'').trim()]));if(editing)body.version=record.version;
@@ -763,16 +799,7 @@ function create(host,config) {
   wireBlFieldActions(page,record,editing?'edit':'read');
   if(!editing){d.querySelector('#mw-dialog-title').focus({preventScroll:true});return;}
   const form=page.querySelector('#mw-bl-page-form');blDraft=form;recordsTools?.wireForm(form);
-  if(config.key==='branch-master'){
-   const line=form.elements.namedItem('businessLineRef');
-   const sync=()=>{for(const [key,source] of [['regionRef','regions'],['countryRef','countries']]){
-    const el=form.elements.namedItem(key);if(!el)continue;const prior=el.value;
-    const items=(state.referenceData[source]||[]).filter(o=>o.businessLineRef===line.value);
-    el.innerHTML='<option value="">- Select -</option>'+items.map(o=>'<option value="'+esc(o.id)+'">'+esc((o.code?o.code+' — ':'')+o.name)+'</option>').join('');
-    if(items.some(o=>o.id===prior))el.value=prior;
-   }};
-   line?.addEventListener('change',sync);sync();
-  }
+  if(config.key==='branch-master')wireBranchGeography(form,record);
   const baseline=formValues(form),mark=()=>{form.dataset.dirty=String(formValues(form)!==baseline)};
   form.addEventListener('input',mark);form.addEventListener('change',mark);
   const code=form.elements.code;if(code)code.addEventListener('input',()=>{const caret=code.selectionStart;code.value=code.value.toUpperCase();code.setSelectionRange(caret,caret);mark()});
