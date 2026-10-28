@@ -17,10 +17,10 @@ await new Promise(resolve=>server.listen(4199,'127.0.0.1',resolve));
 const browser=await chromium.launch({headless:true});
 const user={id:'11111111-1111-4111-8111-111111111111',name:'Branch QA Admin',email:'qa@example.org',role:'admin',systemRole:'super_admin',status:'approved',emailVerified:true};
 const serverUser={...user,system_role:'super_admin',email_verified:true};
-const lineA='22222222-2222-4222-8222-222222222222',lineB='55555555-5555-4555-8555-555555555555';
+const lineA='22222222-2222-4222-8222-222222222222',lineB='55555555-5555-4555-8555-555555555555',lineGSA='99999999-9999-4999-8999-999999999999';
 const regionA='33333333-3333-4333-8333-333333333333',countryA='44444444-4444-4444-8444-444444444444';
 const regionB='66666666-6666-4666-8666-666666666666',countryB='77777777-7777-4777-8777-777777777777';
-const lines=[{id:lineA,code:'STTS',name:'Satguru Travel'},{id:lineB,code:'T3',name:'Top Travel Trip'}];
+const lines=[{id:lineA,code:'STTS',name:'Satguru Travel'},{id:lineB,code:'T3',name:'Top Travel Trip'},{id:lineGSA,name:'GSA'}];
 const regions=[{id:regionA,businessLineRef:lineA,code:'AF-WEST',name:'West Africa'},{id:regionB,businessLineRef:lineB,code:'T3-WEST',name:'T3 West'}];
 const countries=[{id:countryA,businessLineRef:lineA,code:'KE',name:'Kenya'},{id:countryB,businessLineRef:lineB,code:'AE',name:'United Arab Emirates'}];
 const permissions=Object.fromEntries(['read','create','edit','archive','restore','softDelete','restoreDeleted','reassignOwner','export','import','history','search','filter','settings','dashboard'].map(k=>[k,true]));
@@ -45,7 +45,7 @@ try{
    owners:[{id:user.id,ownerId:'UID-000001',name:user.name}],
    referenceData:{businessLines:lines,regions,countries,branchManagers:[{id:user.id,name:user.name}],branchTypes:['','Branch Office']},
    permissions,resource:{frameworkVersion:1,columns:publicColumns(),limits:{selectedExport:250}},
-   ui:{policy:effective,preferences:prefs,overviewCounts:{total:records.length,active:records.length,inactive:0,archived:0,deleted:0}}
+   ui:{policy:effective,preferences:prefs,overviewCounts:{total:records.length,active:records.length,inactive:0,archived:0,deleted:0},overviewInsights:{counts:{total:records.length,active:records.length,inactive:0,archived:0,deleted:0},businessLines:[],countries:[],regions:[],setup:{businessLines:3,withRegions:2,withCountries:2,readyBusinessLines:2}}}
   };
   else if(path==='branch-master'&&method==='POST'){
    assert.equal(body.businessLineRef,lineA);
@@ -76,12 +76,28 @@ try{
  await page.locator('[data-nav="branchmaster"]').waitFor({state:'attached'});
  await page.evaluate(()=>document.querySelector('[data-nav="branchmaster"]').click());
  await page.waitForFunction(()=>document.querySelector('.mw-results')?.getAttribute('aria-busy')==='false');
+ await page.locator('[data-mw="dashboard"].mw-module-tab').click();
+ await page.locator('[data-branch-overview="live"]').waitFor();
+ assert.match(await page.locator('[data-branch-overview="live"]').innerText(),/Business Line Setup Readiness/);
+ assert.match(await page.locator('[data-branch-overview="live"]').innerText(),/No Branch records match this view/);
+ await page.locator('[data-mw="home"].mw-module-tab').click();
  await page.locator('.mw-state [data-mw="create"]').click();
  const form=page.locator('#mw-record-form');await form.waitFor();
  assert.ok(await page.locator('dialog[open].mw-bl-dialog.mw-bl-create-dialog').count(),'Branch Create uses shared master modal');
  assert.equal(await form.locator('[data-bl-field-edit]').count(),0,'Create inputs must not have redundant pencil buttons');
  assert.equal(await form.locator('[name="timeZone"]').evaluate(el=>el.tagName),'SELECT','Time Zone is selected from IANA names');
  assert.ok(await page.locator('dialog[open]').evaluate(d=>d.getBoundingClientRect().width>700),'Branch Create has readable desktop width');
+ assert.equal(await page.locator('dialog[open] .mw-bl-form > .mw-bl-section').count(),3,'Branch Create exposes 3 named sections');
+ assert.ok(await page.locator('dialog[open] .mw-bl-section summary').first().isVisible(),'Branch Information heading is visible');
+ assert.ok(await page.locator('dialog[open] .mw-bl-section-tools').isVisible(),'Expand/Collapse controls visible');
+ assert.equal(await page.locator('dialog[open] .mw-bl-grid').first().evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(' ').length),2,'desktop Branch form has paired fields');
+ assert.equal(await form.locator('[name="timeZone"]').inputValue(),'','Time Zone is not silently set to UTC');
+ await form.locator('[name="businessLineRef"]').selectOption(lineGSA);
+ assert.match(await form.locator('.mw-branch-dependency-notice').innerText(),/Missing Active Region and Country presence/);
+ assert.equal(await form.locator('[name="regionRef"] option').count(),1);
+ assert.equal(await form.locator('[name="countryRef"] option').count(),1);
+ assert.ok(await form.locator('.mw-branch-geo-hint:visible').count()>=1);
+
  await form.locator('[name="businessLineRef"]').selectOption(lineA);
  assert.deepEqual(await form.locator('[name="regionRef"] option').evaluateAll(nodes=>nodes.map(n=>n.value).filter(Boolean)),[regionA]);
  assert.deepEqual(await form.locator('[name="countryRef"] option').evaluateAll(nodes=>nodes.map(n=>n.value).filter(Boolean)),[countryA]);
