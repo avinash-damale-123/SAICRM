@@ -97,7 +97,7 @@ try{
  await form.locator('[name="name"]').fill('Nairobi');
  await form.locator('[name="code"]').fill('nbo');
  await form.locator('[name="city"]').fill('Nairobi');
- await form.locator('[name="timeZone"]').fill('Africa/Nairobi');
+ await form.locator('[name="timeZone"]').selectOption('Africa/Nairobi');
  await page.locator('#mw-save').click();
  await page.waitForFunction(()=>document.querySelector('.rf-table tbody')?.textContent.includes('BR-001'));
  assert.equal(requests.filter(r=>r.path==='branch-master'&&r.method==='POST').length,1);
