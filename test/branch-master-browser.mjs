@@ -53,8 +53,18 @@ try{
    assert.equal(body.countryRef,countryA);
    assert.equal(body.timeZone,'Africa/Nairobi');
    assert.equal(body.code,'NBO');
-   records.push({id:'88888888-8888-4888-8888-888888888888',displayId:'BR-001',name:body.name,code:body.code,city:body.city,timeZone:body.timeZone,businessLine:'Satguru Travel',region:'West Africa',country:'Kenya',status:'Active',owner:user.name,updatedAt:'2026-10-28T10:00:00.000Z',version:1});
+   records.push({...body,id:'88888888-8888-4888-8888-888888888888',displayId:'BR-001',businessLine:'Satguru Travel',region:'West Africa',country:'Kenya',status:'Active',owner:user.name,ownerId:'UID-000001',createdBy:user.name,createdAt:'2026-10-28T10:00:00.000Z',updatedAt:'2026-10-28T10:00:00.000Z',version:1});
    response={record:records.at(-1)};
+  }
+  else if(path.startsWith('branch-master/')&&path.split('/').length>=2){
+   const segments=path.split('/'),record=records.find(r=>r.id===segments[1]);
+   if(segments[2]==='related')response={related:[],total:0,active:0};
+   else if(segments[2]==='history')response={history:[]};
+   else if(method==='PUT'){
+    assert.equal(body.version,record.version);
+    Object.assign(record,body,{version:record.version+1});
+    response={record};
+   }else response={record};
   }
   else if(path==='branch-master/preferences')response={policy:effective,preferences:prefs};
   else if(path==='branch-master/framework')response={fields:publicColumns(),policy:effective,preferences:prefs,permissions};
@@ -87,6 +97,19 @@ try{
  await page.locator('#mw-save').click();
  await page.waitForFunction(()=>document.querySelector('.rf-table tbody')?.textContent.includes('BR-001'));
  assert.equal(requests.filter(r=>r.path==='branch-master'&&r.method==='POST').length,1);
+ await page.locator('.rf-table [data-mw="read"][data-record]').first().click();
+ await page.locator('.mw-bl-detail-page').waitFor();
+ assert.ok(await page.locator('.mw-bl-section summary').filter({hasText:'Contact Information'}).count());
+ assert.ok(await page.locator('.mw-bl-section summary').filter({hasText:'Management'}).count());
+ await page.locator('#bl-edit').click();
+ const edit=page.locator('#mw-bl-page-form');await edit.waitFor();
+ assert.equal(await edit.locator('[name="businessLineRef"]').inputValue(),lineA);
+ assert.equal(await edit.locator('[name="regionRef"]').inputValue(),regionA);
+ assert.equal(await edit.locator('[name="countryRef"]').inputValue(),countryA);
+ await edit.locator('[name="fullName"]').fill('Nairobi Branch Office');
+ await page.locator('#bl-save').click();
+ await page.waitForFunction(()=>!document.querySelector('dialog[open]'));
+ assert.equal(records[0].fullName,'Nairobi Branch Office');
  assert.deepEqual(errors,[]);
  console.log('Branch Master browser accepted: dependent Region/Country selections and new Branch persistence');
 }finally{await browser.close();await new Promise(r=>server.close(r));}
