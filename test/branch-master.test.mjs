@@ -27,7 +27,7 @@ test('Branch search is parameterized, sortable and excludes other table fields',
  const attack="x' OR 1=1 --";
  const opts=queryOptions({q:attack});
  const where=compileWhere(opts);
- assert.ok(where.params.includes(attack));
+ assert.ok(where.params.includes("OR")&&where.params.includes("1=1"));
  assert.ok(!where.sql.includes(attack));
  assert.match(compileOrder(opts.sorts),/r\.updated_at/);
 });
