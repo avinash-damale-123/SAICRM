@@ -2,6 +2,7 @@ import { recordsFramework } from './records-framework.mjs';
 import { countryRecordsFramework } from './country-records-framework.mjs';
 import { regionRecordsFramework } from './region-records-framework.mjs';
 import { branchMasterFramework } from './branch-master-framework.mjs';
+import { departmentMaster } from './department-master.mjs';
 import { randomUUID } from 'node:crypto';
 import { businessLines, validateBusinessLineReferences } from './business-lines.mjs';
 import { searchWorkspace, notificationsFeed } from './workspace-discovery.mjs';
@@ -292,6 +293,7 @@ export function createHandler({ pool, config, deliver = message => sendEmail(con
     if (path[0] === 'countries') return await countryRecordsFramework({client,user:current,path,method,url,body});
     if (path[0] === 'regions') return await regionRecordsFramework({client,user:current,path,method,url,body});
     if (path[0] === 'branch-master') return await branchMasterFramework({client,user:current,path,method,url,body});
+    if (path[0] === 'department-master') return await departmentMaster({client,user:current,path,method,url,body});
     if (path[0] === 'access') {
      if (!authorize(principal, method === 'GET' ? 'read' : 'approve', 'access')) fail(403, 'Administrator access required');
      if (method === 'GET') {
