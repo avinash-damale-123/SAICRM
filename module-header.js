@@ -60,7 +60,7 @@ function control(button,kind,label) {
  if(!button.title)button.title=button.getAttribute('aria-label')||label;
 }
 function tab(button,view,label) {
- const recordsView=['Business Lines','Countries','Regions'].includes(label);
+ const recordsView=['Business Lines','Countries','Regions','Branches'].includes(label);
  button.innerHTML=svg(view)+'<span class="scrm-view-copy"><small class="scrm-view-context"></small><strong class="scrm-view-title"></strong></span>';
  button.querySelector('small').textContent=label;
  button.querySelector('strong').textContent=view==='dashboard'?'Overview':recordsView?'Records':'Home';
@@ -99,7 +99,7 @@ function decorate(row,page,label) {
    control(button,'add','Add');
   }
  });
- if(['Business Lines','Countries','Regions'].includes(label)){
+ if(['Business Lines','Countries','Regions','Branches'].includes(label)){
   row.classList.add('scrm-bl-clean');
   // Keep visual and keyboard action order consistent with the compact toolbar.
   const filter=actions.querySelector('[data-mw="filter-toggle"]');
@@ -116,7 +116,7 @@ function decorate(row,page,label) {
   if(add){
    const primary=document.createElement('div');primary.className='scrm-bl-primary';
    primary.append(add);
-   add.querySelector('.scrm-action-label').textContent=label==='Business Lines'?'Add Business Line':label==='Countries'?'Add Country':'Add Region';
+   add.querySelector('.scrm-action-label').textContent=label==='Business Lines'?'Add Business Line':label==='Countries'?'Add Country':label==='Regions'?'Add Region':'Add Branch';
    row.dataset.scrmBlPrimary='yes';
    row._scrmBlPrimary=primary;
   }
@@ -124,7 +124,7 @@ function decorate(row,page,label) {
  const slot=document.createElement('div');slot.className='scrm-search-slot';
  const legacy=document.createElement('div');legacy.hidden=true;legacy.className='scrm-legacy-search';
  const legacySearch=row.querySelector('.mw-search');if(legacySearch)legacy.append(legacySearch);
- if(['Business Lines','Countries','Regions'].includes(label)&&row._scrmBlPrimary)row.replaceChildren(identity,tabs,slot,actions,row._scrmBlPrimary,legacy);else row.replaceChildren(identity,tabs,slot,actions,legacy);
+ if(['Business Lines','Countries','Regions','Branches'].includes(label)&&row._scrmBlPrimary)row.replaceChildren(identity,tabs,slot,actions,row._scrmBlPrimary,legacy);else row.replaceChildren(identity,tabs,slot,actions,legacy);
  row.classList.add('scrm-workbar');row.dataset.scrmHeader=page;
 }
 function sync(page,label) {
