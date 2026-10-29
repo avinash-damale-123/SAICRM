@@ -31,7 +31,7 @@ function mount(host){
  }
  const statusTag=s=>'<span class="dm-tag dm-'+esc(s).toLowerCase()+'">'+esc(s)+'</span>';
  const table=rows=>'<div class="dm-table-wrap"><table class="dm-table"><thead><tr><th>Unit Name</th><th>System ID</th><th>Unit Code</th><th>Level</th><th>Parent Unit</th><th>Status</th><th>Last Modified</th><th>Actions</th></tr></thead><tbody>'+
-  (rows.length?rows.map(r=>'<tr><td><strong>'+esc(r.name)+'</strong></td><td>'+esc(r.displayId)+'</td><td>'+esc(r.code)+'</td><td>'+esc(r.level)+'</td><td>'+esc(r.parent||'—')+'</td><td>'+statusTag(r.status)+'</td><td>'+esc(r.updatedAt?new Date(r.updatedAt).toLocaleString():'—')+'</td><td>'+btn('View','view:'+r.id)+btn('Edit','edit:'+r.id)+'</td></tr>').join(''):'<tr><td colspan="8" class="dm-empty">No matching departments. Create the first record or change your filters.</td></tr>')+'</tbody></table></div>';
+  (rows.length?rows.map(r=>'<tr><td><strong>'+esc(r.name)+'</strong></td><td>'+esc(r.displayId)+'</td><td>'+esc(r.code)+'</td><td>'+esc(r.level)+'</td><td>'+esc(r.parent||'—')+'</td><td>'+statusTag(r.status)+'</td><td>'+esc(r.updatedAt?new Date(r.updatedAt).toLocaleString():'—')+'</td><td>'+btn('View','view:'+r.id)+btn('Edit','edit:'+r.id)+btn('Status','lifecycle:'+r.id)+'</td></tr>').join(''):'<tr><td colspan="8" class="dm-empty">No matching departments. Create the first record or change your filters.</td></tr>')+'</tbody></table></div>';
  function controls(){
   const options=(values,value)=>values.map(v=>'<option value="'+esc(v)+'" '+(v===value?'selected':'')+'>'+esc(v)+'</option>').join('');
   const lines=state.refs.businessLines||[],branches=state.refs.branches||[];
@@ -54,7 +54,7 @@ function mount(host){
  }
  const render=()=>{
   if(state.destroyed)return;renderHeader();
-  host.innerHTML='<div class="dm-workspace"><div class="dm-content-heading"><div><small>ADMINISTRATION / CORE MASTERS</small><h2>'+esc(state.scope)+' Department</h2><p>Department → Sub-Department → Team</p></div>'+btn('Assign to Branch','assign','')+'</div>'+
+  host.innerHTML='<div class="dm-workspace"><div class="dm-content-heading"><div><small>ADMINISTRATION / CORE MASTERS</small><h2>'+esc(state.scope)+' Department</h2><p>Department → Sub-Department → Team</p></div>'+(state.scope==='Branch'?btn('Assign to Branch','assign')+btn('Manage Assignments','manage-assignments'):'')+'</div>'+
     (state.error?'<div role="alert" class="dm-error">'+esc(state.error)+'</div>':'')+
     (state.loading?'<p class="dm-loading">Loading departments…</p>':state.tab==='overview'?overview():state.tab==='tree'?tree():controls()+table(rows())+
     '<footer class="dm-page"><span>'+fmt(state.total)+' records · Page '+state.page+' of '+Math.max(1,Math.ceil(state.total/state.pageSize))+'</span>'+btn('Previous','prev')+btn('Next','next')+'</footer>')+'</div>';
@@ -138,6 +138,40 @@ function mount(host){
   line.onchange=()=>{branch.innerHTML='<option value="">Select Branch</option>'+branches.filter(b=>b.businessLineRef===line.value).map(b=>'<option value="'+esc(b.id)+'">'+esc(b.name)+' · '+esc(b.code)+'</option>').join('');state.dirty=true;};
   branch.innerHTML='<option value="">Select a Business Line first</option>';
  }
+ async function lifecycle(id){
+  let record;try{record=(await api('department-master/'+id)).record}catch(e){alert(e.message);return}
+  const options=record.status==='Active'?[['Inactive','Inactivate']]:
+    record.status==='Inactive'?[['Active','Activate'],['Archived','Archive']]:
+    record.status==='Archived'?[['Active','Restore Active'],['Inactive','Restore Inactive'],['Deleted','Delete']]:
+    record.status==='Deleted'?[['Archived','Recover Archived'],['Inactive','Recover Inactive'],['Active','Recover Active']]:[];
+  const html='<form id="dm-form" class="dm-form">'+field('Choose lifecycle action','destination',options[0]?.[0]||'', 'text',options)+
+  field('Reason','reason','','textarea')+'<p class="dm-hint">Linked children and Branch assignments can block this action.</p><p class="dm-dialog-notice" role="alert" hidden></p></form>';
+  openModal('Change status · '+record.name,html,async values=>{
+   const target=values.destination,reason=values.reason;
+   if(!reason.trim())throw Error('A reason is required');
+   if(['Active','Inactive'].includes(record.status)){if(target==='Archived'){
+    await api('department-master/'+id+'/archive','POST',{version:record.version,reason});return}
+    await api('department-master/'+id,'PUT',{version:record.version,status:target,reason});return}
+   if(record.status==='Archived'){
+    if(target==='Deleted'){await api('department-master/'+id+'/soft-delete','POST',{version:record.version,reason});return}
+    await api('department-master/'+id+'/restore','POST',{version:record.version,targetStatus:target,reason});return}
+   await api('department-master/'+id+'/restore-deleted','POST',{version:record.version,targetStatus:target,reason});
+  });
+ }
+ async function manageAssignments(){
+  if(state.scope!=='Branch'){alert('Central units do not have Branch assignments');return}
+  let list;try{list=(await api('department-master/assignments')).assignments||[]}catch(e){alert(e.message);return}
+  const values=list.map(x=>'<tr><td>'+esc(x.unit)+' ('+esc(x.unitDisplayId)+')</td><td>'+esc(x.branch)+'</td><td>'+esc(x.businessLine)+'</td><td>'+statusTag(x.status)+'</td><td>'+btn(x.status==='Active'?'Inactivate':'Activate','assignment:'+x.id)+'</td></tr>').join('');
+  const h=openModal('Branch Department Assignments','<div class="dm-table-wrap"><table class="dm-table"><thead><tr><th>Department Unit</th><th>Branch</th><th>Business Line</th><th>Status</th><th>Action</th></tr></thead><tbody>'+values+'</tbody></table></div>');
+  h.querySelector('.dm-dialog-body').addEventListener('click',async e=>{
+   const b=e.target.closest('[data-dm^="assignment:"]');if(!b)return;const x=list.find(v=>v.id===b.dataset.dm.split(':')[1]);if(!x)return;
+   const reason=prompt('Reason to '+(x.status==='Active'?'inactivate':'activate')+' this Branch assignment:');
+   if(!reason)return;
+   try{await api('department-master/assignments/'+x.id,'PUT',{version:x.version,status:x.status==='Active'?'Inactive':'Active',reason});h.remove();state.dialog=false;await manageAssignments();}
+   catch(err){alert(err.message)}
+  });
+ }
+
  function exportCsv(){
   const cols=['System ID','Scope','Level','Unit Name','Unit Code','Parent','Status','Description','Last Modified'];
   const value=s=>'"'+String(s??'').replace(/"/g,'""')+'"';
@@ -161,6 +195,8 @@ function mount(host){
   else if(action==='edit')await editor(id);
   else if(action==='related'||action==='history')await showDetails(id,action);
   else if(action==='assign')await branchAssign();
+  else if(action==='lifecycle')await lifecycle(id);
+  else if(action==='manage-assignments')await manageAssignments();
  }
  host.addEventListener('click',click);
  header();references().then(load);
