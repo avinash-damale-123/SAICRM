@@ -7,10 +7,10 @@ const own=(o,k)=>Object.prototype.hasOwnProperty.call(o,k);
 const clean=(value,label,max=150,mandatory=true)=>{if(typeof value!=='string')fail(400,label+' must be text');const s=value.trim();if((mandatory&&!s)||s.length>max||/[\u0000-\u001f\u007f]/.test(s))fail(400,'Invalid '+label);return s;};
 const levelValues=['Department','Sub-Department','Team'],scopes=['Central','Branch'];
 const allowed=(body,fields)=>{if(!body||typeof body!=='object'||Array.isArray(body)||Object.keys(body).some(k=>!fields.includes(k)))fail(400,'Unknown or system-managed field');};
-const info=String.raw\`SELECT u.*,p.name parent_name,p.display_id parent_display_id,
+const info=String.raw`SELECT u.*,p.name parent_name,p.display_id parent_display_id,
  cr.name created_name,up.name updated_name
  FROM department_units u LEFT JOIN department_units p ON p.id=u.parent_id
- JOIN users cr ON cr.id=u.created_by JOIN users up ON up.id=u.updated_by\`;
+ JOIN users cr ON cr.id=u.created_by JOIN users up ON up.id=u.updated_by`;
 const active=row=>row&&row.status==='Active'&&!row.archived_at&&!row.deleted_at;
 const iso=x=>x instanceof Date?x.toISOString():x||null;
 const view=r=>({id:r.id,displayId:r.display_id,scope:r.scope,level:r.level,parentId:r.parent_id,
@@ -62,11 +62,11 @@ function validateValues(body,previous=null){
  return {scope,level,name,code,description,sortOrder,parentId};
 }
 async function assignmentView(client,id){
- const row=(await client.query(\`SELECT a.id,a.unit_id,a.branch_id,a.status,a.version,a.created_at,a.updated_at,
+ const row=(await client.query(`SELECT a.id,a.unit_id,a.branch_id,a.status,a.version,a.created_at,a.updated_at,
  b.name branch_name,b.code branch_code,b.display_id branch_display_id,
  bl.name business_line,bl.code business_line_code,u.name unit_name,u.display_id unit_display_id
  FROM department_branch_assignments a JOIN department_units u ON u.id=a.unit_id
- JOIN branch_masters b ON b.id=a.branch_id JOIN business_lines bl ON bl.id=b.business_line_id WHERE a.id=$1\`,[id])).rows[0];
+ JOIN branch_masters b ON b.id=a.branch_id JOIN business_lines bl ON bl.id=b.business_line_id WHERE a.id=$1`,[id])).rows[0];
  if(!row)fail(404,'Assignment not found');
  return {id:row.id,unitId:row.unit_id,unit:row.unit_name,unitDisplayId:row.unit_display_id,branchId:row.branch_id,branch:row.branch_name,
  branchCode:row.branch_code,branchDisplayId:row.branch_display_id,businessLine:row.business_line,businessLineCode:row.business_line_code,
@@ -113,7 +113,7 @@ export async function departmentMaster({client,user,path,method,url,body={}}){
   if(unitId&&!uuid(unitId)||branchId&&!uuid(branchId))fail(400,'Invalid assignment filter');
   const params=[],parts=[];if(unitId){params.push(unitId);parts.push('a.unit_id=$'+params.length);}
   if(branchId){params.push(branchId);parts.push('a.branch_id=$'+params.length);}
-  const result=await client.query(\`SELECT a.id FROM department_branch_assignments a \${parts.length?'WHERE '+parts.join(' AND '):''} ORDER BY a.updated_at DESC LIMIT 500\`,params);
+  const result=await client.query(`SELECT a.id FROM department_branch_assignments a ${parts.length?'WHERE '+parts.join(' AND '):''} ORDER BY a.updated_at DESC LIMIT 500`,params);
   return {assignments:await Promise.all(result.rows.map(async r=>assignmentView(client,r.id)))};
  }
  if(path.length===2&&path[1]==='assignments'&&method==='POST'){
@@ -134,7 +134,7 @@ export async function departmentMaster({client,user,path,method,url,body={}}){
   const previous=(await client.query('SELECT * FROM department_branch_assignments WHERE id=$1 FOR UPDATE',[path[2]])).rows[0];
   if(!previous)fail(404,'Assignment not found');if(previous.version!==body.version)fail(409,'Assignment changed; reload');
   const why=mustReason(body.reason);
-  if(body.status==='Inactive'&&previous.status==='Active'&&(await client.query(\`SELECT 1 FROM department_branch_assignments a JOIN department_units u ON u.id=a.unit_id WHERE u.parent_id=$1 AND a.branch_id=$2 AND a.status='Active' LIMIT 1\`,[previous.unit_id,previous.branch_id])).rowCount)fail(409,'Inactivate child unit assignments first');
+  if(body.status==='Inactive'&&previous.status==='Active'&&(await client.query(`SELECT 1 FROM department_branch_assignments a JOIN department_units u ON u.id=a.unit_id WHERE u.parent_id=$1 AND a.branch_id=$2 AND a.status='Active' LIMIT 1`,[previous.unit_id,previous.branch_id])).rowCount)fail(409,'Inactivate child unit assignments first');
   if(body.status==='Active'){
    const u=(await client.query('SELECT * FROM department_units WHERE id=$1',[previous.unit_id])).rows[0],
     b=(await client.query('SELECT * FROM branch_masters WHERE id=$1',[previous.branch_id])).rows[0];
@@ -168,7 +168,7 @@ export async function departmentMaster({client,user,path,method,url,body={}}){
   const status=body.status??old.status;if(!['Active','Inactive'].includes(status))fail(400,'Invalid status');
   const why=status!==old.status?mustReason(body.reason):null;
   if(status==='Inactive'&&old.status==='Active'&&(await blockers(client,old.id)).active)fail(409,'Active children or Branch assignments prevent inactivation; see Related / Used In');
-  await client.query(\`UPDATE department_units SET name=$2,code=$3,description=$4,sort_order=$5,status=$6,updated_by=$7,updated_at=now(),version=version+1 WHERE id=$1\`,
+  await client.query(`UPDATE department_units SET name=$2,code=$3,description=$4,sort_order=$5,status=$6,updated_by=$7,updated_at=now(),version=version+1 WHERE id=$1`,
    [old.id,v.name,v.code,v.description,v.sortOrder,status,user.id]);
   const after=view(await fetchUnit(client,old.id));await audit(client,user,'Updated',old.id,view(old),after,why);return {record:after};
  }
