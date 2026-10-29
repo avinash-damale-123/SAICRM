@@ -76,12 +76,31 @@ try{
  await page.locator('[data-nav="branchmaster"]').waitFor({state:'attached'});
  await page.evaluate(()=>document.querySelector('[data-nav="branchmaster"]').click());
  await page.waitForFunction(()=>document.querySelector('.mw-results')?.getAttribute('aria-busy')==='false');
+ const toolbar=page.locator('.crm-module-host .scrm-workbar.scrm-bl-clean.scrm-search-in-topbar');
+ await toolbar.waitFor();
+ assert.equal(await toolbar.locator('.scrm-identity h2').innerText(),'Branches','Branch module title matches Business Lines header');
+ assert.deepEqual(await toolbar.locator('.scrm-tabs > button').evaluateAll(nodes=>nodes.map(n=>n.dataset.mw)),['home','dashboard'],'Records precedes Overview');
+ assert.equal(await toolbar.locator('[data-mw="home"] .scrm-view-title').innerText(),'Records','Branch listing is called Records');
+ assert.equal(await toolbar.locator('[data-mw="dashboard"] .scrm-view-title').innerText(),'Overview');
+ assert.equal(await toolbar.locator('.scrm-bl-primary [data-mw="create"] .scrm-action-label').innerText(),'Add Branch');
+ assert.match(await toolbar.locator('.scrm-bl-primary [data-mw="create"]').getAttribute('aria-label'),/Add Branch/);
+ assert.equal(await page.locator('.topbar #crmSearchInput').count(),1,'Shared search stays in the global topbar');
+ assert.deepEqual(await toolbar.locator('.scrm-actions .scrm-action-label').evaluateAll(nodes=>nodes.map(n=>n.textContent)),['Import','Export','Filter','Customize'],'Branch command order matches Business Lines');
+ const barLayout=await toolbar.evaluate(el=>{
+  const box=el.getBoundingClientRect(),ids=['.scrm-identity','.scrm-tabs','.scrm-actions','.scrm-bl-primary'];
+  const items=ids.map(selector=>el.querySelector(selector).getBoundingClientRect());
+  return {display:getComputedStyle(el).display,height:box.height,allInside:items.every(b=>b.x>=box.x-1&&b.right<=box.right+1&&b.y>=box.y-1&&b.bottom<=box.bottom+1),sameRow:Math.min(...items.map(b=>b.bottom))-Math.max(...items.map(b=>b.y))>24};
+ });
+ assert.equal(barLayout.display,'flex','wide laptop uses one-row Business Lines toolbar');
+ assert.ok(barLayout.allInside&&barLayout.sameRow,'Branch title, tabs, actions and Add all fit one row');
+ assert.ok(barLayout.height<90,'Branch command bar has compact Business Lines height');
+ 
  await page.locator('[data-mw="dashboard"].mw-module-tab').click();
  await page.locator('[data-branch-overview="live"]').waitFor();
  assert.match(await page.locator('[data-branch-overview="live"]').innerText(),/Business Line Setup Readiness/);
  assert.match(await page.locator('[data-branch-overview="live"]').innerText(),/No Branch records match this view/);
  await page.locator('[data-mw="home"].mw-module-tab').click();
- await page.locator('.mw-state [data-mw="create"]').click();
+ await toolbar.locator('.scrm-bl-primary [data-mw="create"]').click();
  const form=page.locator('#mw-record-form');await form.waitFor();
  assert.ok(await page.locator('dialog[open].mw-bl-dialog.mw-bl-create-dialog').count(),'Branch Create uses shared master modal');
  assert.equal(await form.locator('[data-bl-field-edit]').count(),0,'Create inputs must not have redundant pencil buttons');
