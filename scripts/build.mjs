@@ -21,6 +21,8 @@ const staticFiles = [
   'country-ui.js',
   'region-ui.js',
   'branch-master-ui.js',
+  'department-master-ui.js',
+  'department-master.css',
   'records-tools.js',
   'records-tools.css',
   'round-10-enhancements.css',
