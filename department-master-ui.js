@@ -65,7 +65,7 @@ function mount(host){
     if(e.target.id==='dm-level')state.level=e.target.value;
     state.page=1;load();
   }));
-  host.addEventListener('click',click,{once:true});
+
  };
  async function references(){try{const data=await api('department-master/references');state.refs={units:data.units||[],branches:data.branches||[],businessLines:data.businessLines||[]}}catch(e){state.error=e.message}}
  async function load(){
@@ -162,6 +162,7 @@ function mount(host){
   else if(action==='related'||action==='history')await showDetails(id,action);
   else if(action==='assign')await branchAssign();
  }
+ host.addEventListener('click',click);
  header();references().then(load);
  return {canLeave:()=>!state.dialog||!state.dirty||confirm('Discard unsaved Department Master edits?'),
   destroy(){state.destroyed=true;clearTimeout(timer);shell?.remove();document.querySelector('.dm-modal-backdrop')?.remove();return true},
