@@ -172,13 +172,31 @@ function mount(host){
   });
  }
 
- function exportCsv(){
+ async function exportCsv(){
+  if(state.loading)return;
+  const scope=state.scope,search=state.q,status=state.status,level=state.level,branchId=state.selectedBranch;
   const cols=['System ID','Scope','Level','Unit Name','Unit Code','Parent','Status','Description','Last Modified'];
-  const value=s=>'"'+String(s??'').replace(/"/g,'""')+'"';
-  const lines=[cols,...state.records.map(r=>[r.displayId,r.scope,r.level,r.name,r.code,r.parent,r.status,r.description,r.updatedAt])];
-  const blob=new Blob([lines.map(row=>row.map(value).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'});
-  const link=document.createElement('a'),url=URL.createObjectURL(blob);
-  link.href=url;link.download='department-'+state.scope.toLowerCase()+'-visible-page.csv';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  const safe=s=>{const v=String(s??'');return '"'+(/^[\\s]*[=+@-]/.test(v)?"'"+v:v).replace(/"/g,'""')+'"'};
+  const rows=[],pageSize=100,limit=10000;
+  try{
+   const params=new URLSearchParams({scope,q:search,status,level,page:'1',pageSize:String(pageSize)});
+   if(branchId)params.set('branchId',branchId);
+   const first=await api('department-master?'+params);
+   const total=Number(first.total||0);
+   if(total>limit)throw new Error('This export supports up to 10,000 matching departments. Narrow the filters; the full export job is not available yet.');
+   rows.push(...(first.records||[]));
+   for(let page=2;rows.length<total;page++){
+    params.set('page',String(page));
+    const data=await api('department-master?'+params);
+    if(!Array.isArray(data.records)||!data.records.length)throw new Error('Export was interrupted. Please try again.');
+    rows.push(...data.records);
+   }
+   if(state.scope!==scope||state.q!==search||state.status!==status||state.level!==level||state.selectedBranch!==branchId)throw new Error('Filters changed during export. Please retry.');
+   const lines=[cols,...rows.map(r=>[r.displayId,r.scope,r.level,r.name,r.code,r.parent,r.status,r.description,r.updatedAt])];
+   const blob=new Blob(['\\uFEFF'+lines.map(row=>row.map(safe).join(',')).join('\\r\\n')],{type:'text/csv;charset=utf-8'});
+   const link=document.createElement('a'),url=URL.createObjectURL(blob);
+   link.href=url;link.download='department-'+scope.toLowerCase()+'-filtered.csv';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }catch(err){alert(err.message||'Export failed. Please try again.')}
  }
  async function click(event){
   const b=event.target.closest('[data-dm]');if(!b)return;
@@ -189,7 +207,7 @@ function mount(host){
   else if(action==='prev'&&state.page>1){state.page--;await load()}
   else if(action==='next'&&state.page*state.pageSize<state.total){state.page++;await load()}
   else if(action==='refresh')await load();
-  else if(action==='export')exportCsv();
+  else if(action==='export')await exportCsv();
   else if(action==='create')await editor();
   else if(action==='view')await editor(id,true);
   else if(action==='edit')await editor(id);
