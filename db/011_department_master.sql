@@ -36,7 +36,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS dept_unit_name_uq_v11 ON department_units(
 );
 CREATE INDEX IF NOT EXISTS dept_units_tree_v11 ON department_units(scope,parent_id,status,sort_order);
 
-CREATE OR REPLACE FUNCTION assign_department_sequence_v11() RETURNS trigger LANGUAGE plpgsql AS $
+CREATE OR REPLACE FUNCTION assign_department_sequence_v11() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
  IF NEW.sequence_no IS NOT NULL THEN
   RAISE EXCEPTION 'Department sequence is system-generated' USING ERRCODE='23514';
@@ -46,7 +46,7 @@ BEGIN
  ELSIF NEW.level='Team' THEN NEW.sequence_no:=nextval('department_sequence_team_v11');
  ELSE RAISE EXCEPTION 'Invalid Department level' USING ERRCODE='23514'; END IF;
  RETURN NEW;
-END $;
+END $$;
 CREATE OR REPLACE TRIGGER assign_department_sequence_before_v11
  BEFORE INSERT ON department_units FOR EACH ROW EXECUTE FUNCTION assign_department_sequence_v11();
 
