@@ -1,0 +1,7 @@
+/* Final layout override: Department Master uses the same single-row desktop workbar as Business Lines. */
+@container scrm-main (min-width:1024px){
+ .dm-module-header.scrm-workbar.scrm-bl-clean.scrm-search-in-topbar{display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;align-items:center!important}
+}
+@container scrm-main (max-width:1023px){
+ .dm-module-header.scrm-workbar.scrm-bl-clean{display:grid!important;flex-direction:initial!important}
+}
