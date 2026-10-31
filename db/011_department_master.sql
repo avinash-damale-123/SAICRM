@@ -2,9 +2,13 @@ BEGIN;
 SET LOCAL search_path TO public, pg_catalog;
 
 -- Separate Central/Branch catalogs; no legacy employee or Branch records are overwritten.
+-- Independent per-level counters ensure DP-001, SD-001 and TM-001 each start at 001.
+CREATE SEQUENCE IF NOT EXISTS department_sequence_department_v11;
+CREATE SEQUENCE IF NOT EXISTS department_sequence_sub_v11;
+CREATE SEQUENCE IF NOT EXISTS department_sequence_team_v11;
 CREATE TABLE IF NOT EXISTS department_units (
   id uuid PRIMARY KEY,
-  sequence_no bigint GENERATED ALWAYS AS IDENTITY UNIQUE,
+  sequence_no bigint NOT NULL,
   scope text NOT NULL CHECK (scope IN ('Central','Branch')),
   level text NOT NULL CHECK (level IN ('Department','Sub-Department','Team')),
   display_id text GENERATED ALWAYS AS (
@@ -31,6 +35,21 @@ CREATE UNIQUE INDEX IF NOT EXISTS dept_unit_name_uq_v11 ON department_units(
  lower(regexp_replace(btrim(name),'[[:space:]]+',' ','g'))
 );
 CREATE INDEX IF NOT EXISTS dept_units_tree_v11 ON department_units(scope,parent_id,status,sort_order);
+
+CREATE OR REPLACE FUNCTION assign_department_sequence_v11() RETURNS trigger LANGUAGE plpgsql AS $
+BEGIN
+ IF NEW.sequence_no IS NOT NULL THEN
+  RAISE EXCEPTION 'Department sequence is system-generated' USING ERRCODE='23514';
+ END IF;
+ IF NEW.level='Department' THEN NEW.sequence_no:=nextval('department_sequence_department_v11');
+ ELSIF NEW.level='Sub-Department' THEN NEW.sequence_no:=nextval('department_sequence_sub_v11');
+ ELSIF NEW.level='Team' THEN NEW.sequence_no:=nextval('department_sequence_team_v11');
+ ELSE RAISE EXCEPTION 'Invalid Department level' USING ERRCODE='23514'; END IF;
+ RETURN NEW;
+END $;
+CREATE OR REPLACE TRIGGER assign_department_sequence_before_v11
+ BEFORE INSERT ON department_units FOR EACH ROW EXECUTE FUNCTION assign_department_sequence_v11();
+
 
 CREATE TABLE IF NOT EXISTS department_branch_assignments (
  id uuid PRIMARY KEY,
@@ -142,7 +161,7 @@ BEGIN
  IF EXISTS(SELECT 1 FROM pg_roles WHERE rolname='saicrm_runtime') THEN
   GRANT SELECT,INSERT,UPDATE,DELETE ON department_units,department_branch_assignments TO saicrm_runtime;
   GRANT SELECT,INSERT ON department_events TO saicrm_runtime;
-  GRANT USAGE,SELECT ON SEQUENCE department_units_sequence_no_seq,department_events_id_seq TO saicrm_runtime;
+  GRANT USAGE,SELECT ON SEQUENCE department_sequence_department_v11,department_sequence_sub_v11,department_sequence_team_v11,department_events_id_seq TO saicrm_runtime;
  END IF;
 END $grants$;
 INSERT INTO schema_migrations(version) VALUES(11) ON CONFLICT DO NOTHING;
