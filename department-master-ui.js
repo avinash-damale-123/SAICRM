@@ -242,35 +242,140 @@ function mount(host){
   }
   return wrap;
  }
+ function readItem(label,value){
+  return '<div class="dm-read-item"><span>'+esc(label)+'</span><strong>'+esc(value==null||value===''?'—':value)+'</strong></div>';
+ }
+ function entry(label,key,value='',options={}){
+  const {required=false,max=0,disabled=false,type='text',values=null,help='',min=null,maxNumber=null}=options;
+  const requiredText=required?' <span class="dm-required" aria-label="required">*</span>':'';
+  const attributes=(required?' required':'')+(disabled?' disabled':'')+(max?' maxlength="'+max+'"':'')+
+   (min!=null?' min="'+min+'"':'')+(maxNumber!=null?' max="'+maxNumber+'"':'');
+  const control=values?'<select name="'+esc(key)+'" id="dm-field-'+esc(key)+'"'+attributes+'>'+
+     values.map(([v,t])=>'<option value="'+esc(v)+'"'+(String(value)===String(v)?' selected':'')+'>'+esc(t)+'</option>').join('')+'</select>':
+   type==='textarea'?'<textarea name="'+esc(key)+'" id="dm-field-'+esc(key)+'"'+attributes+'>'+esc(value)+'</textarea>':
+   '<input type="'+esc(type)+'" name="'+esc(key)+'" id="dm-field-'+esc(key)+'" value="'+esc(value)+'"'+attributes+'>';
+  return '<div class="dm-form-field"><label for="dm-field-'+esc(key)+'">'+esc(label)+requiredText+'</label>'+
+   '<div class="dm-form-control">'+control+(help?'<small>'+esc(help)+'</small>':'')+'</div></div>';
+ }
  async function editor(id='',readonly=false){
-  let record=null;if(id){try{record=(await api('department-master/'+id)).record}catch(e){alert(e.message);return}}
-  const parentOptions=[['','No parent'],...state.refs.units.filter(x=>x.scope===(record?.scope||state.scope)&&x.id!==id).map(x=>[x.id,x.name+' · '+x.level])];
-  const values=record||{scope:state.scope,level:'Department',sortOrder:100};
-  const body='<form id="dm-form" class="dm-form"><div class="dm-form-grid">'+field('Organizational Scope','scope',values.scope,'text',[['Central','Central'],['Branch','Branch']],!!record)+
-  field('Level','level',values.level,'text',['Department','Sub-Department','Team'].map(x=>[x,x]),!!record)+
-  field('Department / Unit Name','name',values.name)+field('Department / Unit Code','code',values.code)+
-  field('Parent Unit','parentId',values.parentId||'','text',parentOptions,!!record)+
-  field('Display Order','sortOrder',values.sortOrder,'number')+
-  (record?field('Status','status',values.status,'text',[['Active','Active'],['Inactive','Inactive']],false):'')+
-  '<div class="dm-full">'+field('Description','description',values.description||'','textarea')+'</div>'+
-  (record?'<div class="dm-full">'+field('Reason for status change','reason','','textarea')+'</div>':'')+'</div><p class="dm-dialog-notice" role="alert" hidden></p></form>';
+  let record=null;
+  if(id){try{record=(await api('department-master/'+id)).record;}catch(error){notify(error.message||'Unable to open Department','error');return;}}
+  if(record&&['Archived','Deleted'].includes(record.status)&&!readonly){notify('Restore this unit before editing','error');return;}
+  const scope=record?.scope||state.scope,level=record?.level||'Department';
+  const status=record?.status||'Active';
+  const readSection=(heading,items)=>'<section class="dm-form-section"><details open><summary>'+esc(heading)+'</summary><div class="dm-detail-grid">'+items+'</div></details></section>';
   if(readonly){
-   const h=openModal('View '+record.name,body);h.querySelectorAll('#dm-form input,#dm-form select,#dm-form textarea').forEach(x=>x.disabled=true);
-   const f=h.querySelector('.dm-dialog-body');f.insertAdjacentHTML('beforeend',btn('Related / Used In','related:'+id)+btn('Audit History','history:'+id));
-   f.addEventListener('click',click);
+   const contents='<div class="dm-detail-summary"><div><small>'+esc(record.displayId)+'</small><h3>'+esc(record.name)+'</h3><p>'+esc(record.scope)+' · '+esc(record.level)+'</p></div>'+statusTag(record.status)+'</div>'+
+    readSection('Unit Information',[
+     readItem('Unit Name',record.name),readItem('Unit Code',record.code),
+     readItem('System ID',record.displayId),readItem('Description',record.description)
+    ].join(''))+
+    readSection('Hierarchy & Organization',[
+     readItem('Catalog',record.scope),readItem('Level',record.level),
+     readItem('Parent Unit',record.parent?(record.parent+' · '+record.parentDisplayId):'None'),
+     readItem('Display Order',record.sortOrder)
+    ].join(''))+
+    readSection('Status & Audit',[
+     readItem('Record Status',record.status),readItem('Created By',record.createdBy),
+     readItem('Created At',record.createdAt?new Date(record.createdAt).toLocaleString():'—'),
+     readItem('Last Modified By',record.updatedBy),
+     readItem('Last Modified At',record.updatedAt?new Date(record.updatedAt).toLocaleString():'—')
+    ].join(''))+
+    '<div class="dm-detail-actions">'+(status==='Active'||status==='Inactive'?btn('Edit Department','detail-edit:'+id,'dm-primary-action'):'')+
+     btn('Related / Used In','related:'+id)+btn('Audit History','history:'+id)+'</div>';
+   const h=openModal('Department Details',contents);
+   h.querySelector('.dm-detail-actions').addEventListener('click',async event=>{
+    const button=event.target.closest('[data-dm]');if(!button)return;
+    event.stopPropagation();
+    const [action,target]=button.dataset.dm.split(':');dismissModal(h);
+    if(action==='detail-edit')await editor(target);
+    else await showDetails(target,action);
+   });
    return;
   }
-  openModal(record?'Edit '+record.name:'Create Department Unit',body,async data=>{
-   const req={name:data.name,code:data.code,description:data.description,sortOrder:Number(data.sortOrder),parentId:data.parentId||null};
-   if(record){req.version=record.version;req.status=data.status;req.reason=data.reason||'';}
-   else {req.scope=data.scope;req.level=data.level;}
+  const eligibleParents=targetLevel=>(state.refs.units||[]).filter(unit=>
+   unit.scope===scope&&unit.status==='Active'&&unit.id!==id&&
+   (targetLevel==='Sub-Department'?unit.level==='Department':targetLevel==='Team'&&['Department','Sub-Department'].includes(unit.level)));
+  const parentValues=[['','Select parent unit'],...eligibleParents(level).map(unit=>[unit.id,unit.name+' ('+unit.level+')'])];
+  const values=record||{name:'',code:'',description:'',sortOrder:100,parentId:'',status:'Active'};
+  const locked=Boolean(record),isChild=level!=='Department';
+  const section=(heading,items)=>'<section class="dm-form-section"><details open><summary>'+esc(heading)+'</summary><div class="dm-form-grid">'+items+'</div></details></section>';
+  const content='<form id="dm-form" class="dm-form">'+
+   section('Department Information',
+    entry('Department / Unit Name','name',values.name,{required:true,max:150})+
+    entry('Department / Unit Code','code',values.code,{required:true,max:30,help:'2–30 uppercase letters, numbers or hyphens'})+
+    '<div class="dm-full">'+entry('Description','description',values.description||'',{type:'textarea',max:1000})+'</div>')+
+   section('Hierarchy & Organization',
+    entry('Organizational Scope','scope',scope,{values:[['Central','Central'],['Branch','Branch']],disabled:true})+
+    entry('Level','level',level,{values:['Department','Sub-Department','Team'].map(x=>[x,x]),disabled:locked})+
+    entry('Parent Unit','parentId',values.parentId||'',{values:parentValues,disabled:locked||!isChild,required:!locked&&isChild,help:locked?'Parent changes require an audited reorganization.':'Parent must be Active and in the same catalog.'})+
+    entry('Display Order','sortOrder',values.sortOrder,{type:'number',min:1,maxNumber:999999,required:true}))+
+   (locked?section('Status & Audit',
+     entry('Status','status',status,{values:[['Active','Active'],['Inactive','Inactive']]})+
+     entry('Reason for status change','reason','',{type:'textarea',max:500})+
+     '<div class="dm-full dm-audit-summary">System ID: '+esc(record.displayId)+' · Last Modified: '+esc(record.updatedAt?new Date(record.updatedAt).toLocaleString():'—')+'</div>'):'')+
+   '<p class="dm-dialog-notice" role="alert" hidden></p></form>';
+  const dialog=openModal(locked?'Edit Department':'Create Department',content,async data=>{
+   const nextLevel=locked?level:data.level,nextParent=locked?record.parentId:(nextLevel==='Department'?null:data.parentId);
+   const req={name:String(data.name||'').trim(),code:String(data.code||'').trim().toUpperCase(),
+    description:String(data.description||'').trim(),sortOrder:Number(data.sortOrder)};
+   if(!req.name||!/^[A-Z0-9][A-Z0-9-]{1,29}$/.test(req.code))throw Error('Enter a Unit Name and a valid 2–30 character Unit Code.');
+   if(locked){
+    req.version=record.version;req.status=data.status;
+    if(data.status!==record.status&&!String(data.reason||'').trim())throw Error('A reason is mandatory when changing status.');
+    if(data.status!==record.status)req.reason=String(data.reason).trim();
+   }else{
+    req.scope=scope;req.level=nextLevel;req.parentId=nextParent;
+    if(nextLevel!=='Department'&&!nextParent)throw Error('Choose an Active parent unit for a '+nextLevel+'.');
+   }
    await api('department-master'+(id?'/'+id:''),id?'PUT':'POST',req);
   });
+  const form=dialog.querySelector('#dm-form');
+  const levelInput=form.querySelector('[name="level"]'),parentInput=form.querySelector('[name="parentId"]');
+  const statusInput=form.querySelector('[name="status"]'),reasonInput=form.querySelector('[name="reason"]');
+  const codeInput=form.querySelector('[name="code"]');
+  codeInput.addEventListener('input',()=>{const start=codeInput.selectionStart;codeInput.value=codeInput.value.toUpperCase();try{codeInput.setSelectionRange(start,start);}catch{}});
+  codeInput.setAttribute('pattern','[A-Za-z0-9][A-Za-z0-9-]{1,29}');
+  const updateParent=()=>{
+   if(locked||!parentInput)return;
+   const chosen=levelInput.value,available=eligibleParents(chosen);
+   parentInput.innerHTML='<option value="">'+(chosen==='Department'?'No parent needed':'Select an Active parent')+'</option>'+
+    available.map(unit=>'<option value="'+esc(unit.id)+'">'+esc(unit.name+' ('+unit.level+')')+'</option>').join('');
+   parentInput.disabled=chosen==='Department';parentInput.required=chosen!=='Department';
+   parentInput.closest('.dm-form-field').hidden=chosen==='Department';
+   const help=parentInput.closest('.dm-form-control').querySelector('small');
+   if(help&&chosen!=='Department')help.textContent=available.length?'Only eligible Active units can be selected.':'Create an Active parent Department first.';
+  };
+  const updateStatus=()=>{
+   if(!reasonInput||!statusInput)return;
+   const changed=statusInput.value!==record.status;
+   reasonInput.closest('.dm-form-field').hidden=!changed;
+   reasonInput.required=changed;
+   if(!changed)reasonInput.value='';
+  };
+  if(!locked){updateParent();levelInput.addEventListener('change',()=>{updateParent();state.dirty=true;});}
+  else updateStatus();
+  statusInput?.addEventListener('change',updateStatus);
+  form.querySelector('[name="name"]')?.focus();
  }
  async function showDetails(id,mode){
-  try{const data=await api('department-master/'+id+'/'+mode);const value=mode==='related'?data.related:data.history;
-   const h=openModal(mode==='related'?'Related / Used In':'Audit History','<pre class="dm-json">'+esc(JSON.stringify(value,null,2))+'</pre>');
-  }catch(e){alert(e.message)}
+  try{
+   const data=await api('department-master/'+id+'/'+mode);
+   let html;
+   if(mode==='related'){
+    const usage=data.related||{},child=usage.childUnits||{},assignments=usage.branchAssignments||{};
+    const metric=(label,total,active)=>'<div class="dm-related-metric"><span>'+esc(label)+'</span><strong>'+fmt(total)+'</strong><small>'+fmt(active)+' active</small></div>';
+    html='<p class="dm-hint">Dependencies are retained for audit. Active dependencies block inactivation and archiving; all historical links block deletion.</p>'+
+     '<div class="dm-related-grid">'+metric('Child Units',child.total,child.active)+metric('Branch Assignments',assignments.total,assignments.active)+'</div>';
+    if(Number(usage.total||0)===0)html+='<p class="dm-empty-state">This unit has no linked child units or Branch assignments.</p>';
+   }else{
+    const history=data.history||[];
+    html=history.length?'<div class="dm-table-wrap"><table class="dm-table dm-history-table"><thead><tr><th>Date / Time</th><th>Action</th><th>By</th><th>Reason</th></tr></thead><tbody>'+
+     history.map(item=>'<tr><td>'+esc(item.createdAt?new Date(item.createdAt).toLocaleString():'—')+'</td><td>'+esc(item.action)+'</td><td>'+esc(item.actor||'—')+'</td><td>'+esc(item.reason||'—')+'</td></tr>').join('')+'</tbody></table></div>':
+     '<div class="dm-empty-state"><strong>No history recorded yet</strong><p>Changes will appear here after a Department record is created or updated.</p></div>';
+   }
+   openModal(mode==='related'?'Related / Used In':'Audit History',html);
+  }catch(error){notify(error.message||'Could not load Department details','error');}
  }
  async function branchAssign(){
   if(state.scope!=='Branch'){alert('Central Department assignments are managed separately from Branches.');return}
