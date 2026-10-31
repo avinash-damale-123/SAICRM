@@ -217,7 +217,7 @@ function mount(host){
   const b=event.target.closest('[data-dm]');if(!b)return;
   const [action,id]=b.dataset.dm.split(':');
   if(action==='central'||action==='branch'){state.scope=action==='central'?'Central':'Branch';state.page=1;state.selectedBranch='';state.selectedLine='';await load();}
-  else if(['overview','records','tree'].includes(action)){state.tab=action;render();}
+  else if(['overview','records','tree'].includes(action)){state.tab=action;if(action==='tree')await load();else render();}
   else if(action==='clear'){state.status='all';state.level='all';state.selectedBranch='';state.selectedLine='';state.page=1;await load();}
   else if(action==='prev'&&state.page>1){state.page--;await load()}
   else if(action==='next'&&state.page*state.pageSize<state.total){state.page++;await load()}
