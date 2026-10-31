@@ -7,7 +7,26 @@ function mount(host){
  if(!window.SCRM.can('departmentmaster')){host.innerHTML='<div class="mw-state" role="alert"><strong>Access restricted</strong></div>';return {canLeave:()=>true,destroy:()=>{}}}
  const api=window.SCRM.api;
  let state={scope:'Branch',tab:'records',q:'',status:'all',level:'all',page:1,pageSize:25,total:0,records:[],counts:{},refs:{units:[],branches:[],businessLines:[]},
-  selectedLine:'',selectedBranch:'',assignments:[],treeRecords:[],loading:false,error:'',dialog:false,dirty:false,editing:null,dialogMode:'',destroyed:false};
+  selectedLine:'',selectedBranch:'',assignments:[],treeRecords:[],columns:['name','displayId','code','level','parent','status','updatedAt'],loading:false,error:'',dialog:false,dirty:false,editing:null,dialogMode:'',destroyed:false};
+
+ const columnDefs=[
+  {key:'name',label:'Unit Name',locked:true},
+  {key:'displayId',label:'System ID',locked:true},
+  {key:'code',label:'Unit Code'},
+  {key:'level',label:'Level'},
+  {key:'parent',label:'Parent Unit'},
+  {key:'scope',label:'Scope'},
+  {key:'description',label:'Description'},
+  {key:'sortOrder',label:'Display Order'},
+  {key:'status',label:'Status'},
+  {key:'updatedAt',label:'Last Modified'}];
+ const columnsKey='saicrm.department.columns.v1';
+ try{
+  const saved=JSON.parse(localStorage.getItem(columnsKey));
+  if(Array.isArray(saved)&&saved.every(k=>columnDefs.some(c=>c.key===k))&&new Set(saved).size===saved.length){
+   state.columns=[...new Set(['name','displayId',...saved])];
+  }
+ }catch{}
  let shell=null,requestId=0;
  const btn=(text,action,cls='')=>'<button type="button" class="dm-btn '+cls+'" data-dm="'+action+'">'+esc(text)+'</button>';
  const header=()=>{
@@ -15,7 +34,7 @@ function mount(host){
   shell=document.createElement('section');shell.className='dm-module-header';
   shell.innerHTML='<div class="dm-primary"><div class="dm-header-title"><span>▦</span><strong>Departments</strong></div><nav class="dm-tabs" aria-label="Department views">'+btn('Overview','overview')+btn('Records','records')+btn('Hierarchy Tree','tree')+'</nav></div>'+
    '<div class="dm-toolbar">'+btn('Central Department','central')+btn('Branch Department','branch')+
-   '<label class="dm-search">Search <input type="search" id="dm-search" placeholder="Name, code, ID"></label>'+btn('Refresh','refresh')+btn('Export CSV','export')+btn('Add Department','create','dm-primary-action')+'</div>';
+   '<label class="dm-search">Search <input type="search" id="dm-search" placeholder="Name, code, ID"></label>'+btn('Refresh','refresh')+btn('Export CSV','export')+btn('Arrange Columns','columns')+btn('Add Department','create','dm-primary-action')+'</div>';
   const top=document.querySelector('.topbar');if(top)top.insertAdjacentElement('afterend',shell);else host.prepend(shell);
   shell.addEventListener('click',click);
   shell.querySelector('#dm-search').addEventListener('input',e=>{state.q=e.target.value;state.page=1;debounceLoad()});
@@ -30,8 +49,21 @@ function mount(host){
   shell.querySelector('[data-dm="create"]').disabled=state.loading;
  }
  const statusTag=s=>'<span class="dm-tag dm-'+esc(s).toLowerCase()+'">'+esc(s)+'</span>';
- const table=rows=>'<div class="dm-table-wrap"><table class="dm-table"><thead><tr><th>Unit Name</th><th>System ID</th><th>Unit Code</th><th>Level</th><th>Parent Unit</th><th>Status</th><th>Last Modified</th><th>Actions</th></tr></thead><tbody>'+
-  (rows.length?rows.map(r=>'<tr><td><strong>'+esc(r.name)+'</strong></td><td>'+esc(r.displayId)+'</td><td>'+esc(r.code)+'</td><td>'+esc(r.level)+'</td><td>'+esc(r.parent||'—')+'</td><td>'+statusTag(r.status)+'</td><td>'+esc(r.updatedAt?new Date(r.updatedAt).toLocaleString():'—')+'</td><td>'+btn('View','view:'+r.id)+btn('Edit','edit:'+r.id)+btn('Status','lifecycle:'+r.id)+'</td></tr>').join(''):'<tr><td colspan="8" class="dm-empty">No matching departments. Create the first record or change your filters.</td></tr>')+'</tbody></table></div>';
+ const table=rows=>{
+  const columns=state.columns.map(k=>columnDefs.find(c=>c.key===k)).filter(Boolean);
+  const cell=(r,k)=>k==='name'?'<strong>'+esc(r.name)+'</strong>':k==='status'?statusTag(r.status):
+    k==='updatedAt'?esc(r.updatedAt?new Date(r.updatedAt).toLocaleString():'—'):
+    esc(r[k]??'—');
+  return '<div class="dm-table-wrap"><table class="dm-table"><thead><tr>'+
+   columns.map(c=>'<th data-column-key="'+esc(c.key)+'">'+esc(c.label)+'</th>').join('')+
+   '<th class="dm-actions-col">Actions</th></tr></thead><tbody>'+
+   (rows.length?rows.map(r=>'<tr>'+
+    columns.map(c=>'<td data-column-key="'+esc(c.key)+'">'+cell(r,c.key)+'</td>').join('')+
+    '<td class="dm-actions-col">'+btn('View','view:'+r.id)+btn('Edit','edit:'+r.id)+btn('Status','lifecycle:'+r.id)+'</td></tr>').join(''):
+    '<tr><td colspan="'+(columns.length+1)+'" class="dm-empty">No matching departments. Create the first record or change your filters.</td></tr>')+
+   '</tbody></table></div>';
+ };
+
  function controls(){
   const options=(values,value)=>values.map(v=>'<option value="'+esc(v)+'" '+(v===value?'selected':'')+'>'+esc(v)+'</option>').join('');
   const lines=state.refs.businessLines||[],branches=state.refs.branches||[];
@@ -213,6 +245,42 @@ function mount(host){
    link.href=url;link.download='department-'+scope.toLowerCase()+'-filtered.csv';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
   }catch(err){alert(err.message||'Export failed. Please try again.')}
  }
+ function customizeColumns(){
+  let order=[...state.columns,...columnDefs.map(c=>c.key).filter(k=>!state.columns.includes(k))];
+  const selected=new Set(state.columns),locked=new Set(columnDefs.filter(c=>c.locked).map(c=>c.key));
+  const h=openModal('Arrange Columns','<div class="dm-column-editor"></div>');
+  const container=h.querySelector('.dm-column-editor');
+  function draw(){
+   container.innerHTML='<p class="dm-hint">Choose the visible columns and move them up or down. Unit Name and System ID stay visible.</p>'+
+    order.map((key,index)=>{
+     const c=columnDefs.find(x=>x.key===key);
+     return '<div class="dm-column-row"><label><input type="checkbox" data-dm-column-visible="'+esc(key)+'" '+
+      (selected.has(key)?'checked ':'')+(locked.has(key)?'disabled ':'')+'>'+esc(c.label)+'</label><div>'+
+      '<button type="button" class="dm-btn" data-dm-column-move="up:'+esc(key)+'" '+(index===0?'disabled':'')+' aria-label="Move '+esc(c.label)+' up">↑</button>'+
+      '<button type="button" class="dm-btn" data-dm-column-move="down:'+esc(key)+'" '+(index===order.length-1?'disabled':'')+' aria-label="Move '+esc(c.label)+' down">↓</button></div></div>';
+    }).join('')+'<button type="button" class="dm-btn dm-primary-action" data-dm-column-save>Apply columns</button>';
+  }
+  container.addEventListener('change',event=>{
+   const key=event.target.dataset.dmColumnVisible;
+   if(!key||locked.has(key))return;
+   if(event.target.checked)selected.add(key);else selected.delete(key);
+   state.dirty=true;
+  });
+  container.addEventListener('click',event=>{
+   const move=event.target.closest('[data-dm-column-move]');
+   if(move){
+    const [way,key]=move.dataset.dmColumnMove.split(':'),i=order.indexOf(key),j=i+(way==='up'?-1:1);
+    if(j>=0&&j<order.length){[order[i],order[j]]=[order[j],order[i]];state.dirty=true;draw();}
+    return;
+   }
+   if(event.target.closest('[data-dm-column-save]')){
+    state.columns=order.filter(k=>selected.has(k)||locked.has(k));
+    try{localStorage.setItem(columnsKey,JSON.stringify(state.columns));}catch{}
+    state.dirty=false;h.remove();state.dialog=false;render();
+   }
+  });
+  draw();
+ }
  async function click(event){
   const b=event.target.closest('[data-dm]');if(!b)return;
   const [action,id]=b.dataset.dm.split(':');
@@ -223,6 +291,7 @@ function mount(host){
   else if(action==='next'&&state.page*state.pageSize<state.total){state.page++;await load()}
   else if(action==='refresh')await load();
   else if(action==='export')await exportCsv();
+  else if(action==='columns')customizeColumns();
   else if(action==='create')await editor();
   else if(action==='view')await editor(id,true);
   else if(action==='edit')await editor(id);
