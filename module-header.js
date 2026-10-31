@@ -64,7 +64,7 @@ function tab(button,view,label) {
  const recordsView=['Business Lines','Countries','Regions','Branches','Departments'].includes(label);
  button.innerHTML=svg(view)+'<span class="scrm-view-copy"><small class="scrm-view-context"></small><strong class="scrm-view-title"></strong></span>';
  button.querySelector('small').textContent=label;
- button.querySelector('strong').textContent=view==='dashboard'?'Overview':view==='tree'?'Hierarchy':'Records';
+ button.querySelector('strong').textContent=view==='dashboard'?'Overview':view==='tree'?'Hierarchy':recordsView?'Records':'Home';
  button.classList.add('scrm-view');
  button.title=label+' '+(view==='dashboard'?'Overview':recordsView?'Records':'Home');
  button.setAttribute('aria-label',button.title);
