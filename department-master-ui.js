@@ -7,7 +7,7 @@ function mount(host){
  if(!window.SCRM.can('departmentmaster')){host.innerHTML='<div class="mw-state" role="alert"><strong>Access restricted</strong></div>';return {canLeave:()=>true,destroy:()=>{}}}
  const api=window.SCRM.api;
  let state={scope:'Branch',tab:'records',q:'',status:'all',level:'all',page:1,pageSize:25,total:0,records:[],counts:{},refs:{units:[],branches:[],businessLines:[]},
-  selectedLine:'',selectedBranch:'',assignments:[],loading:false,error:'',dialog:false,dirty:false,editing:null,dialogMode:'',destroyed:false};
+  selectedLine:'',selectedBranch:'',assignments:[],treeRecords:[],loading:false,error:'',dialog:false,dirty:false,editing:null,dialogMode:'',destroyed:false};
  let shell=null,requestId=0;
  const btn=(text,action,cls='')=>'<button type="button" class="dm-btn '+cls+'" data-dm="'+action+'">'+esc(text)+'</button>';
  const header=()=>{
@@ -41,12 +41,12 @@ function mount(host){
    '<label>Branch<select id="dm-branch"><option value="">All Branches</option>'+branches.filter(b=>!state.selectedLine||b.businessLineRef===state.selectedLine).map(b=>'<option value="'+esc(b.id)+'" '+(state.selectedBranch===b.id?'selected':'')+'>'+esc(b.name)+' · '+esc(b.code)+'</option>').join('')+'</select></label>':'')+
    btn('Clear filters','clear')+'</div>';
  }
- const rows=()=>state.records;
+ const rows=()=>state.tab==='tree'?state.treeRecords:state.records;
  const tree=()=>{
   const byParent=new Map();for(const row of rows()){const k=row.parentId||'root';if(!byParent.has(k))byParent.set(k,[]);byParent.get(k).push(row)}
   const draw=(parent,depth)=> (byParent.get(parent)||[]).map(x=>'<div class="dm-tree-node" style="margin-left:'+Math.min(depth*22,66)+'px"><button data-dm="view:'+esc(x.id)+'" type="button"><span class="dm-tree-glyph">'+(depth===0?'▦':depth===1?'◫':'◉')+'</span> <strong>'+esc(x.name)+'</strong><small>'+esc(x.level)+' · '+esc(x.code)+'</small>'+statusTag(x.status)+'</button></div>'+draw(x.id,depth+1)).join('');
   const output=draw('root',0);
-  return '<div class="dm-panel"><h3>Department hierarchy</h3><p class="dm-hint">Tree uses all loaded records for the selected filter/page; view Records for pagination.</p>'+(output||'<p>No hierarchy nodes in the current view.</p>')+'</div>';
+  return '<div class="dm-panel"><h3>Department hierarchy</h3><p class="dm-hint">Tree loads all matching units, including additional pages. Search and status filters apply.</p>'+(output||'<p>No hierarchy nodes in the current view.</p>')+'</div>';
  };
  function overview(){
   const c=state.counts||{};
@@ -76,8 +76,23 @@ function mount(host){
    const data=await api('department-master?'+q);
    if(id!==requestId||state.destroyed)return;
    state.records=data.records||[];state.total=data.total||0;state.counts=data.counts||{};state.page=data.page||state.page;
+   if(state.tab==='tree'){
+    const treeQuery=new URLSearchParams({scope:state.scope,q:state.q,status:state.status,level:state.level,page:'1',pageSize:'100'});
+    if(state.selectedBranch)treeQuery.set('branchId',state.selectedBranch);
+    const first=await api('department-master?'+treeQuery);
+    if(Number(first.total||0)>10000)throw new Error('Tree view supports up to 10,000 matching units. Narrow your filters.');
+    const all=[...(first.records||[])],total=Number(first.total||0);
+    for(let p=2;all.length<total;p++){
+     treeQuery.set('page',String(p));
+     const next=await api('department-master?'+treeQuery);
+     if(!Array.isArray(next.records)||!next.records.length)throw new Error('Could not load full Department hierarchy');
+     all.push(...next.records);
+    }
+    if(id!==requestId||state.destroyed)return;
+    state.treeRecords=all;
+   }else state.treeRecords=[];
    state.error='';
-  }catch(e){if(id===requestId)state.error=e.message||'Could not load departments'}
+  }catch(e){if(id===requestId){state.treeRecords=[];state.error=e.message||'Could not load departments'}}
   finally{if(id===requestId){state.loading=false;render()}}
  }
  const field=(label,key,value='',type='text',options=null,disabled=false)=>'<label>'+esc(label)+(options?'<select name="'+key+'" '+(disabled?'disabled':'')+'>'+options.map(([k,v])=>'<option value="'+esc(k)+'" '+(String(value)===String(k)?'selected':'')+'>'+esc(v)+'</option>').join('')+'</select>':
