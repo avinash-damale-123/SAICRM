@@ -114,7 +114,7 @@ export async function departmentMaster({client,user,path,method,url,body={}}){
   const total=Number((await client.query('SELECT count(*)::int total FROM department_units u'+where,params)).rows[0].total);
   const pageCount=Math.max(1,Math.ceil(total/pageSize)),current=Math.min(page,pageCount);
   const rows=(await client.query(info+where+' ORDER BY u.updated_at DESC,u.id DESC LIMIT $'+(params.length+1)+' OFFSET $'+(params.length+2),[...params,pageSize,(current-1)*pageSize])).rows;
-  const counts=(await client.query("SELECT count(*)::int total,count(*) FILTER(WHERE status='Active' AND archived_at IS NULL AND deleted_at IS NULL)::int active,count(*) FILTER(WHERE status='Inactive' AND archived_at IS NULL AND deleted_at IS NULL)::int inactive,count(*) FILTER(WHERE archived_at IS NOT NULL AND deleted_at IS NULL)::int archived,count(*) FILTER(WHERE deleted_at IS NOT NULL)::int deleted FROM department_units WHERE scope=$1",[scope])).rows[0];
+  const counts=(await client.query("SELECT count(*)::int total,count(*) FILTER(WHERE status='Active' AND archived_at IS NULL AND deleted_at IS NULL)::int active,count(*) FILTER(WHERE status='Inactive' AND archived_at IS NULL AND deleted_at IS NULL)::int inactive,count(*) FILTER(WHERE archived_at IS NOT NULL AND deleted_at IS NULL)::int archived,count(*) FILTER(WHERE deleted_at IS NOT NULL)::int deleted FROM department_units u"+where,params)).rows[0];
   return {records:rows.map(view),total,page:current,pageSize,totalPages:pageCount,counts,permissions:perms,resource:departmentResource};
  }
  if(path.length===2&&path[1]==='references'&&method==='GET'){
