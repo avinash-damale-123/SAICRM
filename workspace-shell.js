@@ -2,8 +2,8 @@
 'use strict';
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const modules = new Set(['leads','customers','contacts','opportunities','activities','quotes','bookings','employees','branches','businesslines','countries','regions','branchmaster']);
-const names = {home:'Home',overview:'Overview',mywork:'My Work',analytics:'Analytics',leads:'Leads',customers:'Customers',contacts:'People & Contacts',opportunities:'Opportunities',activities:'Activities',quotes:'Quotations',bookings:'Bookings',employees:'Employees & Access',branches:'Branch Network',businesslines:'Business Lines',countries:'Countries',regions:'Regions',branchmaster:'Branches',settings:'Settings & Masters',modules:'Module Directory',audit:'Audit Trail',notifications:'Notifications',access:'Access Approvals'};
+const modules = new Set(['leads','customers','contacts','opportunities','activities','quotes','bookings','employees','branches','businesslines','countries','regions','branchmaster','departmentmaster']);
+const names = {home:'Home',overview:'Overview',mywork:'My Work',analytics:'Analytics',leads:'Leads',customers:'Customers',contacts:'People & Contacts',opportunities:'Opportunities',activities:'Activities',quotes:'Quotations',bookings:'Bookings',employees:'Employees & Access',branches:'Branch Network',businesslines:'Business Lines',countries:'Countries',regions:'Regions',branchmaster:'Branches',departmentmaster:'Departments',settings:'Settings & Masters',modules:'Module Directory',audit:'Audit Trail',notifications:'Notifications',access:'Access Approvals'};
 let searchInput,scopeBtn,scopeMenu,searchResults,noticeMenu,profileMenu,queryTimer,sequence=0,current='',scope='module',resultItems=[],activeResult=0,notificationItems=[],noticeLoading=false;
 const userId = () => window.SCRM?.user?.id || 'anonymous';
 const readKey = () => 'scrm:notification-read:'+userId();
