@@ -101,7 +101,7 @@ try{
  await page.locator('[data-dm="overview"]').click();
  await page.locator('.dm-overview').waitFor();
  assert.match(await page.locator('.dm-overview').innerText(),/Units by Hierarchy Level/);
- await page.locator('[data-dm="records"]').click();
+ await page.locator('.dm-module-header [data-dm="records"]').click();
  await page.waitForFunction(()=>document.querySelector('.dm-table tbody')?.textContent.includes('Operations'));
  await page.locator('.dm-module-header .scrm-bl-primary [data-dm="create"]').click();
  await page.locator('dialog.dm-native-dialog[open] #dm-form').waitFor();
