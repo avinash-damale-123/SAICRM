@@ -80,7 +80,7 @@ function mount(host){
    '<th class="dm-actions-col">Actions</th></tr></thead><tbody>'+
    (rows.length?rows.map(r=>'<tr>'+
     columns.map(c=>'<td data-column-key="'+esc(c.key)+'">'+cell(r,c.key)+'</td>').join('')+
-    '<td class="dm-actions-col">'+btn('View','view:'+r.id)+(r.status==='Active'||r.status==='Inactive'?btn('Edit','edit:'+r.id):'')+btn('Status','lifecycle:'+r.id)+'</td></tr>).join(''):
+    '<td class="dm-actions-col">'+btn('View','view:'+r.id)+(r.status==='Active'||r.status==='Inactive'?btn('Edit','edit:'+r.id):'')+btn('Status','lifecycle:'+r.id)+'</td></tr>').join(''):
     '<tr><td colspan="'+(columns.length+1)+'" class="dm-empty"><div class="dm-empty-state"><strong>'+(state.q||state.status!=='all'||state.level!=='all'||state.nameFilter||state.codeFilter||state.parentFilter||state.selectedBranch||state.selectedLine?'No matching Department records':'No '+esc(state.scope)+' Departments created yet')+'</strong><p>'+(state.q||state.status!=='all'||state.level!=='all'||state.nameFilter||state.codeFilter||state.parentFilter||state.selectedBranch||state.selectedLine?'Clear filters to see all available units.':'Start by creating a Department. Sub-Departments and Teams can then be linked to it.')+'</p>'+btn('Add Department','create','dm-primary-action')+'</div></td></tr>')+
    '</tbody></table></div>';
  };
