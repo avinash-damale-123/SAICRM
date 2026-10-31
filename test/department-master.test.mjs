@@ -13,7 +13,8 @@ test('Department resource and privileged access are isolated',()=>{
  assert.equal(departmentPermissions(admin).read,true);
  assert.equal(departmentPermissions(rejected).read,false);
  assert.equal(departmentPermissions({...admin,status:'pending'}).create,false);
- assert.equal(departmentPermissions(admin).import,false);
+ assert.equal(departmentPermissions(admin).import,true);
+ assert.equal(departmentPermissions(rejected).import,false);
 });
 test('Anonymous or ordinary users cannot read Department records',async()=>{
  const client=mock();await assert.rejects(()=>departmentMaster({client,user:rejected,path:['department-master'],method:'GET',url:url('')}),/permission/);
@@ -42,4 +43,33 @@ test('Department page and assets are wired with an authenticated controller',asy
  assert.match(app,/SCRMDepartmentMaster/);
  assert.match(auth,/module==='departmentmaster'/);
  assert.match(build,/'department-master-ui\.js'/);
+});
+
+test('Department filter inputs reject invalid identifiers and bind legitimate values',async()=>{
+ const client={sql:[],query:async function(s,p=[]){
+  this.sql.push({s,p});
+  if(s.includes('count(*)::int total')||s.startsWith('SELECT count(*)::int total'))return {rows:[{total:0,active:0,inactive:0,archived:0,deleted:0}],rowCount:1};
+  return {rows:[],rowCount:0};
+ }};
+ await assert.rejects(()=>departmentMaster({client,user:admin,path:['department-master'],method:'GET',url:url('?businessLineId=not-a-uuid')}),/Business Line filter/);
+ const guid='22222222-2222-4222-8222-222222222222';
+ await departmentMaster({client,user:admin,path:['department-master'],method:'GET',url:url('?scope=Branch&businessLineId='+guid+'&name=Sales&code=SA&level=Department')});
+ const list=client.sql.find(x=>x.s.includes('FROM department_units u WHERE')&&x.s.includes('u.name ILIKE'));
+ assert.ok(list,'List SQL should apply the filtered query');
+ assert.match(list.s,/b.business_line_id=\$/);
+ assert.ok(list.p.includes(guid));
+ assert.ok(list.p.includes('%Sales%'));
+ assert.ok(list.p.includes('%SA%'));
+});
+test('Department file transfer endpoints are wired behind Super Admin policy',async()=>{
+ const [transfer,api]=await Promise.all([
+  readFile(new URL('../server/department-transfers.mjs',import.meta.url),'utf8'),
+  readFile(new URL('../server/api.mjs',import.meta.url),'utf8')
+ ]);
+ assert.match(transfer,/readUpload/);
+ assert.match(transfer,/crm_transfer_jobs/);
+ assert.match(transfer,/crm_transfer_items/);
+ assert.match(transfer,/crm_transfer_files/);
+ assert.match(transfer,/SAVEPOINT dept_import_row/);
+ assert.match(api,/department-master/);
 });
