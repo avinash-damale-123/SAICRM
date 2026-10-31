@@ -7,7 +7,7 @@ function mount(host){
  if(!window.SCRM.can('departmentmaster')){host.innerHTML='<div class="mw-state" role="alert"><strong>Access restricted</strong></div>';return {canLeave:()=>true,destroy:()=>{}}}
  const api=window.SCRM.api;
  let state={scope:'Branch',tab:'records',q:'',status:'all',level:'all',page:1,pageSize:25,total:0,records:[],counts:{},refs:{units:[],branches:[],businessLines:[]},
-  selectedLine:'',selectedBranch:'',assignments:[],treeRecords:[],columns:['name','displayId','code','level','parent','status','updatedAt'],advancedOpen:false,nameFilter:'',codeFilter:'',parentFilter:'',loading:false,error:'',dialog:false,dirty:false,editing:null,dialogMode:'',destroyed:false};
+  selectedLine:'',selectedBranch:'',assignments:[],treeRecords:[],columns:['name','displayId','code','level','parent','status','updatedAt'],advancedOpen:false,filtersOpen:false,nameFilter:'',codeFilter:'',parentFilter:'',loading:false,error:'',dialog:false,dirty:false,editing:null,dialogMode:'',destroyed:false};
 
  const columnDefs=[
   {key:'name',label:'Unit Name',locked:true},
@@ -86,48 +86,66 @@ function mount(host){
  };
 
  function controls(){
-  const options=(values,value)=>values.map(v=>'<option value="'+esc(v)+'" '+(v===value?'selected':'')+'>'+esc(v)+'</option>').join('');
+  const options=(values,value,allLabel)=>values.map(v=>'<option value="'+esc(v)+'" '+(v===value?'selected':'')+'>'+esc(v==='all'?allLabel:v)+'</option>').join('');
   const lines=state.refs.businessLines||[],branches=state.refs.branches||[];
   const parents=(state.refs.units||[]).filter(u=>u.scope===state.scope);
-  return '<div class="dm-filters"><label>Status<select id="dm-status">'+options(['all','Active','Inactive','Archived','Deleted'],state.status)+'</select></label>'+
-  '<label>Level<select id="dm-level">'+options(['all','Department','Sub-Department','Team'],state.level)+'</select></label>'+
-  (state.scope==='Branch'?'<label>Business Line<select id="dm-line"><option value="">All Business Lines</option>'+lines.map(x=>'<option value="'+esc(x.id)+'" '+(state.selectedLine===x.id?'selected':'')+'>'+esc(x.name)+'</option>').join('')+'</select></label>'+
+  return '<section id="dm-filter-panel" class="dm-filter-panel" aria-label="Filter Department records">'+
+   '<div class="dm-filter-heading"><div><strong>Filters</strong><small>Apply to Records, Overview and Hierarchy</small></div>'+
+   btn('Clear all filters','clear')+'</div>'+
+   '<div class="dm-filters"><label>Status<select id="dm-status">'+options(['all','Active','Inactive','Archived','Deleted'],state.status,'All statuses')+'</select></label>'+
+   '<label>Level<select id="dm-level">'+options(['all','Department','Sub-Department','Team'],state.level,'All levels')+'</select></label>'+
+   (state.scope==='Branch'?'<label>Business Line<select id="dm-line"><option value="">All Business Lines</option>'+lines.map(x=>'<option value="'+esc(x.id)+'" '+(state.selectedLine===x.id?'selected':'')+'>'+esc(x.name)+'</option>').join('')+'</select></label>'+
    '<label>Branch<select id="dm-branch"><option value="">All Branches</option>'+branches.filter(b=>!state.selectedLine||b.businessLineRef===state.selectedLine).map(b=>'<option value="'+esc(b.id)+'" '+(state.selectedBranch===b.id?'selected':'')+'>'+esc(b.name)+' · '+esc(b.code)+'</option>').join('')+'</select></label>':'')+
-   btn(state.advancedOpen?'Hide Advanced Filters':'Advanced Filters','advanced',state.advancedOpen?'dm-chosen':'')+btn('Clear filters','clear')+'</div>'+
+   btn(state.advancedOpen?'Hide Advanced':'Advanced Filters','advanced',state.advancedOpen?'dm-chosen':'')+'</div>'+
    (state.advancedOpen?'<div class="dm-advanced-filters"><label>Unit Name contains<input id="dm-advanced-name" maxlength="150" value="'+esc(state.nameFilter)+'"></label>'+
    '<label>Unit Code contains<input id="dm-advanced-code" maxlength="30" value="'+esc(state.codeFilter)+'"></label>'+
    '<label>Parent Unit<select id="dm-advanced-parent"><option value="">Any Parent</option>'+
    parents.map(p=>'<option value="'+esc(p.id)+'" '+(state.parentFilter===p.id?'selected':'')+'>'+esc(p.name+' · '+p.level)+'</option>').join('')+
-   '</select></label>'+btn('Apply filters','apply-advanced','dm-primary-action')+'</div>':'');
+   '</select></label>'+btn('Apply filters','apply-advanced','dm-primary-action')+'</div>':'')+'</section>';
  }
-
+ function scopePanel(){
+  const branch=state.scope==='Branch';
+  return '<section class="dm-scope-panel" aria-label="Department catalog scope">'+
+   '<div class="dm-scope-switch" role="group" aria-label="Catalog">'+
+   btn('Central Department','central',!branch?'dm-chosen':'')+
+   btn('Branch Department','branch',branch?'dm-chosen':'')+'</div>'+
+   '<div class="dm-scope-note">'+(branch?'Shared Branch Department definitions; assign the same unit independently to eligible Branches.':'Central Departments are independent of Branch assignments.')+'</div>'+
+   (branch?'<div class="dm-scope-actions">'+btn('Assign to Branch','assign')+btn('Manage Assignments','manage-assignments')+'</div>':'')+
+   '</section>';
+ }
  const rows=()=>state.tab==='tree'?state.treeRecords:state.records;
  const tree=()=>{
   const matched=rows(),ids=new Set(matched.map(r=>r.id)),byParent=new Map();
   for(const row of matched){const k=row.parentId&&ids.has(row.parentId)?row.parentId:'root';if(!byParent.has(k))byParent.set(k,[]);byParent.get(k).push(row)}
   const draw=(parent,depth)=> (byParent.get(parent)||[]).map(x=>'<div class="dm-tree-node" style="margin-left:'+Math.min(depth*22,66)+'px"><button data-dm="view:'+esc(x.id)+'" type="button"><span class="dm-tree-glyph">'+(depth===0?'▦':depth===1?'◫':'◉')+'</span> <strong>'+esc(x.name)+'</strong><small>'+esc(x.level)+' · '+esc(x.code)+'</small>'+statusTag(x.status)+'</button></div>'+draw(x.id,depth+1)).join('');
   const output=draw('root',0);
-  return '<div class="dm-panel"><h3>Department hierarchy</h3><p class="dm-hint">Tree loads all matching units, including additional pages. Search and status filters apply.</p>'+(output||'<p>No hierarchy nodes in the current view.</p>')+'</div>';
+  return '<div class="dm-panel"><h3>Department hierarchy</h3><p class="dm-hint">Tree loads all matching units, including additional pages. Search and status filters apply.</p>'+(output||'<div class="dm-empty-state"><strong>'+(state.q||state.status!=='all'||state.level!=='all'||state.nameFilter||state.codeFilter||state.parentFilter||state.selectedBranch||state.selectedLine?'No matching hierarchy units':'Your '+esc(state.scope)+' Department hierarchy is empty')+'</strong><p>'+(state.q||state.status!=='all'||state.level!=='all'||state.nameFilter||state.codeFilter||state.parentFilter||state.selectedBranch||state.selectedLine?'Try clearing the current filters.':'Create a Department first, then add Sub-Departments and Teams under it.')+'</p>'+btn('Add Department','create','dm-primary-action')+'</div>')+'</div>';
  };
  function overview(){
   const c=state.counts||{};
   return '<div class="dm-metrics">'+[['All units',c.total],['Active',c.active],['Inactive',c.inactive],['Archived',c.archived],['Deleted',c.deleted]].map(([n,v])=>'<article class="dm-metric"><span>'+n+'</span><strong>'+fmt(v)+'</strong></article>').join('')+'</div><div class="dm-panel"><h3>Department Overview</h3><p>Counts reflect the current catalog, search, and filters. Central and Branch catalogs remain separate; Branch assignments are not employee counts.</p>'+btn('View records','records')+'</div>';
  }
  const render=()=>{
-  if(state.destroyed)return;renderHeader();
-  host.innerHTML='<div class="dm-workspace"><div class="dm-content-heading"><div><small>ADMINISTRATION / CORE MASTERS</small><h2>'+esc(state.scope)+' Department</h2><p>Department → Sub-Department → Team</p></div>'+(state.scope==='Branch'?btn('Assign to Branch','assign')+btn('Manage Assignments','manage-assignments'):'')+'</div>'+
-    (state.error?'<div role="alert" class="dm-error">'+esc(state.error)+'</div>':'')+
-    (state.loading?'<p class="dm-loading">Loading departments…</p>':controls()+(state.tab==='overview'?overview():state.tab==='tree'?tree():table(rows())+
-    '<footer class="dm-page"><span>'+fmt(state.total)+' records · Page '+state.page+' of '+Math.max(1,Math.ceil(state.total/state.pageSize))+'</span><label class="dm-page-size-label">Rows per page<select id="dm-page-size">'+[25,50,75,100].map(n=>'<option value="'+n+'" '+(n===state.pageSize?'selected':'')+'>'+n+'</option>').join('')+'</select></label>'+btn('Previous','prev')+btn('Next','next')+'</footer>'))+'</div>';
+  if(state.destroyed)return;
+  renderHeader();
+  const scope=scopePanel(),title='<div class="dm-content-heading"><div><small>ADMINISTRATION / CORE MASTERS</small><h2>'+esc(state.scope)+' Departments</h2><p>Department → Sub-Department → Team</p></div></div>';
+  const empty=state.loading?'<p class="dm-loading" role="status">Loading Departments…</p>':state.tab==='overview'?overview():state.tab==='tree'?tree():table(rows())+
+   '<footer class="dm-page"><span>'+fmt(state.total)+' matching records · Page '+state.page+' of '+Math.max(1,Math.ceil(state.total/state.pageSize))+'</span><label class="dm-page-size-label">Rows per page<select id="dm-page-size">'+[25,50,75,100].map(n=>'<option value="'+n+'" '+(n===state.pageSize?'selected':'')+'>'+n+'</option>').join('')+'</select></label>'+btn('Previous','prev')+btn('Next','next')+'</footer>';
+  host.innerHTML='<div class="dm-workspace">'+scope+title+
+   (state.error?'<div role="alert" class="dm-error">'+esc(state.error)+'</div>':'')+
+   (state.filtersOpen?controls():'')+
+   (!state.filtersOpen&&(state.q||state.status!=='all'||state.level!=='all'||state.nameFilter||state.codeFilter||state.parentFilter||state.selectedLine||state.selectedBranch)?
+    '<div class="dm-filter-summary"><span>Filters active · '+fmt(state.total)+' matching units</span>'+btn('Clear filters','clear')+btn('Show filters','toggle-filters')+'</div>':'')+
+   '<div class="dm-main-panel">'+empty+'</div></div>';
   host.querySelectorAll('select').forEach(select=>select.addEventListener('change',e=>{
-    if(e.target.id==='dm-line'){state.selectedLine=e.target.value;state.selectedBranch='';}
-    if(e.target.id==='dm-branch')state.selectedBranch=e.target.value;
-    if(e.target.id==='dm-status')state.status=e.target.value;
-    if(e.target.id==='dm-level')state.level=e.target.value;
-    if(e.target.id==='dm-page-size')state.pageSize=Number(e.target.value)||25;
-    state.page=1;load();
+   if(e.target.id==='dm-line'){state.selectedLine=e.target.value;state.selectedBranch='';}
+   if(e.target.id==='dm-branch')state.selectedBranch=e.target.value;
+   if(e.target.id==='dm-status')state.status=e.target.value;
+   if(e.target.id==='dm-level')state.level=e.target.value;
+   if(e.target.id==='dm-page-size')state.pageSize=Number(e.target.value)||25;
+   if(e.target.id==='dm-advanced-parent')return;
+   state.page=1;load();
   }));
-
  };
  async function references(){try{const data=await api('department-master/references');state.refs={units:data.units||[],branches:data.branches||[],businessLines:data.businessLines||[]}}catch(e){state.error=e.message}}
  function appendAdvancedFilters(query){
@@ -462,6 +480,7 @@ function mount(host){
  async function click(event){
   const b=event.target.closest('[data-dm]');if(!b)return;
   const [action,id]=b.dataset.dm.split(':');
+  if(action==='toggle-filters'){state.filtersOpen=!state.filtersOpen;render();return;}
   if(action==='central'||action==='branch'){state.scope=action==='central'?'Central':'Branch';state.page=1;state.selectedBranch='';state.selectedLine='';await load();}
   else if(['overview','records','tree'].includes(action)){state.tab=action;if(action==='tree')await load();else render();}
   else if(action==='clear'){state.status='all';state.level='all';state.selectedBranch='';state.selectedLine='';state.nameFilter='';state.codeFilter='';state.parentFilter='';state.page=1;await load();}
@@ -491,8 +510,8 @@ function mount(host){
  host.addEventListener('click',click);
  header();references().then(load);
  return {canLeave:()=>!state.dialog||!state.dirty||confirm('Discard unsaved Department Master edits?'),
-  destroy(){state.destroyed=true;clearTimeout(timer);shell?.remove();document.querySelector('.dm-modal-backdrop')?.remove();return true},
-  setSearch(value){state.q=String(value||'');if(shell)shell.querySelector('#dm-search').value=state.q;debounceLoad()},
+  destroy(){state.destroyed=true;clearTimeout(timer);window.SCRMHeader?.parkSearch?.();headerHost?.remove();host.classList.remove('mw-module-content');document.querySelector('.dm-modal-backdrop')?.remove();return true},
+  setSearch(value){state.q=String(value||'').slice(0,100);state.page=1;debounceLoad()},
   openResult(id){editor(id,true)}};
 }
 window.SCRMDepartmentMaster={mount};
