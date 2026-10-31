@@ -7,7 +7,7 @@ function mount(host){
  if(!window.SCRM.can('departmentmaster')){host.innerHTML='<div class="mw-state" role="alert"><strong>Access restricted</strong></div>';return {canLeave:()=>true,destroy:()=>{}}}
  const api=window.SCRM.api;
  let state={scope:'Branch',tab:'records',q:'',status:'all',level:'all',page:1,pageSize:25,total:0,records:[],counts:{},refs:{units:[],branches:[],businessLines:[]},
-  selectedLine:'',selectedBranch:'',assignments:[],treeRecords:[],columns:['name','displayId','code','level','parent','status','updatedAt'],loading:false,error:'',dialog:false,dirty:false,editing:null,dialogMode:'',destroyed:false};
+  selectedLine:'',selectedBranch:'',assignments:[],treeRecords:[],columns:['name','displayId','code','level','parent','status','updatedAt'],advancedOpen:false,nameFilter:'',codeFilter:'',parentFilter:'',loading:false,error:'',dialog:false,dirty:false,editing:null,dialogMode:'',destroyed:false};
 
  const columnDefs=[
   {key:'name',label:'Unit Name',locked:true},
@@ -67,12 +67,19 @@ function mount(host){
  function controls(){
   const options=(values,value)=>values.map(v=>'<option value="'+esc(v)+'" '+(v===value?'selected':'')+'>'+esc(v)+'</option>').join('');
   const lines=state.refs.businessLines||[],branches=state.refs.branches||[];
+  const parents=(state.refs.units||[]).filter(u=>u.scope===state.scope);
   return '<div class="dm-filters"><label>Status<select id="dm-status">'+options(['all','Active','Inactive','Archived','Deleted'],state.status)+'</select></label>'+
   '<label>Level<select id="dm-level">'+options(['all','Department','Sub-Department','Team'],state.level)+'</select></label>'+
   (state.scope==='Branch'?'<label>Business Line<select id="dm-line"><option value="">All Business Lines</option>'+lines.map(x=>'<option value="'+esc(x.id)+'" '+(state.selectedLine===x.id?'selected':'')+'>'+esc(x.name)+'</option>').join('')+'</select></label>'+
    '<label>Branch<select id="dm-branch"><option value="">All Branches</option>'+branches.filter(b=>!state.selectedLine||b.businessLineRef===state.selectedLine).map(b=>'<option value="'+esc(b.id)+'" '+(state.selectedBranch===b.id?'selected':'')+'>'+esc(b.name)+' · '+esc(b.code)+'</option>').join('')+'</select></label>':'')+
-   btn('Clear filters','clear')+'</div>';
+   btn(state.advancedOpen?'Hide Advanced Filters':'Advanced Filters','advanced',state.advancedOpen?'dm-chosen':'')+btn('Clear filters','clear')+'</div>'+
+   (state.advancedOpen?'<div class="dm-advanced-filters"><label>Unit Name contains<input id="dm-advanced-name" maxlength="150" value="'+esc(state.nameFilter)+'"></label>'+
+   '<label>Unit Code contains<input id="dm-advanced-code" maxlength="30" value="'+esc(state.codeFilter)+'"></label>'+
+   '<label>Parent Unit<select id="dm-advanced-parent"><option value="">Any Parent</option>'+
+   parents.map(p=>'<option value="'+esc(p.id)+'" '+(state.parentFilter===p.id?'selected':'')+'>'+esc(p.name+' · '+p.level)+'</option>').join('')+
+   '</select></label>'+btn('Apply filters','apply-advanced','dm-primary-action')+'</div>':'');
  }
+
  const rows=()=>state.tab==='tree'?state.treeRecords:state.records;
  const tree=()=>{
   const byParent=new Map();for(const row of rows()){const k=row.parentId||'root';if(!byParent.has(k))byParent.set(k,[]);byParent.get(k).push(row)}
@@ -88,8 +95,8 @@ function mount(host){
   if(state.destroyed)return;renderHeader();
   host.innerHTML='<div class="dm-workspace"><div class="dm-content-heading"><div><small>ADMINISTRATION / CORE MASTERS</small><h2>'+esc(state.scope)+' Department</h2><p>Department → Sub-Department → Team</p></div>'+(state.scope==='Branch'?btn('Assign to Branch','assign')+btn('Manage Assignments','manage-assignments'):'')+'</div>'+
     (state.error?'<div role="alert" class="dm-error">'+esc(state.error)+'</div>':'')+
-    (state.loading?'<p class="dm-loading">Loading departments…</p>':state.tab==='overview'?overview():state.tab==='tree'?tree():controls()+table(rows())+
-    '<footer class="dm-page"><span>'+fmt(state.total)+' records · Page '+state.page+' of '+Math.max(1,Math.ceil(state.total/state.pageSize))+'</span>'+btn('Previous','prev')+btn('Next','next')+'</footer>')+'</div>';
+    (state.loading?'<p class="dm-loading">Loading departments…</p>':controls()+(state.tab==='overview'?overview():state.tab==='tree'?tree():table(rows())+
+    '<footer class="dm-page"><span>'+fmt(state.total)+' records · Page '+state.page+' of '+Math.max(1,Math.ceil(state.total/state.pageSize))+'</span>'+btn('Previous','prev')+btn('Next','next')+'</footer>'))+'</div>';
   host.querySelectorAll('select').forEach(select=>select.addEventListener('change',e=>{
     if(e.target.id==='dm-line'){state.selectedLine=e.target.value;state.selectedBranch='';}
     if(e.target.id==='dm-branch')state.selectedBranch=e.target.value;
@@ -100,17 +107,25 @@ function mount(host){
 
  };
  async function references(){try{const data=await api('department-master/references');state.refs={units:data.units||[],branches:data.branches||[],businessLines:data.businessLines||[]}}catch(e){state.error=e.message}}
+ function appendAdvancedFilters(query){
+  if(state.selectedBranch)query.set('branchId',state.selectedBranch);
+  if(state.selectedLine&&state.scope==='Branch')query.set('businessLineId',state.selectedLine);
+  if(state.nameFilter)query.set('name',state.nameFilter);
+  if(state.codeFilter)query.set('code',state.codeFilter);
+  if(state.parentFilter)query.set('parentId',state.parentFilter);
+  return query;
+ }
  async function load(){
   const id=++requestId;state.loading=true;render();
   try{
    const q=new URLSearchParams({scope:state.scope,q:state.q,status:state.status,level:state.level,page:String(state.page),pageSize:String(state.pageSize)});
-   if(state.selectedBranch)q.set('branchId',state.selectedBranch);
+   appendAdvancedFilters(q);
    const data=await api('department-master?'+q);
    if(id!==requestId||state.destroyed)return;
    state.records=data.records||[];state.total=data.total||0;state.counts=data.counts||{};state.page=data.page||state.page;
    if(state.tab==='tree'){
     const treeQuery=new URLSearchParams({scope:state.scope,q:state.q,status:state.status,level:state.level,page:'1',pageSize:'100'});
-    if(state.selectedBranch)treeQuery.set('branchId',state.selectedBranch);
+    appendAdvancedFilters(treeQuery);
     const first=await api('department-master?'+treeQuery);
     if(Number(first.total||0)>10000)throw new Error('Tree view supports up to 10,000 matching units. Narrow your filters.');
     const all=[...(first.records||[])],total=Number(first.total||0);
@@ -227,7 +242,7 @@ function mount(host){
   const rows=[],pageSize=100,limit=10000;
   try{
    const params=new URLSearchParams({scope,q:search,status,level,page:'1',pageSize:String(pageSize)});
-   if(branchId)params.set('branchId',branchId);
+   appendAdvancedFilters(params);
    const first=await api('department-master?'+params);
    const total=Number(first.total||0);
    if(total>limit)throw new Error('This export supports up to 10,000 matching departments. Narrow the filters; the full export job is not available yet.');
@@ -286,7 +301,14 @@ function mount(host){
   const [action,id]=b.dataset.dm.split(':');
   if(action==='central'||action==='branch'){state.scope=action==='central'?'Central':'Branch';state.page=1;state.selectedBranch='';state.selectedLine='';await load();}
   else if(['overview','records','tree'].includes(action)){state.tab=action;if(action==='tree')await load();else render();}
-  else if(action==='clear'){state.status='all';state.level='all';state.selectedBranch='';state.selectedLine='';state.page=1;await load();}
+  else if(action==='clear'){state.status='all';state.level='all';state.selectedBranch='';state.selectedLine='';state.nameFilter='';state.codeFilter='';state.parentFilter='';state.page=1;await load();}
+  else if(action==='advanced'){state.advancedOpen=!state.advancedOpen;render();}
+  else if(action==='apply-advanced'){
+   state.nameFilter=(host.querySelector('#dm-advanced-name')?.value||'').trim();
+   state.codeFilter=(host.querySelector('#dm-advanced-code')?.value||'').trim();
+   state.parentFilter=host.querySelector('#dm-advanced-parent')?.value||'';
+   state.page=1;await load();
+  }
   else if(action==='prev'&&state.page>1){state.page--;await load()}
   else if(action==='next'&&state.page*state.pageSize<state.total){state.page++;await load()}
   else if(action==='refresh')await load();
