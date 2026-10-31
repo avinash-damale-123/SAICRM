@@ -1,5 +1,6 @@
 import {randomUUID} from 'node:crypto';
 import {departmentPermissions,departmentResource} from './resources.mjs';
+import {departmentTransfer} from './department-transfers.mjs';
 
 const fail=(status,message)=>{throw Object.assign(new Error(message),{status});};
 const uuid=x=>typeof x==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(x);
@@ -77,6 +78,11 @@ export async function departmentMaster({client,user,path,method,url,body={}}){
  need('read');
  if(method!=='GET')await client.query('SELECT pg_advisory_xact_lock(830159)');
  try{
+ if(['imports','exports','jobs'].includes(path[1]))return departmentTransfer({
+  client,user,path,method,url,body,
+  loadPage:query=>departmentMaster({client,user,path:['department-master'],method:'GET',
+   url:new URL('https://crm.invalid/api/department-master?'+query.toString())})
+ });
  if(path.length===1&&method==='GET'){
   const scope=url.searchParams.get('scope')||'Branch';if(!scopes.includes(scope))fail(400,'Invalid Department scope');
   const q=clean(url.searchParams.get('q')||'','Search',150,false),status=url.searchParams.get('status')||'all';
