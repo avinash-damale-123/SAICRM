@@ -82,7 +82,8 @@ function mount(host){
 
  const rows=()=>state.tab==='tree'?state.treeRecords:state.records;
  const tree=()=>{
-  const byParent=new Map();for(const row of rows()){const k=row.parentId||'root';if(!byParent.has(k))byParent.set(k,[]);byParent.get(k).push(row)}
+  const matched=rows(),ids=new Set(matched.map(r=>r.id)),byParent=new Map();
+  for(const row of matched){const k=row.parentId&&ids.has(row.parentId)?row.parentId:'root';if(!byParent.has(k))byParent.set(k,[]);byParent.get(k).push(row)}
   const draw=(parent,depth)=> (byParent.get(parent)||[]).map(x=>'<div class="dm-tree-node" style="margin-left:'+Math.min(depth*22,66)+'px"><button data-dm="view:'+esc(x.id)+'" type="button"><span class="dm-tree-glyph">'+(depth===0?'▦':depth===1?'◫':'◉')+'</span> <strong>'+esc(x.name)+'</strong><small>'+esc(x.level)+' · '+esc(x.code)+'</small>'+statusTag(x.status)+'</button></div>'+draw(x.id,depth+1)).join('');
   const output=draw('root',0);
   return '<div class="dm-panel"><h3>Department hierarchy</h3><p class="dm-hint">Tree loads all matching units, including additional pages. Search and status filters apply.</p>'+(output||'<p>No hierarchy nodes in the current view.</p>')+'</div>';
@@ -96,12 +97,13 @@ function mount(host){
   host.innerHTML='<div class="dm-workspace"><div class="dm-content-heading"><div><small>ADMINISTRATION / CORE MASTERS</small><h2>'+esc(state.scope)+' Department</h2><p>Department → Sub-Department → Team</p></div>'+(state.scope==='Branch'?btn('Assign to Branch','assign')+btn('Manage Assignments','manage-assignments'):'')+'</div>'+
     (state.error?'<div role="alert" class="dm-error">'+esc(state.error)+'</div>':'')+
     (state.loading?'<p class="dm-loading">Loading departments…</p>':controls()+(state.tab==='overview'?overview():state.tab==='tree'?tree():table(rows())+
-    '<footer class="dm-page"><span>'+fmt(state.total)+' records · Page '+state.page+' of '+Math.max(1,Math.ceil(state.total/state.pageSize))+'</span>'+btn('Previous','prev')+btn('Next','next')+'</footer>'))+'</div>';
+    '<footer class="dm-page"><span>'+fmt(state.total)+' records · Page '+state.page+' of '+Math.max(1,Math.ceil(state.total/state.pageSize))+'</span><label class="dm-page-size-label">Rows per page<select id="dm-page-size">'+[25,50,75,100].map(n=>'<option value="'+n+'" '+(n===state.pageSize?'selected':'')+'>'+n+'</option>').join('')+'</select></label>'+btn('Previous','prev')+btn('Next','next')+'</footer>'))+'</div>';
   host.querySelectorAll('select').forEach(select=>select.addEventListener('change',e=>{
     if(e.target.id==='dm-line'){state.selectedLine=e.target.value;state.selectedBranch='';}
     if(e.target.id==='dm-branch')state.selectedBranch=e.target.value;
     if(e.target.id==='dm-status')state.status=e.target.value;
     if(e.target.id==='dm-level')state.level=e.target.value;
+    if(e.target.id==='dm-page-size')state.pageSize=Number(e.target.value)||25;
     state.page=1;load();
   }));
 
