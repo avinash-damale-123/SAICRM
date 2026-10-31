@@ -91,12 +91,14 @@ async function validate(client,user,id,body){
  }
  for(const item of rows){
   if(item.status!=='pending')continue;
-  const p=item.payload,parent=p.parentCode?(byCode.get(p.parentCode)||planned.get(p.parentCode)):null;
+  const p=item.payload,known=byCode.get(p.parentCode),future=planned.get(p.parentCode);
+  const parent=p.parentCode?(known||(future?{...future,status:'Active',archived_at:null,deleted_at:null}:null)):null;
   if(p.parentCode&&!parentValid(p,parent)){item.status='failed';item.error='Parent must be an Active, compatible unit in the same scope';errors.push({row:item.ordinal,message:item.error});continue;}
   const parentKey=p.parentCode||'root',nameKey=p.level+'|'+parentKey+'|'+normalizeName(p.name);
   const priorInFile=dupNames.has(nameKey);
+  const expectedParentId=p.parentCode?known?.id:null;
   const inDb=existing.some(x=>x.level===p.level&&normalizeName(x.name)===normalizeName(p.name)&&
-    (p.parentCode?cleanCode(byCode.get(p.parentCode)?.code||'')===cleanCode(byCode.get(p.parentCode)?.code||'')&&x.parent_id===(byCode.get(p.parentCode)?.id||null):x.parent_id===null));
+    (p.parentCode?Boolean(expectedParentId)&&x.parent_id===expectedParentId:x.parent_id===null));
   if(priorInFile||inDb){item.status='failed';item.error='Duplicate Unit Name for this scope, level and parent';errors.push({row:item.ordinal,message:item.error});continue;}
   dupNames.add(nameKey);preview.push({row:item.ordinal,scope:p.scope,level:p.level,name:p.name,code:p.code,parentCode:p.parentCode,result:'Create'});
  }
