@@ -14,3 +14,11 @@
 .dm-table tr:hover td.dm-actions-col{background:#fbfdfb}
 .dm-filters .dm-chosen{background:#e6f4eb;border-color:#087b40}
 @media(max-width:760px){.dm-advanced-filters{display:grid;grid-template-columns:1fr}.dm-advanced-filters input,.dm-advanced-filters select{width:100%}.dm-column-row{gap:5px}}
+
+.dm-transfer-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:12px 0}
+.dm-transfer-options label{display:flex;flex-direction:column;gap:5px;font-size:12px;color:#3d5647}
+.dm-transfer-options input:not([type="checkbox"]),.dm-transfer-options select{padding:7px 9px;border:1px solid #ccd8d0;border-radius:6px;background:#fff;font-size:12px;width:100%;min-width:0}
+.dm-transfer-options label:has([type="checkbox"]){flex-direction:row;align-items:center}
+.dm-transfer-status{font-size:12px;margin-top:12px;line-height:1.5;white-space:normal;overflow-wrap:anywhere}
+.dm-transfer-history .dm-column-row{align-items:center}
+@media(max-width:760px){.dm-transfer-options{grid-template-columns:1fr}}
