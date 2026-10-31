@@ -7,7 +7,7 @@ function mount(host){
  if(!window.SCRM.can('departmentmaster')){host.innerHTML='<div class="mw-state" role="alert"><strong>Access restricted</strong></div>';return {canLeave:()=>true,destroy:()=>{}}}
  const api=window.SCRM.api;
  let state={scope:'Branch',tab:'records',q:'',status:'all',level:'all',page:1,pageSize:25,total:0,records:[],counts:{},refs:{units:[],branches:[],businessLines:[]},
-  selectedLine:'',selectedBranch:'',assignments:[],treeRecords:[],columns:['name','displayId','code','level','parent','status','updatedAt'],advancedOpen:false,filtersOpen:false,nameFilter:'',codeFilter:'',parentFilter:'',loading:false,error:'',dialog:false,dirty:false,editing:null,dialogMode:'',destroyed:false};
+  selectedLine:'',selectedBranch:'',assignments:[],treeRecords:[],levelCounts:{},columns:['name','displayId','code','level','parent','status','updatedAt'],advancedOpen:false,filtersOpen:false,nameFilter:'',codeFilter:'',parentFilter:'',loading:false,error:'',dialog:false,dirty:false,editing:null,dialogMode:'',destroyed:false};
 
  const columnDefs=[
   {key:'name',label:'Unit Name',locked:true},
@@ -122,8 +122,23 @@ function mount(host){
   return '<div class="dm-panel"><h3>Department hierarchy</h3><p class="dm-hint">Tree loads all matching units, including additional pages. Search and status filters apply.</p>'+(output||'<div class="dm-empty-state"><strong>'+(state.q||state.status!=='all'||state.level!=='all'||state.nameFilter||state.codeFilter||state.parentFilter||state.selectedBranch||state.selectedLine?'No matching hierarchy units':'Your '+esc(state.scope)+' Department hierarchy is empty')+'</strong><p>'+(state.q||state.status!=='all'||state.level!=='all'||state.nameFilter||state.codeFilter||state.parentFilter||state.selectedBranch||state.selectedLine?'Try clearing the current filters.':'Create a Department first, then add Sub-Departments and Teams under it.')+'</p>'+btn('Add Department','create','dm-primary-action')+'</div>')+'</div>';
  };
  function overview(){
-  const c=state.counts||{};
-  return '<div class="dm-metrics">'+[['All units',c.total],['Active',c.active],['Inactive',c.inactive],['Archived',c.archived],['Deleted',c.deleted]].map(([n,v])=>'<article class="dm-metric"><span>'+n+'</span><strong>'+fmt(v)+'</strong></article>').join('')+'</div><div class="dm-panel"><h3>Department Overview</h3><p>Counts reflect the current catalog, search, and filters. Central and Branch catalogs remain separate; Branch assignments are not employee counts.</p>'+btn('View records','records')+'</div>';
+  const counts=state.counts||{},levels=state.levelCounts||{},scope=esc(state.scope);
+  const statuses=[['Matching Units',counts.total],['Active',counts.active],['Inactive',counts.inactive],['Archived',counts.archived],['Deleted',counts.deleted]];
+  const metric=(name,count)=>'<article class="dm-metric"><span>'+esc(name)+'</span><strong>'+fmt(count)+'</strong></article>';
+  const breakdown=['Department','Sub-Department','Team'].map(level=>'<div class="dm-overview-level"><span>'+esc(level)+'</span><strong>'+fmt(levels[level])+'</strong></div>').join('');
+  const none=Number(counts.total||0)===0;
+  return '<section class="dm-overview" aria-label="'+scope+' Department Overview">'+
+   '<header><div><h3>'+scope+' Departments at a Glance</h3><p>Live Department Master records matching your current filters.</p></div><small>Live CRM data</small></header>'+
+   '<div class="dm-metrics">'+statuses.map(([name,value])=>metric(name,value)).join('')+'</div>'+
+   (none?'<div class="dm-empty-state"><strong>No Departments match this view</strong>'+
+    '<p>'+(state.q||state.status!=='all'||state.level!=='all'||state.nameFilter||state.codeFilter||state.parentFilter||state.selectedBranch||state.selectedLine?'Adjust the filters to find existing records.':'Create the first '+scope+' Department. Records and Hierarchy will then populate automatically.')+'</p>'+
+    btn('Add Department','create','dm-primary-action')+'</div>':'')+
+   '<div class="dm-dashboard-grid"><section class="dm-panel"><h3>Units by Hierarchy Level</h3><p>Distribution of the matching Department definitions.</p>'+
+    '<div class="dm-overview-breakdown">'+breakdown+'</div></section>'+
+   '<section class="dm-panel"><h3>'+ (state.scope==='Branch'?'Branch Assignment Readiness':'Central Catalog Structure')+'</h3>'+
+    '<p>'+(state.scope==='Branch'?'Department definitions are reusable. Assign each Active unit to an eligible Branch; assign parent units before children.':'Central units remain separate from Branch definitions. Organize teams beneath their Department or Sub-Department.')+'</p>'+
+    '<div class="dm-overview-actions">'+btn('View Records','records')+
+     (state.scope==='Branch'?btn('Manage Assignments','manage-assignments'):'')+'</div></section></div></section>';
  }
  const render=()=>{
   if(state.destroyed)return;
@@ -164,6 +179,20 @@ function mount(host){
    const data=await api('department-master?'+q);
    if(id!==requestId||state.destroyed)return;
    state.records=data.records||[];state.total=data.total||0;state.counts=data.counts||{};state.page=data.page||state.page;
+   if(state.tab==='overview'){
+    const levels=state.level==='all'?['Department','Sub-Department','Team']:[state.level];
+    const countsByLevel={Department:0,'Sub-Department':0,Team:0};
+    if(state.total){
+     const results=await Promise.all(levels.map(async level=>{
+      const query=new URLSearchParams(q);query.set('level',level);query.set('page','1');
+      const response=await api('department-master?'+query);return [level,Number(response.total||0)];
+     }));
+     if(id!==requestId||state.destroyed)return;
+     for(const [level,count] of results)countsByLevel[level]=count;
+    }
+    state.levelCounts=countsByLevel;
+   }
+
    if(state.tab==='tree'){
     const treeQuery=new URLSearchParams({scope:state.scope,q:state.q,status:state.status,level:state.level,page:'1',pageSize:'100'});
     appendAdvancedFilters(treeQuery);
@@ -652,7 +681,7 @@ function mount(host){
   const [action,id]=b.dataset.dm.split(':');
   if(action==='toggle-filters'){state.filtersOpen=!state.filtersOpen;render();return;}
   if(action==='central'||action==='branch'){state.scope=action==='central'?'Central':'Branch';state.page=1;state.selectedBranch='';state.selectedLine='';await load();}
-  else if(['overview','records','tree'].includes(action)){state.tab=action;if(action==='tree')await load();else render();}
+  else if(['overview','records','tree'].includes(action)){state.tab=action;if(action==='tree'||action==='overview')await load();else render();}
   else if(action==='clear'){state.status='all';state.level='all';state.selectedBranch='';state.selectedLine='';state.nameFilter='';state.codeFilter='';state.parentFilter='';state.page=1;await load();}
   else if(action==='advanced'){state.advancedOpen=!state.advancedOpen;render();}
   else if(action==='apply-advanced'){
