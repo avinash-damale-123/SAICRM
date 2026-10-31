@@ -201,6 +201,7 @@ try{
  await page.getByRole('button',{name:'Next page',exact:true}).click();await ready();
  const beforeQuery={...requests.filter(r=>r.path==='business-lines'&&r.method==='GET').at(-1).query};
  await ready();
+ await page.locator('.rf-table th[data-column-key]').first().waitFor({state:'visible'});
  const beforeColumns=await page.locator('.rf-table th[data-column-key]').evaluateAll(els=>els.map(e=>e.dataset.columnKey));
  await openFirst();await edit();await page.locator('#mw-bl-page-form [name="description"]').fill('Show latest modified record after save.');
  await page.locator('#bl-save').click();await modal().waitFor({state:'detached'});await ready();
@@ -209,6 +210,7 @@ try{
  assert.deepEqual({...afterSaveQuery,sorts:beforeQuery.sorts,page:beforeQuery.page},beforeQuery);
  assert.equal(afterSaveQuery.sorts,'[{"field":"updatedAt","direction":"desc"}]');
  assert.equal(afterSaveQuery.page,'1');
+ await page.locator('.rf-table th[data-column-key]').first().waitFor({state:'visible'});
  assert.deepEqual(await page.locator('.rf-table th[data-column-key]').evaluateAll(els=>els.map(e=>e.dataset.columnKey)),beforeColumns);
  assert.equal(await page.locator('#r10-toast-stack .r10-toast').last().isVisible(),true);assert.equal(await beforeUnloadBlocked(),false);
  // List refresh failure must not report a committed save as failed or repeat it.

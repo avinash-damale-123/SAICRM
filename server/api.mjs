@@ -2,6 +2,7 @@ import { recordsFramework } from './records-framework.mjs';
 import { countryRecordsFramework } from './country-records-framework.mjs';
 import { regionRecordsFramework } from './region-records-framework.mjs';
 import { branchMasterFramework } from './branch-master-framework.mjs';
+import { departmentMaster } from './department-master.mjs';
 import { randomUUID } from 'node:crypto';
 import { businessLines, validateBusinessLineReferences } from './business-lines.mjs';
 import { searchWorkspace, notificationsFeed } from './workspace-discovery.mjs';
@@ -88,7 +89,7 @@ export function createHandler({ pool, config, deliver = message => sendEmail(con
    if (!['GET','POST','PUT','DELETE'].includes(method)) fail(405, 'Method not allowed');
    const mutation = method !== 'GET';
    if (mutation && req.headers.origin !== config.origin) fail(403, 'Request origin rejected');
-   const body = mutation ? await bodyOf(req, ['business-lines','countries','regions','branch-master'].includes(path[0])&&path[1]==='imports'&&path[2]==='analyze'?3000000:['business-lines','countries','regions','branch-master'].includes(path[0])?64000:16384) : {};
+   const body = mutation ? await bodyOf(req, ['business-lines','countries','regions','branch-master','department-master'].includes(path[0])&&path[1]==='imports'&&path[2]==='analyze'?3000000:['business-lines','countries','regions','branch-master','department-master'].includes(path[0])?64000:16384) : {};
    // Vercel overwrites x-real-ip at its edge. Do not trust client-provided X-Forwarded-For.
    const ip = req.headers['x-real-ip'] || req.socket?.remoteAddress || 'unknown';
    await limit(pool, config, 'all:' + ip, 600, 600);
@@ -292,6 +293,7 @@ export function createHandler({ pool, config, deliver = message => sendEmail(con
     if (path[0] === 'countries') return await countryRecordsFramework({client,user:current,path,method,url,body});
     if (path[0] === 'regions') return await regionRecordsFramework({client,user:current,path,method,url,body});
     if (path[0] === 'branch-master') return await branchMasterFramework({client,user:current,path,method,url,body});
+    if (path[0] === 'department-master') return await departmentMaster({client,user:current,path,method,url,body});
     if (path[0] === 'access') {
      if (!authorize(principal, method === 'GET' ? 'read' : 'approve', 'access')) fail(403, 'Administrator access required');
      if (method === 'GET') {
