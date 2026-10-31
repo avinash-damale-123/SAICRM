@@ -176,7 +176,7 @@ function mount(host){
   if(state.loading)return;
   const scope=state.scope,search=state.q,status=state.status,level=state.level,branchId=state.selectedBranch;
   const cols=['System ID','Scope','Level','Unit Name','Unit Code','Parent','Status','Description','Last Modified'];
-  const safe=s=>{const v=String(s??'');return '"'+(/^[\\s]*[=+@-]/.test(v)?"'"+v:v).replace(/"/g,'""')+'"'};
+  const safe=s=>{const v=String(s??'');return '"'+(/^[\s]*[=+@-]/.test(v)?"'"+v:v).replace(/"/g,'""')+'"'};
   const rows=[],pageSize=100,limit=10000;
   try{
    const params=new URLSearchParams({scope,q:search,status,level,page:'1',pageSize:String(pageSize)});
@@ -193,7 +193,7 @@ function mount(host){
    }
    if(state.scope!==scope||state.q!==search||state.status!==status||state.level!==level||state.selectedBranch!==branchId)throw new Error('Filters changed during export. Please retry.');
    const lines=[cols,...rows.map(r=>[r.displayId,r.scope,r.level,r.name,r.code,r.parent,r.status,r.description,r.updatedAt])];
-   const blob=new Blob(['\\uFEFF'+lines.map(row=>row.map(safe).join(',')).join('\\r\\n')],{type:'text/csv;charset=utf-8'});
+   const blob=new Blob(['\uFEFF'+lines.map(row=>row.map(safe).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'});
    const link=document.createElement('a'),url=URL.createObjectURL(blob);
    link.href=url;link.download='department-'+scope.toLowerCase()+'-filtered.csv';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
   }catch(err){alert(err.message||'Export failed. Please try again.')}
