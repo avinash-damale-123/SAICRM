@@ -17,9 +17,9 @@ function markSeen(ids){
 }
 function label(id){return names[id]||id.replace(/([A-Z])/g,' $1')}
 function activeModule(){const p=window.SCRM?.currentPage?.();return modules.has(p)?p:null}
-function allowedModule(id){return !['businesslines','countries','regions','branchmaster'].includes(id)||window.SCRM?.can?.(id)}
+function allowedModule(id){return !['businesslines','countries','regions','branchmaster','departmentmaster'].includes(id)||window.SCRM?.can?.(id)}
 function placeCrumbs(p){
- const chain=p==='businesslines'?[['home','Home'],['settings','Settings & Masters'],['businesslines','Business Lines']]:p==='countries'?[['home','Home'],['settings','Settings & Masters'],['countries','Countries']]:p==='regions'?[['home','Home'],['settings','Settings & Masters'],['regions','Regions']]:p==='branchmaster'?[['home','Home'],['settings','Settings & Masters'],['branchmaster','Branches']]:
+ const chain=p==='businesslines'?[['home','Home'],['settings','Settings & Masters'],['businesslines','Business Lines']]:p==='countries'?[['home','Home'],['settings','Settings & Masters'],['countries','Countries']]:p==='regions'?[['home','Home'],['settings','Settings & Masters'],['regions','Regions']]:p==='branchmaster'?[['home','Home'],['settings','Settings & Masters'],['branchmaster','Branches']]:p==='departmentmaster'?[['home','Home'],['settings','Settings & Masters'],['departmentmaster','Departments']]:
   p==='settings'?[['home','Home'],['settings',label(p)]]:
   p==='home'?[['home','Home']]:[['home','Home'],[p,label(p)]];
  const nav=$('.breadcrumb');if(!nav)return;
