@@ -34,7 +34,7 @@ function mount(host){
   shell=document.createElement('section');shell.className='dm-module-header';
   shell.innerHTML='<div class="dm-primary"><div class="dm-header-title"><span>▦</span><strong>Departments</strong></div><nav class="dm-tabs" aria-label="Department views">'+btn('Overview','overview')+btn('Records','records')+btn('Hierarchy Tree','tree')+'</nav></div>'+
    '<div class="dm-toolbar">'+btn('Central Department','central')+btn('Branch Department','branch')+
-   '<label class="dm-search">Search <input type="search" id="dm-search" placeholder="Name, code, ID"></label>'+btn('Refresh','refresh')+btn('Export CSV','export')+btn('Arrange Columns','columns')+btn('Add Department','create','dm-primary-action')+'</div>';
+   '<label class="dm-search">Search <input type="search" id="dm-search" placeholder="Name, code, ID"></label>'+btn('Refresh','refresh')+btn('Import','import')+btn('Export','transfer-export')+btn('Transfer History','transfer-history')+btn('Arrange Columns','columns')+btn('Add Department','create','dm-primary-action')+'</div>';
   const top=document.querySelector('.topbar');if(top)top.insertAdjacentElement('afterend',shell);else host.prepend(shell);
   shell.addEventListener('click',click);
   shell.querySelector('#dm-search').addEventListener('input',e=>{state.q=e.target.value;state.page=1;debounceLoad()});
@@ -234,6 +234,146 @@ function mount(host){
   });
  }
 
+ function saveTransfer(file){
+  const bytes=Uint8Array.from(atob(file.data),c=>c.charCodeAt(0));
+  const url=URL.createObjectURL(new Blob([bytes],{type:file.mime||'application/octet-stream'}));
+  const link=document.createElement('a');link.href=url;link.download=file.filename||'department-export';
+  document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
+ }
+ function transferFilters(){
+  const q=new URLSearchParams({scope:state.scope,q:state.q,status:state.status,level:state.level});
+  appendAdvancedFilters(q);return Object.fromEntries(q);
+ }
+ function transferExport(){
+  const h=openModal('Export Departments',
+   '<p class="dm-hint">Export all matching authorized Departments, not just the displayed page. Large exports are divided into downloadable parts.</p>'+
+   '<div class="dm-transfer-options"><label>Format<select id="dm-export-format"><option value="xlsx">Excel (.xlsx)</option><option value="csv">CSV (.csv)</option></select></label>'+
+   '<label>Columns<select id="dm-export-cols"><option value="visible">Visible columns</option><option value="all">All Department fields</option></select></label></div>'+
+   '<button type="button" class="dm-btn dm-primary-action" id="dm-export-start">Create export</button>'+
+   '<div class="dm-transfer-status" role="status"></div>');
+  const area=h.querySelector('.dm-transfer-status');
+  h.querySelector('#dm-export-start').onclick=async event=>{
+   const b=event.currentTarget;b.disabled=true;area.textContent='Preparing export...';
+   try{
+    const format=h.querySelector('#dm-export-format').value;
+    const selection=h.querySelector('#dm-export-cols').value;
+    const cols=selection==='all'?columnDefs.map(c=>c.key):state.columns;
+    const result=await api('department-master/exports','POST',{format,columns:cols,filters:transferFilters()});
+    const parts=Number(result.files||0);
+    area.innerHTML='<p>Export ready: '+fmt(result.count)+' matching records in '+parts+' part(s).</p>'+
+     Array.from({length:parts},(_,i)=>'<button type="button" class="dm-btn" data-dm-export-part="'+(i+1)+'">Download part '+(i+1)+'</button>').join('');
+    area.dataset.job=result.job.id;
+   }catch(error){area.textContent=error.message||'Export failed';}
+   finally{b.disabled=false;}
+  };
+  area.addEventListener('click',async event=>{
+   const b=event.target.closest('[data-dm-export-part]');if(!b)return;
+   b.disabled=true;try{saveTransfer(await api('department-master/jobs/'+area.dataset.job+'/file?part='+b.dataset.dmExportPart));}
+   catch(error){alert(error.message||'Download failed');}finally{b.disabled=false;}
+  });
+ }
+ function transferImport(){
+  const h=openModal('Import Departments','<p class="dm-hint">Only Super Admins can import. Preview and validate all rows before creating records. Existing Unit Codes can be skipped; existing Departments will not be overwritten.</p>'+
+   '<div class="dm-transfer-options"><label>File (.csv or .xlsx; up to 2 MB)<input type="file" id="dm-import-file" accept=".csv,.xlsx"></label>'+
+   '<label>Catalog<select id="dm-import-scope"><option value="Branch">Branch Department</option><option value="Central">Central Department</option></select></label>'+
+   '<label>Existing Unit Code<select id="dm-import-duplicates"><option value="skip">Skip existing records</option><option value="reject">Reject duplicate rows</option></select></label>'+
+   '<label><input type="checkbox" id="dm-import-atomic"> All-or-nothing transaction (up to 250 rows)</label></div>'+
+   '<button type="button" class="dm-btn" id="dm-import-template">Download CSV template</button>'+
+   '<button type="button" class="dm-btn dm-primary-action" id="dm-import-analyze">Analyze file</button>'+
+   '<div id="dm-import-mapping"></div><div class="dm-transfer-status" role="status"></div>');
+  h.querySelector('#dm-import-scope').value=state.scope;
+  const area=h.querySelector('.dm-transfer-status'),mappingBox=h.querySelector('#dm-import-mapping');
+  let jobId='',validated=false;
+  const mappingFields=[['name','Unit Name'],['code','Unit Code'],['level','Level'],['parentCode','Parent Unit Code'],['description','Description'],['sortOrder','Display Order']];
+  h.querySelector('#dm-import-template').onclick=()=>{
+   const header=mappingFields.map(([,label])=>'"'+label+'"').join(',');
+   const example='"Operations","OPS","Department","","Operations team","100"';
+   const blob=new Blob(['\uFEFF'+header+'\r\n'+example+'\r\n'],{type:'text/csv;charset=utf-8'});
+   const url=URL.createObjectURL(blob),link=document.createElement('a');
+   link.href=url;link.download='department-import-template.csv';link.click();setTimeout(()=>URL.revokeObjectURL(url),30000);
+  };
+  const setError=error=>{area.textContent=error?.message||String(error)||'Transfer failed';};
+  h.querySelector('#dm-import-analyze').onclick=async event=>{
+   const b=event.currentTarget,file=h.querySelector('#dm-import-file').files?.[0];
+   if(!file){area.textContent='Choose a CSV or XLSX file first';return;}
+   if(file.size>2*1024*1024){area.textContent='File exceeds 2 MB upload limit';return;}
+   b.disabled=true;area.textContent='Reading and analyzing file...';mappingBox.innerHTML='';validated=false;
+   try{
+    const data=await new Promise((resolve,reject)=>{
+     const reader=new FileReader();reader.onerror=()=>reject(Error('Could not read file'));
+     reader.onload=()=>resolve(String(reader.result).split(',')[1]||'');reader.readAsDataURL(file);
+    });
+    const result=await api('department-master/imports/analyze','POST',{filename:file.name,data});
+    jobId=result.job.id;
+    const headers=result.headers||[];
+    mappingBox.innerHTML='<h3>Map file columns</h3><div class="dm-transfer-options">'+mappingFields.map(([key,label])=>{
+     const selected=result.recommended?.[key];
+     return '<label>'+esc(label)+'<select data-dm-map="'+esc(key)+'"><option value="">Not mapped</option>'+
+      headers.map((name,index)=>'<option value="'+index+'" '+(selected===index?'selected':'')+'>'+esc(name)+'</option>').join('')+
+      '</select></label>';
+    }).join('')+'</div><button type="button" class="dm-btn dm-primary-action" id="dm-import-validate">Validate rows</button>'+
+    '<button type="button" class="dm-btn" id="dm-import-commit" disabled>Import validated records</button>';
+    area.textContent=fmt(result.job.total)+' rows analyzed. Map Unit Name, Unit Code and Level before validation.'+
+     (result.reused?' Existing identical upload was reused.':'');
+   }catch(error){setError(error);}finally{b.disabled=false;}
+  };
+  mappingBox.addEventListener('change',()=>{validated=false;const commit=h.querySelector('#dm-import-commit');if(commit)commit.disabled=true;});
+  mappingBox.addEventListener('click',async event=>{
+   const validateButton=event.target.closest('#dm-import-validate'),commitButton=event.target.closest('#dm-import-commit');
+   if(validateButton){
+    validateButton.disabled=true;area.textContent='Validating import rows...';
+    try{
+     const mapping={};for(const element of mappingBox.querySelectorAll('[data-dm-map]')){
+      if(element.value!=='')mapping[element.dataset.dmMap]=Number(element.value);
+     }
+     const result=await api('department-master/imports/'+jobId+'/validate','POST',{
+      mapping,scope:h.querySelector('#dm-import-scope').value,atomic:h.querySelector('#dm-import-atomic').checked,
+      duplicates:h.querySelector('#dm-import-duplicates').value
+     });
+     validated=true;const commit=h.querySelector('#dm-import-commit');commit.disabled=!result.valid;
+     const errors=(result.errors||[]).slice(0,15).map(x=>'Row '+esc(x.row)+': '+esc(x.message)).join('; ');
+     area.innerHTML='<p>Validated: '+fmt(result.valid)+' ready, '+fmt(result.invalid)+' invalid, '+fmt(result.skipped)+' skipped.</p>'+
+      (errors?'<p class="dm-error">'+errors+'</p>':'')+
+      '<p class="dm-hint">Review this result before importing. Re-upload a corrected file for rejected rows.</p>';
+    }catch(error){setError(error);}finally{validateButton.disabled=false;}
+   }
+   if(commitButton){
+    if(!validated||!jobId)return;commitButton.disabled=true;area.textContent='Importing validated Departments...';
+    try{
+     const result=await api('department-master/jobs/'+jobId+'/start','POST',{});
+     area.innerHTML='<p>Import '+esc(result.job.status)+': '+fmt(result.job.succeeded)+' created, '+
+      fmt(result.job.failed)+' failed, '+fmt(result.job.skipped)+' skipped.</p>';
+     await references();await load();
+    }catch(error){setError(error);commitButton.disabled=false;}
+   }
+  });
+ }
+ async function transferHistory(){
+  try{
+   const result=await api('department-master/jobs');
+   const jobs=result.jobs||[];
+   const h=openModal('Department Transfer History',
+    '<div class="dm-transfer-history">'+(jobs.length?jobs.map(j=>'<div class="dm-column-row"><div><strong>'+
+     esc(j.kind.toUpperCase())+'</strong> · '+esc(j.status)+' · '+fmt(j.succeeded)+' / '+fmt(j.total)+
+     '<small> · '+esc(j.filename||'')+'</small></div><button class="dm-btn" data-dm-job-detail="'+esc(j.id)+'">Details</button></div>').join(''):
+     '<p>No recent Department transfer jobs.</p>')+'</div><div class="dm-transfer-status" role="status"></div>');
+   const area=h.querySelector('.dm-transfer-status');
+   h.addEventListener('click',async event=>{
+    const button=event.target.closest('[data-dm-job-detail],[data-dm-history-file]');
+    if(!button)return;
+    if(button.dataset.dmHistoryFile){
+     const [id,part]=button.dataset.dmHistoryFile.split(':');
+     try{saveTransfer(await api('department-master/jobs/'+id+'/file?part='+part));}catch(err){alert(err.message);}return;
+    }
+    try{
+     const info=await api('department-master/jobs/'+button.dataset.dmJobDetail);
+     area.innerHTML='<p>'+esc(info.job.kind)+' · '+esc(info.job.status)+' · '+fmt(info.job.total)+' rows</p>'+
+      (info.items||[]).slice(0,30).map(x=>'<p>Row '+esc(x.ordinal)+' ('+esc(x.status)+'): '+esc(x.error||'')+'</p>').join('')+
+      Array.from({length:Number(info.parts||0)},(_,i)=>'<button type="button" class="dm-btn" data-dm-history-file="'+esc(info.job.id)+':'+(i+1)+'">Download part '+(i+1)+'</button>').join('');
+    }catch(error){area.textContent=error.message||'Job details unavailable';}
+   });
+  }catch(error){alert(error.message||'Could not load transfer history');}
+ }
  async function exportCsv(){
   if(state.loading)return;
   const scope=state.scope,search=state.q,status=state.status,level=state.level,branchId=state.selectedBranch;
@@ -313,6 +453,9 @@ function mount(host){
   else if(action==='next'&&state.page*state.pageSize<state.total){state.page++;await load()}
   else if(action==='refresh')await load();
   else if(action==='export')await exportCsv();
+  else if(action==='transfer-export')transferExport();
+  else if(action==='import')transferImport();
+  else if(action==='transfer-history')await transferHistory();
   else if(action==='columns')customizeColumns();
   else if(action==='create')await editor();
   else if(action==='view')await editor(id,true);
