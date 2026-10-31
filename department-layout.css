@@ -1,0 +1,15 @@
+/* Final layout override: Department Master uses the same single-row desktop workbar as Business Lines. */
+@container scrm-main (min-width:1024px){
+ .dm-module-header.scrm-workbar.scrm-bl-clean.scrm-search-in-topbar{display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;align-items:center!important}
+}
+@container scrm-main (max-width:1023px){
+ .dm-module-header.scrm-workbar.scrm-bl-clean{display:grid!important;flex-direction:initial!important}
+}
+
+/* The collapsed sidebar uses body.nav-collapsed, not necessarily .sidebar.collapsed. */
+.nav-collapsed .sidebar-bottom .r10-sidebar-profile-link span:last-child,
+.sidebar.is-collapsed .sidebar-bottom .r10-sidebar-profile-link span:last-child,
+.sidebar[data-collapsed="true"] .sidebar-bottom .r10-sidebar-profile-link span:last-child{display:none!important}
+.nav-collapsed .sidebar-bottom .r10-sidebar-profile-link,
+.sidebar.is-collapsed .sidebar-bottom .r10-sidebar-profile-link,
+.sidebar[data-collapsed="true"] .sidebar-bottom .r10-sidebar-profile-link{justify-content:center!important;padding-inline:4px!important;overflow:hidden!important}
