@@ -89,7 +89,7 @@ export function createHandler({ pool, config, deliver = message => sendEmail(con
    if (!['GET','POST','PUT','DELETE'].includes(method)) fail(405, 'Method not allowed');
    const mutation = method !== 'GET';
    if (mutation && req.headers.origin !== config.origin) fail(403, 'Request origin rejected');
-   const body = mutation ? await bodyOf(req, ['business-lines','countries','regions','branch-master'].includes(path[0])&&path[1]==='imports'&&path[2]==='analyze'?3000000:['business-lines','countries','regions','branch-master'].includes(path[0])?64000:16384) : {};
+   const body = mutation ? await bodyOf(req, ['business-lines','countries','regions','branch-master','department-master'].includes(path[0])&&path[1]==='imports'&&path[2]==='analyze'?3000000:['business-lines','countries','regions','branch-master','department-master'].includes(path[0])?64000:16384) : {};
    // Vercel overwrites x-real-ip at its edge. Do not trust client-provided X-Forwarded-For.
    const ip = req.headers['x-real-ip'] || req.socket?.remoteAddress || 'unknown';
    await limit(pool, config, 'all:' + ip, 600, 600);
