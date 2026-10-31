@@ -20,7 +20,7 @@ function mount(host){
   {key:'sortOrder',label:'Display Order'},
   {key:'status',label:'Status'},
   {key:'updatedAt',label:'Last Modified'}];
- const columnsKey='saicrm.department.columns.v1';
+ const columnsKey='scrm:dept-columns:'+(window.SCRM.user?.id||'anonymous')+':v2';
  try{
   const saved=JSON.parse(localStorage.getItem(columnsKey));
   if(Array.isArray(saved)&&saved.every(k=>columnDefs.some(c=>c.key===k))&&new Set(saved).size===saved.length){
@@ -80,8 +80,8 @@ function mount(host){
    '<th class="dm-actions-col">Actions</th></tr></thead><tbody>'+
    (rows.length?rows.map(r=>'<tr>'+
     columns.map(c=>'<td data-column-key="'+esc(c.key)+'">'+cell(r,c.key)+'</td>').join('')+
-    '<td class="dm-actions-col">'+btn('View','view:'+r.id)+btn('Edit','edit:'+r.id)+btn('Status','lifecycle:'+r.id)+'</td></tr>').join(''):
-    '<tr><td colspan="'+(columns.length+1)+'" class="dm-empty">No matching departments. Create the first record or change your filters.</td></tr>')+
+    '<td class="dm-actions-col">'+btn('View','view:'+r.id)+(r.status==='Active'||r.status==='Inactive'?btn('Edit','edit:'+r.id):'')+btn('Status','lifecycle:'+r.id)+'</td></tr>).join(''):
+    '<tr><td colspan="'+(columns.length+1)+'" class="dm-empty"><div class="dm-empty-state"><strong>'+(state.q||state.status!=='all'||state.level!=='all'||state.nameFilter||state.codeFilter||state.parentFilter||state.selectedBranch||state.selectedLine?'No matching Department records':'No '+esc(state.scope)+' Departments created yet')+'</strong><p>'+(state.q||state.status!=='all'||state.level!=='all'||state.nameFilter||state.codeFilter||state.parentFilter||state.selectedBranch||state.selectedLine?'Clear filters to see all available units.':'Start by creating a Department. Sub-Departments and Teams can then be linked to it.')+'</p>'+btn('Add Department','create','dm-primary-action')+'</div></td></tr>')+
    '</tbody></table></div>';
  };
 
@@ -384,7 +384,8 @@ function mount(host){
    field('Branch','branchId','','text',[['','Select Branch'],...branches.map(b=>[b.id,b.name+' · '+b.code])])+
    field('Department / Unit','unitId','','text',[['','Select Unit'],...units.map(x=>[x.id,x.name+' ('+x.level+')'])])+
    '<p class="dm-hint">Activate parent units in the same Branch before activating child units. Assignments never connect different Branch identities.</p><p class="dm-dialog-notice" role="alert" hidden></p></form>';
-  const dialog=openModal('Assign Department to Branch',html,async v=>{await api('department-master/assignments','POST',{unitId:v.unitId,branchId:v.branchId})});
+  const dialog=openModal('Assign Department to Branch',html,async v=>{if(!v.branchId||!v.unitId)throw Error('Choose an Active Branch and Department unit.');await api('department-master/assignments','POST',{unitId:v.unitId,branchId:v.branchId})});
+  for(const control of dialog.querySelectorAll('[name="businessLine"],[name="branchId"],[name="unitId"]'))control.required=true;
   const line=dialog.querySelector('[name="businessLine"]'),branch=dialog.querySelector('[name="branchId"]');
   line.onchange=()=>{branch.innerHTML='<option value="">Select Branch</option>'+branches.filter(b=>b.businessLineRef===line.value).map(b=>'<option value="'+esc(b.id)+'">'+esc(b.name)+' · '+esc(b.code)+'</option>').join('');state.dirty=true;};
   branch.innerHTML='<option value="">Select a Business Line first</option>';
@@ -410,19 +411,40 @@ function mount(host){
   });
  }
  async function manageAssignments(){
-  if(state.scope!=='Branch'){alert('Central units do not have Branch assignments');return}
-  let list;try{list=(await api('department-master/assignments')).assignments||[]}catch(e){alert(e.message);return}
-  const values=list.map(x=>'<tr><td>'+esc(x.unit)+' ('+esc(x.unitDisplayId)+')</td><td>'+esc(x.branch)+'</td><td>'+esc(x.businessLine)+'</td><td>'+statusTag(x.status)+'</td><td>'+btn(x.status==='Active'?'Inactivate':'Activate','assignment:'+x.id)+'</td></tr>').join('');
-  const h=openModal('Branch Department Assignments','<div class="dm-table-wrap"><table class="dm-table"><thead><tr><th>Department Unit</th><th>Branch</th><th>Business Line</th><th>Status</th><th>Action</th></tr></thead><tbody>'+values+'</tbody></table></div>');
-  h.querySelector('.dm-dialog-body').addEventListener('click',async e=>{
-   const b=e.target.closest('[data-dm^="assignment:"]');if(!b)return;const x=list.find(v=>v.id===b.dataset.dm.split(':')[1]);if(!x)return;
-   const reason=prompt('Reason to '+(x.status==='Active'?'inactivate':'activate')+' this Branch assignment:');
-   if(!reason)return;
-   try{await api('department-master/assignments/'+x.id,'PUT',{version:x.version,status:x.status==='Active'?'Inactive':'Active',reason});dismissModal(h);await manageAssignments();}
-   catch(err){alert(err.message)}
+  if(state.scope!=='Branch'){notify('Central units do not have Branch assignments','error');return;}
+  let list;
+  try{list=(await api('department-master/assignments')).assignments||[];}
+  catch(error){notify(error.message||'Unable to load Branch assignments','error');return;}
+  if(!list.length){
+   const h=openModal('Branch Department Assignments',
+    '<div class="dm-empty-state"><strong>No Branch assignments yet</strong><p>First create an Active Branch Department unit, then assign it to an eligible Branch. A parent Department must be assigned before its Sub-Departments and Teams.</p>'+
+    btn('Assign to Branch','assign-now','dm-primary-action')+'</div>');
+   h.querySelector('[data-dm="assign-now"]').onclick=async()=>{dismissModal(h);await branchAssign();};
+   return;
+  }
+  const values=list.map(item=>'<tr><td>'+esc(item.unit)+' ('+esc(item.unitDisplayId)+')</td><td>'+esc(item.branch)+' · '+esc(item.branchCode)+'</td>'+
+   '<td>'+esc(item.businessLine)+'</td><td>'+statusTag(item.status)+'</td>'+
+   '<td>'+btn(item.status==='Active'?'Inactivate':'Activate','assignment:'+item.id)+'</td></tr>').join('');
+  const h=openModal('Branch Department Assignments',
+   '<p class="dm-hint">'+fmt(list.length)+' recorded assignments. Each Branch maintains an independent hierarchy.</p>'+
+   '<div class="dm-table-wrap"><table class="dm-table"><thead><tr><th>Department Unit</th><th>Branch</th><th>Business Line</th><th>Status</th><th>Action</th></tr></thead><tbody>'+values+'</tbody></table></div>');
+  h.querySelector('.dm-dialog-body').addEventListener('click',event=>{
+   const button=event.target.closest('[data-dm^="assignment:"]');if(!button)return;
+   const item=list.find(v=>v.id===button.dataset.dm.split(':')[1]);if(!item)return;
+   dismissModal(h);
+   const dest=item.status==='Active'?'Inactive':'Active';
+   const html='<form class="dm-form" id="dm-form">'+
+    '<p class="dm-hint">Unit: '+esc(item.unit)+' · Branch: '+esc(item.branch)+' · Business Line: '+esc(item.businessLine)+'</p>'+
+    field('New Status','destination',dest,'text',[[dest,dest]],true)+
+    field('Reason','reason','','textarea')+
+    '<p class="dm-dialog-notice" role="alert" hidden></p></form>';
+   const dialog=openModal(dest+' Branch Department Assignment',html,async data=>{
+    if(!String(data.reason||'').trim())throw Error('An audit reason is required.');
+    await api('department-master/assignments/'+item.id,'PUT',{version:item.version,status:dest,reason:String(data.reason).trim()});
+   });
+   dialog.querySelector('[name="reason"]').required=true;
   });
  }
-
  function saveTransfer(file){
   const bytes=Uint8Array.from(atob(file.data),c=>c.charCodeAt(0));
   const url=URL.createObjectURL(new Blob([bytes],{type:file.mime||'application/octet-stream'}));
