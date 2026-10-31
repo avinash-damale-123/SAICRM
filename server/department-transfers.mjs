@@ -62,7 +62,8 @@ async function analyze(client,user,body){
  if(count>=30)fail(429,'Transfer job limit reached (30 per hour)');
  const id=randomUUID();
  const row=(await client.query("INSERT INTO crm_transfer_jobs(id,user_id,module_key,kind,status,fingerprint,filename,state,total) VALUES($1,$2,$3,'import','uploaded',$4,$5,$6,$7) RETURNING *",[id,user.id,moduleKey,fingerprint,body.filename,JSON.stringify(parsed),parsed.rows.length])).rows[0];
- return {job:view(row),headers:parsed.headers,sample:parsed.rows.slice(0,5),recommended:mappingFor(parsed.headers)};
+ let recommended={};try{recommended=mappingFor(parsed.headers);}catch{}
+ return {job:view(row),headers:parsed.headers,sample:parsed.rows.slice(0,5),recommended};
 }
 async function validate(client,user,id,body){
  keys(body,['mapping','scope','atomic','duplicates']);
