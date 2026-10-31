@@ -209,6 +209,7 @@ export async function departmentTransfer({client,user,path,method,url,body={},lo
   if(path[3]==='start'&&method==='POST'){requirePermission(user,'import');return start(client,user,path[2]);}
   const job=await owned(client,user,path[2]);
   if(path[3]==='file'&&method==='GET'){
+   requirePermission(user,'export');
    if(job.kind!=='export')fail(400,'Not an export');
    const part=Number(url.searchParams.get('part')||1);
    if(!Number.isInteger(part)||part<1||part>100)fail(400,'Invalid export part');
