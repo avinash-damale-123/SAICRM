@@ -40,6 +40,8 @@ jobs:
       - run: node --check module-workspace.js && node --check records-tools.js
       - run: node --check business-lines-ui.js
       - run: npm test
+      - name: Department migration and real PostgreSQL transfer acceptance
+        run: node test/department-db-acceptance.mjs
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
       - run: npm run test:business-browser
