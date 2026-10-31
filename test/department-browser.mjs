@@ -81,6 +81,9 @@ try{
  assert.equal(await page.locator('#dm-search').count(),0,'No duplicate Department search');
  assert.deepEqual(await page.locator('.dm-module-header .scrm-tabs .scrm-view-title').allInnerTexts(),['Records','Overview','Hierarchy']);
  assert.ok(await page.locator('.dm-module-header .scrm-bl-primary [data-dm="create"]').isVisible(),'Canonical Add Department control');
+ const workbarLayout=await page.locator('.dm-module-header').evaluate(el=>({display:getComputedStyle(el).display,direction:getComputedStyle(el).flexDirection}));
+ assert.equal(workbarLayout.display,'flex','Department desktop toolbar is single-row flex');
+ assert.equal(workbarLayout.direction,'row','Department toolbar has Business Lines horizontal orientation');
  assert.deepEqual(await page.locator('.dm-module-header .scrm-actions .scrm-action-label').allInnerTexts(),['Import','Export','Filter','Customize']);
  await page.waitForFunction(()=>document.querySelector('.dm-table tbody')?.textContent.includes('Operations'));
  assert.ok(await page.locator('.dm-table tbody').innerText().then(s=>s.includes('Sales')),'Department records loaded');
