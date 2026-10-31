@@ -20,7 +20,8 @@ const paths = {
  opportunities: '<path d="m12 3 9 9-9 9-9-9Z"/>',
  activities: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18m-14 5 3 3 6-6"/>',
  quotes: '<path d="M6 3h8l4 4v14H6ZM14 3v5h4M9 12h6m-6 4h6"/>',
- branches: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a17 17 0 0 1 0 18 17 17 0 0 1 0-18"/>'
+ branches: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a17 17 0 0 1 0 18 17 17 0 0 1 0-18"/>',
+ tree:'<path d="M12 3v7M5 14v-4h14v4M5 14v4m7-4v4m7-4v4"/><rect x="9" y="1" width="6" height="4" rx="1"/><rect x="2" y="18" width="6" height="4" rx="1"/><rect x="9" y="18" width="6" height="4" rx="1"/><rect x="16" y="18" width="6" height="4" rx="1"/>'
 };
 const svg = name => '<svg class="scrm-ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(paths[name]||paths.suitcase)+'</svg>';
 let sharedSearch = null, currentPage = 'home', currentLabel = 'Home', restoringSearchFocus = false;
@@ -39,7 +40,7 @@ function preserveSearch(action) {
  const search=searchNode(), input=search?.querySelector('input');
  // Business Lines search now lives outside the rerendered module. Leave focus
  // and text selection alone while the user types or clears the existing query.
- if(['businesslines','countries','regions','branchmaster'].includes(currentPage)&&search?.classList.contains('crm-search-in-topbar'))return action();
+ if(['businesslines','countries','regions','branchmaster','departmentmaster'].includes(currentPage)&&search?.classList.contains('crm-search-in-topbar'))return action();
  const focused=document.activeElement===input;
  const start=input?.selectionStart,end=input?.selectionEnd;
  parkSearch();
@@ -60,10 +61,10 @@ function control(button,kind,label) {
  if(!button.title)button.title=button.getAttribute('aria-label')||label;
 }
 function tab(button,view,label) {
- const recordsView=['Business Lines','Countries','Regions','Branches'].includes(label);
+ const recordsView=['Business Lines','Countries','Regions','Branches','Departments'].includes(label);
  button.innerHTML=svg(view)+'<span class="scrm-view-copy"><small class="scrm-view-context"></small><strong class="scrm-view-title"></strong></span>';
  button.querySelector('small').textContent=label;
- button.querySelector('strong').textContent=view==='dashboard'?'Overview':recordsView?'Records':'Home';
+ button.querySelector('strong').textContent=view==='dashboard'?'Overview':view==='tree'?'Hierarchy':'Records';
  button.classList.add('scrm-view');
  button.title=label+' '+(view==='dashboard'?'Overview':recordsView?'Records':'Home');
  button.setAttribute('aria-label',button.title);
@@ -99,7 +100,7 @@ function decorate(row,page,label) {
    control(button,'add','Add');
   }
  });
- if(['Business Lines','Countries','Regions','Branches'].includes(label)){
+ if(['Business Lines','Countries','Regions','Branches','Departments'].includes(label)){
   row.classList.add('scrm-bl-clean');
   // Keep visual and keyboard action order consistent with the compact toolbar.
   const filter=actions.querySelector('[data-mw="filter-toggle"]');
@@ -116,7 +117,7 @@ function decorate(row,page,label) {
   if(add){
    const primary=document.createElement('div');primary.className='scrm-bl-primary';
    primary.append(add);
-   add.querySelector('.scrm-action-label').textContent=label==='Business Lines'?'Add Business Line':label==='Countries'?'Add Country':label==='Regions'?'Add Region':'Add Branch';
+   add.querySelector('.scrm-action-label').textContent=label==='Business Lines'?'Add Business Line':label==='Countries'?'Add Country':label==='Regions'?'Add Region':label==='Departments'?'Add Department':'Add Branch';
    row.dataset.scrmBlPrimary='yes';
    row._scrmBlPrimary=primary;
   }
@@ -124,7 +125,7 @@ function decorate(row,page,label) {
  const slot=document.createElement('div');slot.className='scrm-search-slot';
  const legacy=document.createElement('div');legacy.hidden=true;legacy.className='scrm-legacy-search';
  const legacySearch=row.querySelector('.mw-search');if(legacySearch)legacy.append(legacySearch);
- if(['Business Lines','Countries','Regions','Branches'].includes(label)&&row._scrmBlPrimary)row.replaceChildren(identity,tabs,slot,actions,row._scrmBlPrimary,legacy);else row.replaceChildren(identity,tabs,slot,actions,legacy);
+ if(['Business Lines','Countries','Regions','Branches','Departments'].includes(label)&&row._scrmBlPrimary)row.replaceChildren(identity,tabs,slot,actions,row._scrmBlPrimary,legacy);else row.replaceChildren(identity,tabs,slot,actions,legacy);
  row.classList.add('scrm-workbar');row.dataset.scrmHeader=page;
 }
 function sync(page,label) {
@@ -137,7 +138,7 @@ function sync(page,label) {
  if(!row){parkSearch();return;}
  decorate(row,page,label);
  const top=document.querySelector('.topbar'), actions=top?.querySelector('.top-actions');
- const inTopbar=['businesslines','countries','regions','branchmaster'].includes(page)&&!!search&&!!actions&&bell?.parentElement===actions;
+ const inTopbar=['businesslines','countries','regions','branchmaster','departmentmaster'].includes(page)&&!!search&&!!actions&&bell?.parentElement===actions;
  top?.classList.toggle('scrm-bl-top-search',inTopbar);
  row.classList.toggle('scrm-search-in-topbar',inTopbar);
  search?.classList.toggle('crm-search-in-topbar',inTopbar);
