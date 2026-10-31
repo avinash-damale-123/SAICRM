@@ -107,7 +107,9 @@ export async function departmentMaster({client,user,path,method,url,body={}}){
   if(q){params.push('%'+q.replace(/[%_\\]/g,'\\$&')+'%');conds.push("(u.name ILIKE $"+params.length+" OR u.code ILIKE $"+params.length+" OR u.display_id ILIKE $"+params.length+")");}
   if(branchId){params.push(branchId);conds.push("EXISTS(SELECT 1 FROM department_branch_assignments a WHERE a.unit_id=u.id AND a.branch_id=$"+params.length+" AND a.status='Active')");}
   if(businessLineId){params.push(businessLineId);conds.push("EXISTS(SELECT 1 FROM department_branch_assignments a JOIN branch_masters b ON b.id=a.branch_id WHERE a.unit_id=u.id AND b.business_line_id=$"+params.length+" AND a.status='Active')");}
-  if(parentId){params.push(parentId);conds.push('u.parent_id=
+  if(parentId){params.push(parentId);conds.push('u.parent_id='+'$'+params.length);}
+  if(nameFilter){params.push('%'+nameFilter.replace(/[%_\\]/g,'\\$&')+'%');conds.push('u.name ILIKE '+'$'+params.length);}
+  if(codeFilter){params.push('%'+codeFilter.replace(/[%_\\]/g,'\\$&')+'%');conds.push('u.code ILIKE '+'$'+params.length);}
   const where=' WHERE '+conds.join(' AND ');
   const total=Number((await client.query('SELECT count(*)::int total FROM department_units u'+where,params)).rows[0].total);
   const pageCount=Math.max(1,Math.ceil(total/pageSize)),current=Math.min(page,pageCount);
