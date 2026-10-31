@@ -27,26 +27,47 @@ function mount(host){
    state.columns=[...new Set(['name','displayId',...saved])];
   }
  }catch{}
- let shell=null,requestId=0;
- const btn=(text,action,cls='')=>'<button type="button" class="dm-btn '+cls+'" data-dm="'+action+'">'+esc(text)+'</button>';
+ let shell=null,headerHost=null,requestId=0,timer=0;
+ const btn=(label,action,cls='')=>'<button type="button" class="dm-btn '+cls+'" data-dm="'+esc(action)+'" aria-label="'+esc(label)+'">'+esc(label)+'</button>';
  const header=()=>{
-  const existing=document.querySelector('.dm-module-header');existing?.remove();
-  shell=document.createElement('section');shell.className='dm-module-header';
-  shell.innerHTML='<div class="dm-primary"><div class="dm-header-title"><span>▦</span><strong>Departments</strong></div><nav class="dm-tabs" aria-label="Department views">'+btn('Overview','overview')+btn('Records','records')+btn('Hierarchy Tree','tree')+'</nav></div>'+
-   '<div class="dm-toolbar">'+btn('Central Department','central')+btn('Branch Department','branch')+
-   '<label class="dm-search">Search <input type="search" id="dm-search" placeholder="Name, code, ID"></label>'+btn('Refresh','refresh')+btn('Import','import')+btn('Export','transfer-export')+btn('Transfer History','transfer-history')+btn('Arrange Columns','columns')+btn('Add Department','create','dm-primary-action')+'</div>';
-  const top=document.querySelector('.topbar');if(top)top.insertAdjacentElement('afterend',shell);else host.prepend(shell);
+  if(headerHost)headerHost.remove();
+  headerHost=document.createElement('div');headerHost.className='crm-module-host dm-module-host';
+  shell=document.createElement('section');
+  shell.className='mw-module-header crm-business-module dm-module-header';
+  shell.innerHTML=
+   '<div class="mw-module-identity"><span class="mw-module-identity-icon" aria-hidden="true">▦</span><h2>Departments</h2></div>'+
+   '<nav class="mw-module-tabs" aria-label="Department views">'+
+   '<button type="button" class="mw-module-tab" data-mw="home" data-dm="records">Records</button>'+
+   '<button type="button" class="mw-module-tab" data-mw="dashboard" data-dm="overview">Overview</button>'+
+   '<button type="button" class="mw-module-tab" data-mw="tree" data-dm="tree">Hierarchy</button></nav>'+
+   '<div class="scrm-search-slot"></div>'+
+   '<div class="mw-header-actions">'+
+   '<button type="button" class="mw-btn" data-mw="import" data-dm="import">Import</button>'+
+   '<button type="button" class="mw-btn" data-mw="export" data-dm="transfer-export">Export</button>'+
+   '<button type="button" class="mw-btn" data-mw="filter-toggle" data-dm="toggle-filters" aria-expanded="false" aria-controls="dm-filter-panel">Filter</button>'+
+   '<details class="mw-settings-menu"><summary class="mw-btn" aria-label="Customize Departments">Customize</summary><div>'+
+   btn('Arrange Columns','columns')+btn('Transfer History','transfer-history')+btn('Refresh Records','refresh')+
+   '</div></details>'+
+   '<button type="button" class="mw-btn" data-mw="create" data-dm="create" aria-label="Add Department">Add Department</button></div>';
+  headerHost.append(shell);
+  const top=document.querySelector('.topbar');
+  if(top)top.insertAdjacentElement('afterend',headerHost);else host.prepend(headerHost);
+  host.classList.add('mw-module-content');
   shell.addEventListener('click',click);
-  shell.querySelector('#dm-search').addEventListener('input',e=>{state.q=e.target.value;state.page=1;debounceLoad()});
  };
- let timer=0;
- const debounceLoad=()=>{clearTimeout(timer);timer=setTimeout(load,240)};
+ const debounceLoad=()=>{clearTimeout(timer);timer=setTimeout(load,300)};
  function renderHeader(){
-  if(!shell)return;
-  shell.querySelector('[data-dm="central"]').classList.toggle('dm-chosen',state.scope==='Central');
-  shell.querySelector('[data-dm="branch"]').classList.toggle('dm-chosen',state.scope==='Branch');
-  for(const tab of ['overview','records','tree'])shell.querySelector('[data-dm="'+tab+'"]').classList.toggle('dm-chosen',state.tab===tab);
-  shell.querySelector('[data-dm="create"]').disabled=state.loading;
+  if(!shell||state.destroyed)return;
+  for(const [tab,action] of [['home','records'],['dashboard','overview'],['tree','tree']]){
+   const control=shell.querySelector('[data-dm="'+action+'"]');
+   if(!control)continue;
+   const selected=state.tab===action;control.classList.toggle('mw-active-tab',selected);
+   if(selected)control.setAttribute('aria-current','page');else control.removeAttribute('aria-current');
+  }
+  const toggle=shell.querySelector('[data-dm="toggle-filters"]');
+  if(toggle){toggle.setAttribute('aria-expanded',String(state.filtersOpen));toggle.classList.toggle('dm-chosen',state.filtersOpen);}
+  const add=shell.querySelector('[data-dm="create"]');
+  if(add)add.disabled=state.loading;
  }
  const statusTag=s=>'<span class="dm-tag dm-'+esc(s).toLowerCase()+'">'+esc(s)+'</span>';
  const table=rows=>{
