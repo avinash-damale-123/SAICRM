@@ -1,6 +1,6 @@
 # SAI-CRM Department Master — Reconciled Requirements v2.0
 Date: 2026-10-31
-Status: Reconciled working baseline; unresolved D-01–D-04 require business validation. Not production approved.
+Status: Business decisions D-01–D-04 approved by project owner on 2026-10-31. Controlled production release authorized conditionally after all safety and acceptance checks pass; not yet production deployed.
 Implementation base: PR #52, feat/department-master-20261029.
 Sources: TASKFORCE Final Consolidated Requirements v3.0 (2026-09-09); SAI-CRM Department Master Design Specification v1 (2026-10-28); Branch Master approved rules; current Department Master implementation.
 
@@ -41,13 +41,13 @@ Archived -> Active or Inactive: validate hierarchy and dependencies, require rea
 Archived -> Deleted: require no prohibited historical references; recoverable tombstone preferred; require reason.
 Deleted -> Archived, Inactive or Active: validate identity, hierarchy and linkage; require reason.
 No physical permanent delete without separate explicit business and retention approval.
-This table is a recommendation, not authorization to deploy.
+These lifecycle rules are approved as business requirements. Deployment remains conditional on successful technical verification, non-destructive migration, authenticated UAT and rollback readiness.
 
-## 5. Decisions
-D-01: Confirm a Team may report directly to Department when Sub-Department is skipped (recommended yes).
-D-02: Approve four-state visible Department lifecycle and recoverable Deleted semantics (recommended yes; explicit transition table above).
-D-03: Approve DP-001, SD-001, TM-001 generated display IDs and immutable scope (recommended yes; code unique per scope, name uniqueness per parent/level/scope).
-D-04: Confirm Branch Department shared definitions + independent per-Branch activation, and optional Hierarchy Tree tab (architectural principle accepted; exact implementation design still reviewable).
+## 5. Decisions — APPROVED 2026-10-31
+D-01: Confirm a Team may report directly to Department when Sub-Department is skipped (APPROVED).
+D-02: Approve four-state visible Department lifecycle and recoverable Deleted semantics (APPROVED; transition table above).
+D-03: Approve DP-001, SD-001, TM-001 generated display IDs and immutable scope (APPROVED; code unique per scope, name uniqueness per parent/level/scope).
+D-04: Confirm Branch Department shared definitions + independent per-Branch activation, and optional Hierarchy Tree tab (APPROVED: two catalogs, shared Branch definitions, independent per-Branch activation, Hierarchy Tree).
 
 ## 6. Current implementation reconciliation (PR #52)
 Implemented: migration 011 tables department_units, department_branch_assignments, department_events; catalog APIs, lifecycle and assignment APIs; Super Admin gate; Central/Branch navigation, Records/Overview/Tree, basic CSV page export and unit tests.
@@ -71,3 +71,6 @@ DM-AC-009 [019]: The tested commit and applied migration are verified on product
 3. Implement automated backend/browser tests for dependency, auth, bulk and data reconciliation.
 4. Validate migration 011 on isolated test PostgreSQL and obtain production database access/backup/restore evidence.
 5. Apply migration only after verification and operational approval; merge, deploy, test logged-in production behavior and sign off.
+
+## 9. Production authorization (2026-10-31)
+The business owner explicitly authorized completing development and deploying only once ALL checks pass. No unconditional merge, migration, or production release is authorized. Required gates: successful isolated PostgreSQL migration 011 and regression tests; validated backup and restore approach for exact production database; confirmation target database and least-privilege credentials; server-side access/dependency protections; complete Records Framework/import/export; successful build and browser acceptance; production deploy to intended alias; authenticated live UAT and rollback readiness. If any gate fails or cannot be verified, stop and report the blocker. Do not overwrite or seed production records.
