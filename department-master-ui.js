@@ -185,17 +185,60 @@ function mount(host){
  }
  const field=(label,key,value='',type='text',options=null,disabled=false)=>'<label>'+esc(label)+(options?'<select name="'+key+'" '+(disabled?'disabled':'')+'>'+options.map(([k,v])=>'<option value="'+esc(k)+'" '+(String(value)===String(k)?'selected':'')+'>'+esc(v)+'</option>').join('')+'</select>':
   type==='textarea'?'<textarea name="'+key+'" '+(disabled?'disabled':'')+'>'+esc(value)+'</textarea>':'<input name="'+key+'" type="'+type+'" value="'+esc(value)+'" '+(disabled?'disabled':'')+'>')+'</label>';
+ function dismissModal(wrap){
+  if(!wrap)return;
+  try{if(wrap.open)wrap.close();}catch{}
+  wrap.remove();
+  state.dialog=Boolean(document.querySelector('.dm-modal-backdrop'));
+  if(!state.dialog)state.dirty=false;
+ }
+ function notify(message,kind='success'){
+  let stack=document.getElementById('r10-toast-stack');
+  if(!stack){stack=document.createElement('div');stack.id='r10-toast-stack';stack.setAttribute('aria-live','polite');document.body.append(stack);}
+  const toast=document.createElement('div');toast.className='r10-toast r10-'+(kind==='error'?'error':'success');
+  toast.setAttribute('role',kind==='error'?'alert':'status');
+  toast.innerHTML='<span class="r10-toast-icon" aria-hidden="true">'+(kind==='error'?'!':'✓')+'</span><strong>'+esc(message)+'</strong><button type="button" aria-label="Close notification">×</button>';
+  stack.append(toast);
+  const close=()=>{toast.remove();if(!stack.children.length)stack.remove()};
+  toast.querySelector('button').onclick=close;setTimeout(close,4500);
+ }
  function openModal(title,contents,onSave=null){
   state.dialog=true;state.dirty=false;
-  const wrap=document.createElement('div');wrap.className='dm-modal-backdrop';wrap.innerHTML='<section class="dm-dialog" role="dialog" aria-modal="true" aria-label="'+esc(title)+'"><header><div><small>SAI-CRM · DEPARTMENT MASTER</small><h2>'+esc(title)+'</h2></div><button type="button" class="dm-modal-close" aria-label="Close">×</button></header><div class="dm-dialog-body">'+contents+'</div><footer><button type="button" class="dm-modal-cancel">Close</button>'+(onSave?'<button type="submit" form="dm-form" class="dm-btn dm-primary-action">Save changes</button>':'')+'</footer></section>';
+  const wrap=document.createElement('dialog');wrap.className='dm-modal-backdrop dm-native-dialog';
+  wrap.setAttribute('aria-label',title);
+  wrap.innerHTML='<section class="dm-dialog" role="document"><header>'+
+   '<div class="dm-dialog-heading"><small>SAI-CRM · DEPARTMENT MASTER</small><h2>'+esc(title)+'</h2></div>'+
+   '<button type="button" class="dm-modal-close" aria-label="Close '+esc(title)+'">×</button></header>'+
+   '<div class="dm-dialog-body">'+contents+'</div>'+
+   '<footer><button type="button" class="dm-modal-cancel">'+(onSave?'Cancel':'Close')+'</button>'+
+   (onSave?'<button type="submit" form="dm-form" class="dm-btn dm-primary-action">Save changes</button>':'')+'</footer></section>';
   document.body.append(wrap);
-  const close=()=>{if(state.dirty&&!confirm('Discard unsaved changes?'))return;wrap.remove();state.dialog=false;state.dirty=false;};
+  wrap.showModal();
+  let saving=false;
+  const close=()=>{if(saving)return;if(state.dirty&&!confirm('Discard unsaved changes?'))return;dismissModal(wrap);};
+  wrap._dmClose=close;
   wrap.querySelector('.dm-modal-close').onclick=close;wrap.querySelector('.dm-modal-cancel').onclick=close;
-  wrap.addEventListener('click',e=>{if(e.target===wrap)close()});
-  const form=wrap.querySelector('#dm-form');if(form&&onSave){form.addEventListener('change',()=>{state.dirty=true});
-   form.onsubmit=async e=>{e.preventDefault();const submit=wrap.querySelector('[type="submit"]');submit.disabled=true;
-    try{await onSave(Object.fromEntries(new FormData(form)));state.dirty=false;wrap.remove();state.dialog=false;await references();await load();}
-    catch(err){const n=wrap.querySelector('.dm-dialog-notice');n.textContent=err.message;n.hidden=false;}finally{submit.disabled=false}};
+  wrap.addEventListener('cancel',event=>{event.preventDefault();close()});
+  wrap.addEventListener('click',event=>{if(event.target===wrap)close()});
+  const form=wrap.querySelector('#dm-form');
+  if(form&&onSave){
+   form.addEventListener('input',()=>{state.dirty=true});
+   form.addEventListener('change',()=>{state.dirty=true});
+   form.onsubmit=async event=>{
+    event.preventDefault();if(saving||!form.reportValidity())return;
+    const button=wrap.querySelector('button[type="submit"]');
+    saving=true;button.disabled=true;
+    try{
+     await onSave(Object.fromEntries(new FormData(form)));
+     state.dirty=false;dismissModal(wrap);
+     await references();await load();
+     notify('Department changes saved successfully');
+    }catch(error){
+     const notice=wrap.querySelector('.dm-dialog-notice')||wrap.querySelector('.dm-dialog-body');
+     notice.textContent=error?.message||'The change could not be saved.';
+     if(notice.matches('.dm-dialog-notice'))notice.hidden=false;
+    }finally{saving=false;if(button.isConnected)button.disabled=false}
+   };
   }
   return wrap;
  }
@@ -270,7 +313,7 @@ function mount(host){
    const b=e.target.closest('[data-dm^="assignment:"]');if(!b)return;const x=list.find(v=>v.id===b.dataset.dm.split(':')[1]);if(!x)return;
    const reason=prompt('Reason to '+(x.status==='Active'?'inactivate':'activate')+' this Branch assignment:');
    if(!reason)return;
-   try{await api('department-master/assignments/'+x.id,'PUT',{version:x.version,status:x.status==='Active'?'Inactive':'Active',reason});h.remove();state.dialog=false;await manageAssignments();}
+   try{await api('department-master/assignments/'+x.id,'PUT',{version:x.version,status:x.status==='Active'?'Inactive':'Active',reason});dismissModal(h);await manageAssignments();}
    catch(err){alert(err.message)}
   });
  }
@@ -472,7 +515,7 @@ function mount(host){
    if(event.target.closest('[data-dm-column-save]')){
     state.columns=order.filter(k=>selected.has(k)||locked.has(k));
     try{localStorage.setItem(columnsKey,JSON.stringify(state.columns));}catch{}
-    state.dirty=false;h.remove();state.dialog=false;render();
+    state.dirty=false;dismissModal(h);render();
    }
   });
   draw();
@@ -510,7 +553,7 @@ function mount(host){
  host.addEventListener('click',click);
  header();references().then(load);
  return {canLeave:()=>!state.dialog||!state.dirty||confirm('Discard unsaved Department Master edits?'),
-  destroy(){state.destroyed=true;clearTimeout(timer);window.SCRMHeader?.parkSearch?.();headerHost?.remove();host.classList.remove('mw-module-content');document.querySelector('.dm-modal-backdrop')?.remove();return true},
+  destroy(){state.destroyed=true;clearTimeout(timer);window.SCRMHeader?.parkSearch?.();headerHost?.remove();host.classList.remove('mw-module-content');document.querySelectorAll('.dm-modal-backdrop').forEach(dismissModal);return true},
   setSearch(value){state.q=String(value||'').slice(0,100);state.page=1;debounceLoad()},
   openResult(id){editor(id,true)}};
 }
