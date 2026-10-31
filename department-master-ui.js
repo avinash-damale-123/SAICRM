@@ -90,7 +90,7 @@ function mount(host){
  };
  function overview(){
   const c=state.counts||{};
-  return '<div class="dm-metrics">'+[['All units',c.total],['Active',c.active],['Inactive',c.inactive],['Archived',c.archived],['Deleted',c.deleted]].map(([n,v])=>'<article class="dm-metric"><span>'+n+'</span><strong>'+fmt(v)+'</strong></article>').join('')+'</div><div class="dm-panel"><h3>Department Overview</h3><p>Catalog counts are loaded from the Department Master database. Separate Central and Branch catalogs are independent. Branch assignment counts are not equivalent to distinct employee counts.</p>'+btn('View records','records')+'</div>';
+  return '<div class="dm-metrics">'+[['All units',c.total],['Active',c.active],['Inactive',c.inactive],['Archived',c.archived],['Deleted',c.deleted]].map(([n,v])=>'<article class="dm-metric"><span>'+n+'</span><strong>'+fmt(v)+'</strong></article>').join('')+'</div><div class="dm-panel"><h3>Department Overview</h3><p>Counts reflect the current catalog, search, and filters. Central and Branch catalogs remain separate; Branch assignments are not employee counts.</p>'+btn('View records','records')+'</div>';
  }
  const render=()=>{
   if(state.destroyed)return;renderHeader();
