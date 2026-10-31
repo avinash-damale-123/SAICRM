@@ -409,10 +409,13 @@ function mount(host){
  async function branchAssign(){
   if(state.scope!=='Branch'){alert('Central Department assignments are managed separately from Branches.');return}
   const refs=state.refs,units=refs.units.filter(x=>x.scope==='Branch'&&x.status==='Active'),lines=refs.businessLines,branches=refs.branches;
-  const html='<form id="dm-form" class="dm-form">'+field('Business Line','businessLine','', 'text',[['','Select Business Line'],...lines.map(x=>[x.id,x.name])])+
-   field('Branch','branchId','','text',[['','Select Branch'],...branches.map(b=>[b.id,b.name+' · '+b.code])])+
-   field('Department / Unit','unitId','','text',[['','Select Unit'],...units.map(x=>[x.id,x.name+' ('+x.level+')'])])+
-   '<p class="dm-hint">Activate parent units in the same Branch before activating child units. Assignments never connect different Branch identities.</p><p class="dm-dialog-notice" role="alert" hidden></p></form>';
+  const html='<form id="dm-form" class="dm-form"><section class="dm-form-section"><details open><summary>Branch Assignment</summary>'+
+   '<div class="dm-form-grid"><div class="dm-full">'+field('Business Line','businessLine','', 'text',[['','Select Business Line'],...lines.map(x=>[x.id,x.name])])+'</div>'+
+   '<div class="dm-full">'+field('Branch','branchId','','text',[['','Select Branch'],...branches.map(b=>[b.id,b.name+' · '+b.code])])+'</div>'+
+   '<div class="dm-full">'+field('Department / Unit','unitId','','text',[['','Select Unit'],...units.map(x=>[x.id,x.name+' ('+x.level+')'])])+'</div>'+
+   '</div></details></section><p class="dm-hint">Only Active units are eligible. Assign parent Departments to the Branch before adding child units. Each Business Line retains independent Branch identities.</p>'+
+   (!units.length?'<div class="dm-empty-state">No Active Branch Department units are available. Create one first.</div>':'')+
+   '<p class="dm-dialog-notice" role="alert" hidden></p></form>';
   const dialog=openModal('Assign Department to Branch',html,async v=>{if(!v.branchId||!v.unitId)throw Error('Choose an Active Branch and Department unit.');await api('department-master/assignments','POST',{unitId:v.unitId,branchId:v.branchId})});
   for(const control of dialog.querySelectorAll('[name="businessLine"],[name="branchId"],[name="unitId"]'))control.required=true;
   const line=dialog.querySelector('[name="businessLine"]'),branch=dialog.querySelector('[name="branchId"]');
@@ -679,6 +682,7 @@ function mount(host){
  async function click(event){
   const b=event.target.closest('[data-dm]');if(!b)return;
   const [action,id]=b.dataset.dm.split(':');
+  const optionsMenu=b.closest('details.mw-settings-menu');if(optionsMenu)optionsMenu.open=false;
   if(action==='toggle-filters'){state.filtersOpen=!state.filtersOpen;render();return;}
   if(action==='central'||action==='branch'){state.scope=action==='central'?'Central':'Branch';state.page=1;state.selectedBranch='';state.selectedLine='';await load();}
   else if(['overview','records','tree'].includes(action)){state.tab=action;if(action==='tree'||action==='overview')await load();else render();}
