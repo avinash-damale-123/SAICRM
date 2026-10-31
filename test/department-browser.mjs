@@ -66,7 +66,7 @@ try{
    json={job:{id:jobId,kind:'import',status:'completed',total:1,succeeded:1,failed:0,skipped:0}};
   }
   else if(path==='department-master/jobs')json={jobs:[{id:jobId,kind:'import',status:'completed',total:1,succeeded:1,failed:0,skipped:0,filename:'departments.csv'}]};
-  else if(path==='department-master/jobs/'+jobId')json={job:{id:jobId,kind:'import',status:'completed',total:1},items:[],parts:0};
+  else if(path==='department-master/jobs/'+jobId)json={job:{id:jobId,kind:'import',status:'completed',total:1},items:[],parts:0};
   else if(path==='department-master/jobs/'+jobId+'/file')json={filename:'department.csv',mime:'text/csv;charset=utf-8',data:Buffer.from('Unit Name\r\nOperations\r\n').toString('base64')};
   else if(path.startsWith('department-master/'))json={record:records[0]};
   else json={message:'OK'};
