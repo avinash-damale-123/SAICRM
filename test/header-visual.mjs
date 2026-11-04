@@ -162,8 +162,8 @@ try{
  const filterBadge=header.locator('.mw-filter-count');assert.equal(await filterBadge.innerText(),'1');
  for(const mainWidth of [1023,1024]){
   await page.setViewportSize({width:mainWidth+100,height:768});await setCollapsed(true);
-  const sidebarWidth=await page.locator('#sidebar').evaluate(el=>Math.round(el.getBoundingClientRect().width));
-  await page.setViewportSize({width:mainWidth+sidebarWidth,height:768});
+  const layoutOffset=await page.evaluate(()=>Math.round(window.innerWidth-document.querySelector('.main').getBoundingClientRect().width));
+  await page.setViewportSize({width:mainWidth+layoutOffset,height:768});
   await filterBadge.evaluate(e=>e.textContent='20');
   const threshold=await measure('Business Lines '+mainWidth+'px main with two-digit filter badge');
   assert.equal(threshold.main.w,mainWidth,'The filter-count edge cases exercise both sides of the single-row breakpoint');
