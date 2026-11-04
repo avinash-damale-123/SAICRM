@@ -62,6 +62,16 @@ export async function resourceEligible(client,user,key){
  if(!r)return defaultResourceAccess(user,key);
  return r.essential||r.status==='Active'&&(r.common_resource||!!r[type(user)]);
 }
+export async function eligibleResourceKeys(client,user){
+ if(!user||user.status!=='approved'||!user.email_verified)return [];
+ if(isAdmin(user))return registeredModuleResources.map(x=>x.key);
+ const rows=(await client.query('SELECT resource_key,status,essential,common_resource,admin_allowed,manager_allowed,standard_allowed FROM module_master_resources')).rows;
+ const configs=new Map(rows.map(x=>[x.resource_key,x]));
+ return registeredModuleResources.filter(resource=>{
+  const row=configs.get(resource.key);
+  return row?row.essential||row.status==='Active'&&(row.common_resource||!!row[type(user)]):defaultResourceAccess(user,resource.key);
+ }).map(resource=>resource.key);
+}
 const view=r=>({id:r.id,displayId:r.display_id,key:r.resource_key,name:r.name,type:r.resource_type,
  section:r.section,category:r.category,route:r.route,description:r.description,systemLocked:r.system_locked,
  essential:r.essential,commonResource:r.common_resource,adminAllowed:r.admin_allowed,
