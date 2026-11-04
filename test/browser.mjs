@@ -83,11 +83,22 @@ try{
  assert.equal(await page.locator('#menuBtn').evaluate(node=>!!node.closest('#sidebar .brand')),true,'Desktop nav toggle belongs in the sidebar');
  assert.equal(await page.locator('.topbar #menuBtn').count(),0,'Desktop nav toggle must not occupy the topbar');
  assert.equal((await page.locator('#sidebarSignOut').innerText()).trim(),'Sign out','Sidebar must offer a footer sign out');
- assert.equal(await page.locator('#sidebar .profile-copy').count(),0,'Footer must not duplicate My Profile or show role/name');
- assert.equal(await page.locator('#sidebarProfileLink').getAttribute('aria-label'),'Open My Profile for Test Admin','Avatar must have a descriptive accessible label');
- await page.locator('#sidebarProfileLink').click();
- assert.equal(await page.evaluate(()=>window.SCRM.currentPage()),'profile','Sidebar avatar must navigate to My Profile');
- assert.equal((await page.locator('#navigation [data-nav="profile"]').count()),1,'Keep My Profile in Workspace navigation');
+ assert.equal(await page.locator('#sidebarProfileLink').count(),0,'No redundant footer profile control');
+ assert.equal(await page.locator('#sidebar .profile').count(),0,'Footer contains only Sign out');
+ assert.equal(await page.locator('#navigation [data-nav="profile"]').count(),1,'My Profile remains in Workspace navigation');
+ for(const width of [320,360,768,1024,1280]){
+   await page.setViewportSize({width,height:850});
+   if(width<768)await page.locator('#mobileMenuBtn').click();
+   const fits=await page.evaluate(()=>{
+     const sb=document.querySelector('#sidebar').getBoundingClientRect();
+     const ft=document.querySelector('#sidebar .sidebar-bottom').getBoundingClientRect();
+     const btn=document.querySelector('#sidebarSignOut').getBoundingClientRect();
+     return btn.right<=Math.min(sb.right,ft.right)+1 && btn.left>=ft.left-1;
+   });
+   assert.equal(fits,true,'Sign out fits in sidebar at '+width);
+   if(width<768)await page.locator('#closeNav').click();
+ }
+ await page.setViewportSize({width:1280,height:850});
  const sectionAppearance=await page.locator('#navigation .nav-section').first().evaluate(el=>({background:getComputedStyle(el).backgroundColor,fontWeight:getComputedStyle(el).fontWeight,arrowWidth:el.querySelector('svg')?.getBoundingClientRect().width}));
  assert.equal(sectionAppearance.background,'rgb(223, 233, 226)','Section headers need the approved darker background');
  assert.ok(Number(sectionAppearance.fontWeight)>=700 && sectionAppearance.arrowWidth>=15,'Section header must be bold with prominent arrow');
