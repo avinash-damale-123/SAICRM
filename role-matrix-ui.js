@@ -142,7 +142,7 @@ function mount(host){
   const b=ev.target.closest('[data-rpm]');if(!b)return;
   const [action,id]=b.dataset.rpm.split(':');ev.preventDefault();
   if(action==='create'||action==='edit'){await wizard(action,id);return;}
-  if(action==='view'){const r=state.roles.find(x=>x.id===id);if(r){await wizard(action,id);state.step=3;redrawWizard();}return;}
+  if(action==='view'){const r=state.roles.find(x=>x.id===id);if(r){await fetchSetup();state.wizard=formState(r);state.step=3;const d=dialog('Permission Role Details','');d.querySelector('.rpm-body').innerHTML=review()+'<footer class="rpm-foot">'+button('Close','close')+'</footer>';state.dirty=false;}return;}
   if(action==='history'){try{const data=await api('role-matrix/'+id+'/history'),d=dialog('Role Audit History','<div class="rpm-history">'+(data.history||[]).map(x=>'<p>'+e(x.action)+' · '+e(x.actor)+' · '+e(new Date(x.createdAt).toLocaleString())+'</p>').join('')+'</div><footer>'+button('Close','close')+'</footer>');state.dirty=false;}catch(err){state.error=err.message;paintList();}return;}
   if(action==='close'){closeWizard();return;}
   if(action==='back'){if(state.step>0)state.step--;redrawWizard();return;}
