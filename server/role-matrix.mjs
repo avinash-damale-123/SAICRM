@@ -1,6 +1,6 @@
 import {randomUUID} from 'node:crypto';
 import {fields as operationalFields} from './contracts.mjs';
-import {registeredModuleResources} from './module-master.mjs';
+import {registeredModuleResources,resourceEligible} from './module-master.mjs';
 
 const fail=(status,message)=>{throw Object.assign(new Error(message),{status});};
 const uuid=x=>typeof x==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(x);
@@ -67,6 +67,7 @@ async function history(client,user,action,previous,next){
 }
 export async function roleMatrix({client,user,path,method,url,body={}}){
  if(!admin(user))fail(403,'Role Matrix requires approved Admin or Super Admin');
+ if(user.system_role!=='super_admin'&&!(await resourceEligible(client,user,'ROLE_MATRIX')))fail(403,'Module Master blocks Role Matrix for this user type');
  if(method!=='GET')await client.query('SELECT pg_advisory_xact_lock(830163)');
  try{
   if(path.length===2&&path[1]==='setup'&&method==='GET'){
