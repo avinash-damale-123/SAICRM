@@ -49,7 +49,7 @@ export async function searchWorkspace(client, principal, current, url) {
    detail: item.display_id, status: item.status, updatedAt: toTime(item.updated_at)
   });
  }
- if ((global || module === 'countries') && countryPermissions(current).read) {
+ if ((global || module === 'countries') && countryPermissions(current).read && await resourceEligible(client,current,'COUNTRIES')) {
   const rows = (await client.query(`
    SELECT id,display_id,name,code,status,updated_at FROM countries
    WHERE position(lower($1) in lower(name || ' ' || display_id || ' ' || code)) > 0
@@ -57,7 +57,7 @@ export async function searchWorkspace(client, principal, current, url) {
   `, [query])).rows;
   for (const item of rows) output.push({id:item.id,module:'countries',title:item.name,detail:item.display_id+' · '+item.code,status:item.status,updatedAt:toTime(item.updated_at)});
  }
- if ((global || module === 'regions') && regionPermissions(current).read) {
+ if ((global || module === 'regions') && regionPermissions(current).read && await resourceEligible(client,current,'REGIONS')) {
   const available=(await client.query("SELECT to_regclass('public.regions') IS NOT NULL AS ready")).rows[0]?.ready===true;
   if(available){
    const rows = (await client.query(`
