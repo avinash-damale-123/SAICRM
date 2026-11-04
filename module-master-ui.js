@@ -3,7 +3,7 @@
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const badge=x=>'<span class="mm-pill '+(x==='Active'?'mm-active':'mm-inactive')+'">'+esc(x)+'</span>';
 function mount(host){
- if(!window.SCRM.can('modulemaster')){host.innerHTML='<p role="alert">Only Super Admin can access Module Master.</p>';return {destroy:()=>true,canLeave:()=>true};}
+ if(!window.SCRM.can('modulemaster')){host.innerHTML='<p role="alert">Only Super Admin can access Module Directory.</p>';return {destroy:()=>true,canLeave:()=>true};}
  const api=window.SCRM.api;
  const state={resources:[],counts:{},registryCount:0,q:'',status:'all',type:'all',loading:false,notice:'',error:'',editing:false,dirty:false,destroyed:false};
  let requestId=0,searchTimer=0;
@@ -14,7 +14,7 @@ function mount(host){
   if(state.destroyed)return;
   const c=state.counts;
   host.innerHTML='<section class="mm-container"><header class="mm-heading"><small>SETTINGS & MASTERS</small>'+
-   '<h2>Module Master</h2><p>Access-eligibility registry — determine which resources can be granted to Admin, Manager or Standard User. Super Admin always has access.</p>'+
+   '<h2>Module Directory</h2><p>Access-eligibility registry — determine which resources can be granted to Admin, Manager or Standard User. Super Admin always has access.</p>'+
    '<div class="mm-actions">'+b('⟳ Sync Resources','sync')+b('Export CSV','export')+'</div></header>'+
    '<div class="mm-metrics">'+[
     ['Total',c.total],['Active',c.active],['Pending Config',c.pendingConfig],['System Locked',c.locked],
@@ -46,7 +46,7 @@ function mount(host){
    const data=await api('module-master?'+q);
    if(state.destroyed||requestId!==n)return;
    state.resources=data.resources||[];state.counts=data.counts||{};state.registryCount=data.registryCount;state.error='';
-  }catch(e){if(requestId===n)state.error=e.message||'Unable to read Module Master';}
+  }catch(e){if(requestId===n)state.error=e.message||'Unable to read Module Directory';}
   finally{if(n===requestId){state.loading=false;render();}}
  }
  function modal(title,html,save){
@@ -76,7 +76,7 @@ function mount(host){
    check('Standard User Allowed','standardAllowed',r.essential||r.key==='MODULE_MASTER')+
    check('Common Resource','commonResource',r.essential||r.key==='MODULE_MASTER')+'</fieldset>'+
    '<label class="mm-field">Status<select name="status"'+(r.essential?' disabled':'')+'>'+['Active','Inactive'].map(x=>'<option'+(x===r.status?' selected':'')+'>'+x+'</option>').join('')+'</select></label>'+
-   '<p class="mm-hint">'+(r.essential?'Essential resources cannot be disabled.':r.key==='MODULE_MASTER'?'Module Master cannot be granted to non-Super-Admins.':'Disabled resources cannot be re-enabled by Role Matrix or Permission Sets.')+
+   '<p class="mm-hint">'+(r.essential?'Essential resources cannot be disabled.':r.key==='MODULE_MASTER'?'Module Directory cannot be granted to non-Super-Admins.':'Disabled resources cannot be re-enabled by Role Matrix or Permission Sets.')+
    '</p><p class="mm-modal-error" role="alert"></p></form>';
   modal('Edit Module Eligibility',html,async f=>{
    const data={version:r.version,adminAllowed:f.elements.adminAllowed.checked,managerAllowed:f.elements.managerAllowed.checked,
@@ -90,7 +90,7 @@ function mount(host){
  async function history(id){
   try{
    const r=state.resources.find(x=>x.id===id),data=await api('module-master/'+id+'/history');
-   modal('Module Master Audit — '+r.name,'<div class="mm-events">'+(data.history?.length?data.history.map(x=>'<p><strong>'+esc(x.action)+'</strong> · '+esc(x.actor)+' · '+esc(new Date(x.createdAt).toLocaleString())+'</p>').join(''):'<p>No events recorded.</p>')+'</div>');
+   modal('Module Directory Audit — '+r.name,'<div class="mm-events">'+(data.history?.length?data.history.map(x=>'<p><strong>'+esc(x.action)+'</strong> · '+esc(x.actor)+' · '+esc(new Date(x.createdAt).toLocaleString())+'</p>').join(''):'<p>No events recorded.</p>')+'</div>');
   }catch(e){state.error=e.message;render();}
  }
  function exportCsv(){
@@ -108,7 +108,7 @@ function mount(host){
   if(action==='export')exportCsv();
  }
  host.addEventListener('click',click);load();
- return {canLeave:()=>!state.editing||!state.dirty||confirm('Discard unsaved Module Master changes?'),
+ return {canLeave:()=>!state.editing||!state.dirty||confirm('Discard unsaved Module Directory changes?'),
   destroy(){state.destroyed=true;clearTimeout(searchTimer);document.querySelectorAll('dialog.mm-modal').forEach(x=>x.remove());return true;},
   setSearch(q){state.q=String(q||'').slice(0,150);clearTimeout(searchTimer);searchTimer=setTimeout(load,250);}};
 }

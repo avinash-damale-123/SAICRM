@@ -45,6 +45,8 @@ try{
  });
  await page.goto('http://127.0.0.1:'+server.address().port);
  await page.locator('[data-nav="modulemaster"]').waitFor({state:'attached'});
+ assert.equal(await page.locator('#navigation [data-nav="modules"]').count(),0);
+ assert.equal((await page.locator('#navigation [data-nav="modulemaster"]').innerText()).trim(),'Module Directory');
  await page.locator('[data-nav="modulemaster"]').click();
  await page.locator('.mm-container').waitFor();
  await page.waitForFunction(()=>document.querySelector('.mm-table tbody')?.textContent.includes('Leads'));
