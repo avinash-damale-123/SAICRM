@@ -88,7 +88,7 @@ try{
  for(const width of [320,360,768,1280,1440]){
   await page.setViewportSize({width,height:850});
   for(const module of modules){
-   await page.evaluate(module=>document.querySelector('[data-nav="'+module+'"]').click(),module);
+   await page.evaluate(module=>window.SCRM.navigateTo(module),module);
    await page.waitForTimeout(30);
    const extent=await page.evaluate(()=>({viewport:innerWidth,actual:document.documentElement.scrollWidth,bar:document.querySelector('.crm-module-workbar')?.getBoundingClientRect().right}));assert.ok(extent.actual<=extent.viewport+1,'Page overflow: '+module+' '+width+' '+JSON.stringify(extent));
    checks++;
@@ -96,7 +96,7 @@ try{
  }
  await page.setViewportSize({width:360,height:800});
  await page.locator('#mobileMenuBtn').click();await page.locator('#closeNav').waitFor({state:'visible'});await page.locator('#closeNav').click();
- await page.evaluate(()=>document.querySelector('[data-nav="leads"]').click());
+ await page.evaluate(()=>window.SCRM.navigateTo('leads'));
  await page.locator('[data-action="new"]').click();
  await page.locator('#f_name').fill('Actual typed lead');
  await page.locator('#f_type').selectOption('Corporate');await page.locator('#f_branch').selectOption('Pune');await page.locator('#f_status').selectOption('New');await page.locator('#f_scopeBranch').fill('PUNE');await page.locator('#f_scopeLine').selectOption('STTS');
