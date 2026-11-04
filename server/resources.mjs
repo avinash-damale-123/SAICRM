@@ -93,4 +93,13 @@ export function organizationalRolePermissions(user){
  return Object.freeze(Object.fromEntries([...actions.map(action=>[action,eligible]),
   ['import',false],['delete',false]]));
 }
-export const resources = Object.freeze([businessLineResource,countryResource,regionResource,branchMasterResource,departmentResource,organizationalRoleResource]);
+export const reportingHierarchyResource = Object.freeze({
+ key:'REPORTING_HIERARCHY_MASTER',name:'Reporting Hierarchy',type:'module',section:'Administration',
+ subsection:'Core Masters',route:'#reporting-hierarchy',implementationStatus:'In Development',
+ registration:'automatic',systemLocked:true,superAdminOnly:true,actions,supportsImport:false,supportsDelete:false
+});
+export function reportingHierarchyPermissions(user){
+ const eligible=user?.system_role==='super_admin'&&user.email_verified===true&&user.status==='approved';
+ return Object.freeze(Object.fromEntries([...actions.map(action=>[action,eligible]),['import',false],['delete',false]]));
+}
+export const resources = Object.freeze([businessLineResource,countryResource,regionResource,branchMasterResource,departmentResource,organizationalRoleResource,reportingHierarchyResource]);
