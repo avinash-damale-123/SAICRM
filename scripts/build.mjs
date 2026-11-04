@@ -9,6 +9,7 @@ const staticFiles = [
   'business-lines-theme.css',
   'auth.css',
   'satguru-brand.css',
+  'sidebar-final.css',
   'workspace-shell.css',
   'workspace-shell.js',
   'module-header.js',
