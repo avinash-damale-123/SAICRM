@@ -11,7 +11,7 @@
   const backdrop = $('#navBackdrop');
   const overlay = $('#overlay');
   const mobile = matchMedia('(max-width: 767px)');
-  const narrow = matchMedia('(max-width: 1099px)');
+  const narrow = matchMedia('(min-width: 768px) and (max-width: 1023px)');
   const prefKey = 'scrm_ui_v1';
   let prefs = {};
   try { prefs = JSON.parse(localStorage.getItem(prefKey)) || {}; } catch { /* storage optional */ }
@@ -34,6 +34,13 @@
     bookings: '<rect x="3" y="7" width="18" height="14" rx="2"/><path d="M8 7V3h8v4M3 13h18m-9-2v4"/>',
     employees: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M5 17a4 4 0 0 1 8 0m2-8h3m-3 4h3"/>',
     branches: '<circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/>',
+    profile: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+    businesslines: '<rect x="3" y="4" width="18" height="6" rx="1"/><rect x="3" y="14" width="18" height="6" rx="1"/>',
+    countries: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>',
+    regions: '<path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3zM9 3v15m6-12v15"/>',
+    branchmaster: '<rect x="4" y="3" width="16" height="18" rx="1"/><path d="M9 21v-5h6v5M8 8h2m4 0h2M8 12h2m4 0h2"/>',
+    departmentmaster: '<rect x="9" y="2" width="6" height="6" rx="1"/><rect x="2" y="16" width="7" height="6" rx="1"/><rect x="15" y="16" width="7" height="6" rx="1"/><path d="M12 8v4M5.5 16v-4h13v4"/>',
+    orgroles: '<circle cx="12" cy="7" r="4"/><path d="M4 21a8 8 0 0 1 16 0M18 6l2 2 3-3"/>',
     modules: '<rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="3" width="6" height="6" rx="1"/><rect x="3" y="15" width="6" height="6" rx="1"/><rect x="15" y="15" width="6" height="6" rx="1"/>',
     settings: '<path d="M4 7h5m5 0h6M4 17h10m5 0h1"/><circle cx="11" cy="7" r="2"/><circle cx="16" cy="17" r="2"/>',
     audit: '<circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/>',
