@@ -56,7 +56,7 @@ try{
  });
  await page.goto('http://127.0.0.1:'+server.address().port);await page.locator('#crmSearchInput').waitFor();
  const ready=()=>page.waitForFunction(()=>document.querySelector('.mw-results')?.getAttribute('aria-busy')==='false'&&!!document.querySelector('.rf-table'));
- const open=async m=>{await page.evaluate(m=>document.querySelector('[data-nav="'+m+'"]').click(),m);await page.locator('.scrm-workbar').waitFor();if(m==='businesslines')await ready();};
+ const open=async m=>{await page.evaluate(m=>window.SCRM.navigateTo(m),m);await page.locator('.scrm-workbar').waitFor();if(m==='businesslines')await ready();};
  const setCollapsed=async collapsed=>{
   await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
   if(await page.locator('html').evaluate(e=>e.classList.contains('nav-collapsed'))!==collapsed)await page.locator('#menuBtn').click();
