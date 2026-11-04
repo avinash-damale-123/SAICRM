@@ -83,6 +83,15 @@ try{
  assert.equal(await page.locator('#menuBtn').evaluate(node=>!!node.closest('#sidebar .brand')),true,'Desktop nav toggle belongs in the sidebar');
  assert.equal(await page.locator('.topbar #menuBtn').count(),0,'Desktop nav toggle must not occupy the topbar');
  assert.equal((await page.locator('#sidebarSignOut').innerText()).trim(),'Sign out','Sidebar must offer a footer sign out');
+ assert.equal(await page.locator('#sidebar .profile-copy').count(),0,'Footer must not duplicate My Profile or show role/name');
+ assert.equal(await page.locator('#sidebarProfileLink').getAttribute('aria-label'),'Open My Profile for Test Admin','Avatar must have a descriptive accessible label');
+ await page.locator('#sidebarProfileLink').click();
+ assert.equal(await page.evaluate(()=>window.SCRM.currentPage()),'profile','Sidebar avatar must navigate to My Profile');
+ assert.equal((await page.locator('#navigation [data-nav="profile"]').count()),1,'Keep My Profile in Workspace navigation');
+ const sectionAppearance=await page.locator('#navigation .nav-section').first().evaluate(el=>({background:getComputedStyle(el).backgroundColor,fontWeight:getComputedStyle(el).fontWeight,arrowWidth:el.querySelector('svg')?.getBoundingClientRect().width}));
+ assert.equal(sectionAppearance.background,'rgb(223, 233, 226)','Section headers need the approved darker background');
+ assert.ok(Number(sectionAppearance.fontWeight)>=700 && sectionAppearance.arrowWidth>=15,'Section header must be bold with prominent arrow');
+
  const modules=['overview','mywork','analytics','leads','customers','contacts','opportunities','activities','quotes','bookings','employees','branches','modules','settings','audit'];
  let checks=0;
  for(const width of [320,360,768,1280,1440]){
