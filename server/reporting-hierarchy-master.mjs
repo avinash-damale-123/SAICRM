@@ -43,7 +43,7 @@ function input(body){
  return {hierarchyType,applicability,scopeLevel,scopeId,parentRoleId,childRoleId,description,sortOrder};
 }
 async function validateReferences(client,data){
- const roles=(await client.query('SELECT id,status,applicability,archived_at,deleted_at FROM organizational_roles WHERE id=ANY($1::uuid[])',[data.parentRoleId,data.childRoleId])).rows;
+ const roles=(await client.query('SELECT id,status,applicability,archived_at,deleted_at FROM organizational_roles WHERE id=ANY($1::uuid[])',[[data.parentRoleId,data.childRoleId]])).rows;
  if(roles.length!==2||roles.some(r=>!active(r)||(r.applicability!=='Both'&&r.applicability!==data.applicability)))
   fail(409,'Parent and Child roles must be Active and compatible with this context');
  if(data.scopeLevel!=='Global'){
