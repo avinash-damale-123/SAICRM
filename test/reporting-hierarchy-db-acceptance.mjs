@@ -12,7 +12,7 @@ const pool=new pg.Pool({connectionString:cs,max:2});
 const client=await pool.connect();
 try{
  await client.query(await readFile(new URL('../db/013_reporting_hierarchy_master.sql',import.meta.url),'utf8'));
- assert.equal((await client.query('SELECT MAX(version)::int AS version FROM schema_migrations')).rows[0].version,13);
+ assert.equal((await client.query('SELECT count(*)::int n FROM schema_migrations WHERE version=13')).rows[0].n,1);
  await client.query('BEGIN');
  const userId=(await client.query('SELECT id FROM users ORDER BY created_at LIMIT 1')).rows[0]?.id;
  assert.ok(userId,'Fixture must have an authenticated user');
