@@ -1,5 +1,6 @@
 import { authorize, modules } from './contracts.mjs';
 import {countryPermissions,regionPermissions} from './resources.mjs';
+import {resourceEligible,keyForApi} from './module-master.mjs';
 
 const normalize = value => typeof value === 'string' ? value.trim() : '';
 const toTime = value => value instanceof Date ? value.toISOString() : String(value || '');
@@ -14,7 +15,9 @@ export async function searchWorkspace(client, principal, current, url) {
  const global = url.searchParams.get('scope') === 'global';
  const module = normalize(url.searchParams.get('module')).toLowerCase();
  if (query.length < 2) return {results: [], query, scope: global ? 'global' : 'module'};
- const readable = modules.filter(id => authorize(principal, 'read', id));
+ const candidates=modules.filter(id=>authorize(principal,'read',id));
+ const grants=await Promise.all(candidates.map(async id=>({id,allowed:await resourceEligible(client,current,keyForApi(id))})));
+ const readable=grants.filter(x=>x.allowed).map(x=>x.id);
  const selected = global ? readable : readable.filter(id => id === module);
  const output = [];
  if (selected.length) {
@@ -46,7 +49,7 @@ export async function searchWorkspace(client, principal, current, url) {
    detail: item.display_id, status: item.status, updatedAt: toTime(item.updated_at)
   });
  }
- if ((global || module === 'countries') && countryPermissions(current).read) {
+ if ((global || module === 'countries') && countryPermissions(current).read && await resourceEligible(client,current,'COUNTRIES')) {
   const rows = (await client.query(`
    SELECT id,display_id,name,code,status,updated_at FROM countries
    WHERE position(lower($1) in lower(name || ' ' || display_id || ' ' || code)) > 0
@@ -54,7 +57,7 @@ export async function searchWorkspace(client, principal, current, url) {
   `, [query])).rows;
   for (const item of rows) output.push({id:item.id,module:'countries',title:item.name,detail:item.display_id+' · '+item.code,status:item.status,updatedAt:toTime(item.updated_at)});
  }
- if ((global || module === 'regions') && regionPermissions(current).read) {
+ if ((global || module === 'regions') && regionPermissions(current).read && await resourceEligible(client,current,'REGIONS')) {
   const available=(await client.query("SELECT to_regclass('public.regions') IS NOT NULL AS ready")).rows[0]?.ready===true;
   if(available){
    const rows = (await client.query(`
@@ -70,7 +73,9 @@ export async function searchWorkspace(client, principal, current, url) {
 }
 
 export async function notificationsFeed(client, principal, current) {
- const readable = modules.filter(id => authorize(principal, 'read', id));
+ const candidates=modules.filter(id=>authorize(principal,'read',id));
+ const grants=await Promise.all(candidates.map(async id=>({id,allowed:await resourceEligible(client,current,keyForApi(id))})));
+ const readable=grants.filter(x=>x.allowed).map(x=>x.id);
  const output = [];
  if (readable.length) {
   const rows = (await client.query(`
@@ -89,7 +94,7 @@ export async function notificationsFeed(client, principal, current) {
    detail:extraOf(item.data),createdAt:toTime(item.created_at)
   });
  }
- if (authorize(principal,'read','access')) {
+ if (authorize(principal,'read','access')&&await resourceEligible(client,current,'USER_ACCESS')) {
   const pending=(await client.query(`
     SELECT id,name,email,created_at FROM users
     WHERE status='pending' AND email_verified=true

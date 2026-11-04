@@ -5,6 +5,7 @@ import { branchMasterFramework } from './branch-master-framework.mjs';
 import { departmentMaster } from './department-master.mjs';
 import { organizationalRoleMaster } from './organizational-role-master.mjs';
 import { reportingHierarchyMaster } from './reporting-hierarchy-master.mjs';
+import { moduleMaster,resourceEligible,keyForApi,eligibleResourceKeys } from './module-master.mjs';
 import { randomUUID } from 'node:crypto';
 import { businessLines, validateBusinessLineReferences } from './business-lines.mjs';
 import { searchWorkspace, notificationsFeed } from './workspace-discovery.mjs';
@@ -297,6 +298,10 @@ export function createHandler({ pool, config, deliver = message => sendEmail(con
     if (path[0] === 'branch-master') return await branchMasterFramework({client,user:current,path,method,url,body});
     if (path[0] === 'department-master') return await departmentMaster({client,user:current,path,method,url,body});
     if (path[0] === 'organizational-roles') return await organizationalRoleMaster({client,user:current,path,method,url,body});
+    if(path[0]==='resource-eligibility'&&path.length===1&&method==='GET') return {keys:await eligibleResourceKeys(client,current)};
+    if (path[0] === 'module-master') return await moduleMaster({client,user:current,path,method,url,body});
+    const resourceKey=keyForApi(path[0]);
+    if(resourceKey&&!(await resourceEligible(client,current,resourceKey)))fail(403,'Resource not eligible for your user type');
     if (path[0] === 'reporting-hierarchy') return await reportingHierarchyMaster({client,user:current,path,method,url,body});
     if (path[0] === 'access') {
      if (!authorize(principal, method === 'GET' ? 'read' : 'approve', 'access')) fail(403, 'Administrator access required');

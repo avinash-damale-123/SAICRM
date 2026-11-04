@@ -4,6 +4,10 @@
  const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  let email='', csrf='', user=null, loaded=false, mode='login', resetToken='', googleEnabled=false, remember=false;
  let authInitializing=true;
+ const resourceMap={businesslines:'BUSINESS_LINES',countries:'COUNTRIES',regions:'REGIONS',branchmaster:'BRANCH_MASTER',departmentmaster:'DEPARTMENT_MASTER',orgroles:'ORGANIZATIONAL_ROLE_MASTER',reportinghierarchy:'REPORTING_HIERARCHY_MASTER',modulemaster:'MODULE_MASTER',
+ leads:'LEADS',customers:'CUSTOMERS',contacts:'CONTACTS',opportunities:'OPPORTUNITIES',activities:'ACTIVITIES',quotes:'QUOTES',bookings:'BOOKINGS',employees:'EMPLOYEES',branches:'BRANCHES_LEGACY',audit:'AUDIT',access:'USER_ACCESS',modules:'MODULE_DIRECTORY',home:'HOME',profile:'PROFILE',settings:'SETTINGS',overview:'OVERVIEW',mywork:'MY_WORK',analytics:'ANALYTICS',notifications:'NOTIFICATIONS'};
+ let eligibleKeys=null;
+
  function captureReset(){const params=new URLSearchParams(location.hash.slice(1));if(!params.has('reset'))return false;resetToken=params.get('reset');email=params.get('email')||'';mode='reset';history.replaceState(null,'',location.pathname);document.querySelector('#overlay').classList.add('hidden');return true}
  let initialMessage='';
  const authOutcome=new URLSearchParams(location.hash.slice(1)).get('auth');
@@ -19,10 +23,11 @@
   return result;
  }
  function can(module,action='read') {
+  if(eligibleKeys&&user?.systemRole!=='super_admin'&&resourceMap[module]&&!eligibleKeys.has(resourceMap[module]))return false;
   if(!user||user.status!=='approved'||!user.emailVerified)return false;
   if(['businesslines','countries'].includes(module))return user.systemRole==='super_admin';
   if(module==='regions')return user.systemRole==='super_admin'||user.role==='admin';
-  if(module==='branchmaster'||module==='departmentmaster'||module==='orgroles'||module==='reportinghierarchy')return user.systemRole==='super_admin';
+  if(module==='branchmaster'||module==='departmentmaster'||module==='orgroles'||module==='reportinghierarchy'||module==='modulemaster')return user.systemRole==='super_admin';
   if(['home','overview','mywork','analytics','notifications','modules','settings'].includes(module))return action==='read';
   if(['employees','branches','audit','access'].includes(module))return user.role==='admin';
   if(['read','search','filter','dashboard'].includes(action))return true;
@@ -45,6 +50,7 @@
  function script(src){return new Promise((resolve,reject)=>{const element=document.createElement('script');element.src=src;element.onload=resolve;element.onerror=()=>reject(Error('Unable to load CRM interface'));document.body.append(element)})}
  async function enter(session){
   user=session.user;csrf=session.csrf||'';window.SCRM.user=user;
+  try{const eligible=await api('resource-eligibility');eligibleKeys=Array.isArray(eligible.keys)?new Set(eligible.keys):null;}catch{eligibleKeys=null;}
   root.hidden=true;app.hidden=false;
   document.querySelector('.top-avatar').title=user.email;
   if(loaded){location.reload();return}
