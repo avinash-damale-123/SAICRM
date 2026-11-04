@@ -104,3 +104,68 @@
   .sidebar { background: #ffffff !important; }
   .sidebar .sidebar-bottom { padding-bottom: max(8px, env(safe-area-inset-bottom)) !important; }
 }
+
+/* 2026-11-04 approval: avatar opens the existing Workspace > My Profile page.
+   Do not duplicate profile text or role information beside Sign out. */
+.sidebar .sidebar-bottom {
+  justify-content: space-between !important;
+  min-height: 49px !important;
+  box-sizing: border-box;
+}
+.sidebar .sidebar-profile-link {
+  appearance: none;
+  display: inline-flex !important;
+  flex: 0 0 auto !important;
+  min-width: 38px !important;
+  width: 38px !important;
+  height: 36px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border: 1px solid #d6e3da !important;
+  background: #f3f8f5 !important;
+  border-radius: 8px !important;
+  padding: 2px !important;
+  cursor: pointer;
+}
+.sidebar .sidebar-profile-link:hover { background: #e6f1e9 !important; border-color: #96bda4 !important; }
+.sidebar .sidebar-profile-link .avatar {
+  background: #e0ede5 !important;
+  color: #145b3b !important;
+  border: none !important;
+  width: 28px !important;
+  height: 28px !important;
+}
+.sidebar .sidebar-profile-link:focus-visible {
+  outline: 2px solid #145b3b !important;
+  outline-offset: 2px !important;
+}
+.sidebar .sidebar-signout {
+  flex: 0 0 auto !important;
+  padding: 5px 12px !important;
+  border: 1px solid #d5dfd8 !important;
+}
+/* More recognizable section headers: slightly darker fill, stronger heading,
+   and a prominent expand/collapse arrow. Active menu color stays #145b3b. */
+.sidebar .nav-section {
+  background: #dfe9e2 !important;
+  color: #284835 !important;
+  font-weight: 800 !important;
+  letter-spacing: .35px !important;
+  border: 1px solid #cdded2 !important;
+}
+.sidebar .nav-section:hover {
+  background: #d4e3d9 !important;
+  color: #173b29 !important;
+}
+.sidebar .nav-section .ui-icon {
+  color: #145b3b !important;
+  width: 17px !important;
+  height: 17px !important;
+  stroke-width: 2.75px !important;
+}
+.sidebar .nav-section[aria-expanded="true"] .ui-icon { transform: rotate(90deg); }
+.sidebar .nav-section[aria-expanded="false"] .ui-icon { transform: rotate(0deg); }
+@media (min-width: 768px) {
+  .nav-collapsed .sidebar .sidebar-bottom { flex-direction: column !important; justify-content: center !important; }
+  .nav-collapsed .sidebar .sidebar-profile-link { margin-inline: auto !important; }
+}
