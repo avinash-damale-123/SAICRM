@@ -17,7 +17,7 @@ function markSeen(ids){
 }
 function label(id){return names[id]||id.replace(/([A-Z])/g,' $1')}
 function activeModule(){const p=window.SCRM?.currentPage?.();return modules.has(p)?p:null}
-function allowedModule(id){return !['businesslines','countries','regions','branchmaster','departmentmaster','orgroles','reportinghierarchy','modulemaster'].includes(id)||window.SCRM?.can?.(id)}
+function allowedModule(id){return window.SCRM?.can?.(id)!==false}
 function placeCrumbs(p){
  const chain=p==='businesslines'?[['home','Home'],['settings','Settings & Masters'],['businesslines','Business Lines']]:p==='countries'?[['home','Home'],['settings','Settings & Masters'],['countries','Countries']]:p==='regions'?[['home','Home'],['settings','Settings & Masters'],['regions','Regions']]:p==='branchmaster'?[['home','Home'],['settings','Settings & Masters'],['branchmaster','Branches']]:p==='departmentmaster'?[['home','Home'],['settings','Settings & Masters'],['departmentmaster','Departments']]:p==='orgroles'?[['home','Home'],['settings','Settings & Masters'],['orgroles','Organizational Roles']]:p==='reportinghierarchy'?[['home','Home'],['settings','Settings & Masters'],['reportinghierarchy','Reporting Hierarchy']]:p==='modulemaster'?[['home','Home'],['settings','Settings & Masters'],['modulemaster','Module Master']]:
   p==='settings'?[['home','Home'],['settings',label(p)]]:
