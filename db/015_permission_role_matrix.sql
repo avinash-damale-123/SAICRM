@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS crm_permission_role_events (
  created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS crm_permission_role_events_lookup_v15 ON crm_permission_role_events(permission_role_id,id);
-CREATE TRIGGER crm_permission_role_events_append_only_v15 BEFORE UPDATE OR DELETE ON crm_permission_role_events FOR EACH ROW EXECUTE FUNCTION prevent_audit_mutation();
+CREATE OR REPLACE TRIGGER crm_permission_role_events_append_only_v15 BEFORE UPDATE OR DELETE ON crm_permission_role_events FOR EACH ROW EXECUTE FUNCTION prevent_audit_mutation();
 CREATE OR REPLACE FUNCTION validate_crm_permission_role_v15() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
  IF TG_OP='INSERT' THEN
@@ -48,10 +48,10 @@ BEGIN
  END IF;
  RETURN NEW;
 END $$;
-CREATE TRIGGER validate_crm_permission_role_before_v15 BEFORE INSERT OR UPDATE ON crm_permission_roles FOR EACH ROW EXECUTE FUNCTION validate_crm_permission_role_v15();
+CREATE OR REPLACE TRIGGER validate_crm_permission_role_before_v15 BEFORE INSERT OR UPDATE ON crm_permission_roles FOR EACH ROW EXECUTE FUNCTION validate_crm_permission_role_v15();
 CREATE OR REPLACE FUNCTION forbid_crm_permission_role_removal_v15() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN RAISE EXCEPTION 'Permission Roles must retain their history; set Inactive instead' USING ERRCODE='23514'; END $$;
-CREATE TRIGGER forbid_crm_permission_role_removal_before_v15 BEFORE DELETE ON crm_permission_roles FOR EACH ROW EXECUTE FUNCTION forbid_crm_permission_role_removal_v15();
+CREATE OR REPLACE TRIGGER forbid_crm_permission_role_removal_before_v15 BEFORE DELETE ON crm_permission_roles FOR EACH ROW EXECUTE FUNCTION forbid_crm_permission_role_removal_v15();
 DO $grants$
 BEGIN
  IF EXISTS(SELECT 1 FROM pg_roles WHERE rolname='saicrm_runtime') THEN
