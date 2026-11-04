@@ -14,6 +14,7 @@ const essentials=[
 const pages=[
  ['SETTINGS','Settings & Masters','PAGE','Administration','#settings'],
  ['MODULE_MASTER','Module Master','MODULE','Administration','#modulemaster'],
+ ['ROLE_MATRIX','Roles & Permissions','MODULE','Administration','#rolematrix'],
  ['MODULE_DIRECTORY','Module Directory','PAGE','Administration','#modules'],
  ['AUDIT','Audit Trail','MODULE','Administration','#audit'],
  ['USER_ACCESS','User Access & Approvals','FUNCTION','Administration','#access'],
@@ -21,8 +22,8 @@ const pages=[
  ['MY_WORK','My Work','PAGE','Workspace','#mywork'],
  ['ANALYTICS','Analytics','PAGE','Workspace','#analytics']
 ].map(([key,name,type,section,route])=>({key,name,type,section,route,category:'General',description:'',
- systemLocked:key==='MODULE_MASTER',essential:false,common:false,
- admin:key!=='MODULE_MASTER',manager:['SETTINGS','MODULE_DIRECTORY','OVERVIEW','MY_WORK','ANALYTICS'].includes(key),
+ systemLocked:key==='MODULE_MASTER'||key==='ROLE_MATRIX',essential:false,common:false,
+ admin:!['MODULE_MASTER'].includes(key),manager:['SETTINGS','MODULE_DIRECTORY','OVERVIEW','MY_WORK','ANALYTICS'].includes(key),
  standard:['SETTINGS','MODULE_DIRECTORY','OVERVIEW','MY_WORK'].includes(key)}));
 const operational=[
  ['LEADS','Leads','leads'],['CUSTOMERS','Customers','customers'],['CONTACTS','People & Contacts','contacts'],
@@ -42,7 +43,7 @@ export const pageResourceKeys=Object.freeze({businesslines:'BUSINESS_LINES',coun
  branchmaster:'BRANCH_MASTER',departmentmaster:'DEPARTMENT_MASTER',orgroles:'ORGANIZATIONAL_ROLE_MASTER',
  reportinghierarchy:'REPORTING_HIERARCHY_MASTER',leads:'LEADS',customers:'CUSTOMERS',contacts:'CONTACTS',opportunities:'OPPORTUNITIES',
  activities:'ACTIVITIES',quotes:'QUOTES',bookings:'BOOKINGS',employees:'EMPLOYEES',branches:'BRANCHES_LEGACY',
- audit:'AUDIT',modules:'MODULE_DIRECTORY',settings:'SETTINGS',modulemaster:'MODULE_MASTER',home:'HOME',
+ audit:'AUDIT',modules:'MODULE_DIRECTORY',settings:'SETTINGS',modulemaster:'MODULE_MASTER',rolematrix:'ROLE_MATRIX',home:'HOME',
  profile:'PROFILE',overview:'OVERVIEW',mywork:'MY_WORK',analytics:'ANALYTICS',notifications:'NOTIFICATIONS'});
 const fail=(code,message)=>{throw Object.assign(new Error(message),{status:code});};
 const isAdmin=u=>u?.system_role==='super_admin'&&u.email_verified===true&&u.status==='approved';
