@@ -50,7 +50,7 @@
  function script(src){return new Promise((resolve,reject)=>{const element=document.createElement('script');element.src=src;element.onload=resolve;element.onerror=()=>reject(Error('Unable to load CRM interface'));document.body.append(element)})}
  async function enter(session){
   user=session.user;csrf=session.csrf||'';window.SCRM.user=user;
-  try{const eligible=await api('resource-eligibility');eligibleKeys=new Set(eligible.keys||[]);}catch{eligibleKeys=null;}
+  try{const eligible=await api('resource-eligibility');eligibleKeys=Array.isArray(eligible.keys)?new Set(eligible.keys):null;}catch{eligibleKeys=null;}
   root.hidden=true;app.hidden=false;
   document.querySelector('.top-avatar').title=user.email;
   if(loaded){location.reload();return}
