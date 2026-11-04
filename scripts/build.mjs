@@ -25,6 +25,8 @@ const staticFiles = [
   'department-master-ui.js',
   'organizational-role-ui.js',
   'organizational-role.css',
+  'reporting-hierarchy-ui.js',
+  'reporting-hierarchy.css',
   'department-master.css',
   'department-master-parity.css',
   'department-layout.css',
