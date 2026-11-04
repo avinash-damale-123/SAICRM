@@ -169,3 +169,45 @@
   .nav-collapsed .sidebar .sidebar-bottom { flex-direction: column !important; justify-content: center !important; }
   .nav-collapsed .sidebar .sidebar-profile-link { margin-inline: auto !important; }
 }
+
+/* 2026-11-04 final footer correction: the Workspace menu owns My Profile.
+   Footer contains only Sign out and must never overflow the sidebar. */
+.sidebar .sidebar-bottom {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 8px 10px !important;
+  overflow: hidden !important;
+}
+.sidebar .sidebar-signout {
+  display: inline-flex !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  min-height: 34px !important;
+  margin: 0 !important;
+  padding: 6px 8px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex: 0 1 auto !important;
+  white-space: nowrap !important;
+  gap: 7px !important;
+}
+.sidebar .sidebar-signout .ui-icon { flex: 0 0 17px !important; height: 17px !important; width: 17px !important; }
+@media (min-width: 768px) {
+  .nav-collapsed .sidebar .sidebar-bottom { padding: 8px 6px !important; flex-direction: row !important; justify-content: center !important; }
+  .nav-collapsed .sidebar .sidebar-signout {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    min-height: 36px !important;
+    margin: 0 !important;
+    padding: 6px !important;
+  }
+}
