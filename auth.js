@@ -46,11 +46,6 @@
  async function enter(session){
   user=session.user;csrf=session.csrf||'';window.SCRM.user=user;
   root.hidden=true;app.hidden=false;
-  const sidebarProfile=document.querySelector('#sidebarProfileLink');
-  if(sidebarProfile){sidebarProfile.title='Open My Profile - '+user.name;sidebarProfile.setAttribute('aria-label','Open My Profile for '+user.name)}
-  const sidebarInitials=(user.name||'').trim().split(/\s+/).slice(0,2).map(part=>part[0]||'').join('').toUpperCase();
-  const sidebarAvatar=sidebarProfile?.querySelector('.avatar');
-  if(sidebarAvatar)sidebarAvatar.textContent=sidebarInitials||'SA';
   document.querySelector('.top-avatar').title=user.email;
   if(loaded){location.reload();return}
   loaded=true;await script('/app.js');await window.SCRM.appReady;await script('/responsive.js');await script('/workspace-shell.js?v=20261104-orgroles-stage1-r1');window.SCRMWorkspace.init();
