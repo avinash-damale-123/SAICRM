@@ -95,7 +95,14 @@ async function synchronize(client,user){
    created++;
   }
  }
- return {created,refreshed,total:registeredModuleResources.length};
+ const known=registeredModuleResources.map(r=>r.key);
+ const stale=(await client.query("SELECT id,resource_key FROM module_master_resources WHERE NOT (resource_key=ANY($1::text[])) AND status='Active' AND NOT essential FOR UPDATE",[known])).rows;
+ for(const retired of stale){
+  await client.query("UPDATE module_master_resources SET status='Inactive',updated_by=$2 WHERE id=$1",[retired.id,user.id]);
+  await client.query('INSERT INTO module_master_events(resource_id,actor_id,action,changes) VALUES($1,$2,$3,$4)',
+    [retired.id,user.id,'Retired by resource sync',JSON.stringify({status:{before:'Active',after:'Inactive'}})]);
+ }
+ return {created,refreshed,retired:stale.length,total:registeredModuleResources.length};
 }
 export async function moduleMaster({client,user,path,method,url,body={}}){
  if(!isAdmin(user))fail(403,'Super Admin access required');
