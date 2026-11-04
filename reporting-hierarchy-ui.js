@@ -72,7 +72,7 @@ function mount(host){
    '<p>Manage role-to-role reporting structures. Organizational Roles, Branches and Departments remain the source masters.</p></header>'+
    (state.error?'<p role="alert" class="rh-error">'+esc(state.error)+'</p>':'')+(state.filtersOpen?controls():'')+
    '<section class="rh-panel">'+(state.loading?'<p>Loading reporting rules…</p>':state.tab==='overview'?overview():state.tab==='tree'?hierarchy():table())+'</section></div>';
-  host.querySelectorAll('select').forEach(e=>e.onchange=()=>{
+  host.querySelectorAll('select').forEach(select=>select.onchange=e=>{
    const map={'rh-filter-type':'type','rh-filter-scope':'scope','rh-filter-status':'status','rh-filter-applicability':'applicability','rh-page-size':'pageSize'};
    const k=map[e.target.id];if(!k)return;
    state[k]=k==='pageSize'?Number(e.target.value):e.target.value;state.page=1;load();
