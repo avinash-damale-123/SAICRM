@@ -103,7 +103,7 @@ export async function reportingHierarchyMaster({client,user,path,method,url,body
   if(scope!=='all'){params.push(scope);clauses.push('h.scope_level=$'+params.length);}
   if(applicability!=='all'){params.push(applicability);clauses.push('h.applicability=$'+params.length);}
   if(q){params.push('%'+q.replace(/[%_\\]/g,'\\$&')+'%');clauses.push('(p.name ILIKE $'+params.length+' OR c.name ILIKE $'+params.length+' OR h.display_id ILIKE $'+params.length+')');}
-  const where=' WHERE '+clauses.join(' AND '),base=columns.slice(columns.indexOf(' FROM '));
+  const where=' WHERE '+clauses.join(' AND '),base=columns.slice(columns.indexOf(' FROM reporting_hierarchy_rules h'));
   const total=Number((await client.query('SELECT count(*)::int total'+base+where,params)).rows[0].total);
   const pages=Math.max(1,Math.ceil(total/pageSize)),current=Math.min(page,pages);
   const records=(await client.query(columns+where+' ORDER BY h.updated_at DESC,h.id DESC LIMIT $'+(params.length+1)+' OFFSET $'+(params.length+2),[...params,pageSize,(current-1)*pageSize])).rows.map(view);
