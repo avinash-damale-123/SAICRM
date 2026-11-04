@@ -26,6 +26,7 @@ before(async()=>{
  await pool.query(await readFile(new URL('../db/007_records_framework.sql',import.meta.url),'utf8'));
  await pool.query(await readFile(new URL('../db/008_countries.sql',import.meta.url),'utf8'));
  await pool.query(await readFile(new URL('../db/014_module_master.sql',import.meta.url),'utf8'));
+ await pool.query(await readFile(new URL('../db/015_permission_role_matrix.sql',import.meta.url),'utf8'));
  await pool.query(await readFile(new URL('../db/008_countries.sql',import.meta.url),'utf8'));
  // Applying migrations twice must preserve an initialized database.
  await pool.query(await readFile(new URL('../db/003_business_lines.sql',import.meta.url),'utf8'));
