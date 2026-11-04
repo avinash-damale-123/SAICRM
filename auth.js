@@ -4,7 +4,7 @@
  const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  let email='', csrf='', user=null, loaded=false, mode='login', resetToken='', googleEnabled=false, remember=false;
  let authInitializing=true;
- const resourceMap={businesslines:'BUSINESS_LINES',countries:'COUNTRIES',regions:'REGIONS',branchmaster:'BRANCH_MASTER',departmentmaster:'DEPARTMENT_MASTER',orgroles:'ORGANIZATIONAL_ROLE_MASTER',reportinghierarchy:'REPORTING_HIERARCHY_MASTER',modulemaster:'MODULE_MASTER',
+ const resourceMap={businesslines:'BUSINESS_LINES',countries:'COUNTRIES',regions:'REGIONS',branchmaster:'BRANCH_MASTER',departmentmaster:'DEPARTMENT_MASTER',orgroles:'ORGANIZATIONAL_ROLE_MASTER',reportinghierarchy:'REPORTING_HIERARCHY_MASTER',modulemaster:'MODULE_MASTER',rolematrix:'ROLE_MATRIX',
  leads:'LEADS',customers:'CUSTOMERS',contacts:'CONTACTS',opportunities:'OPPORTUNITIES',activities:'ACTIVITIES',quotes:'QUOTES',bookings:'BOOKINGS',employees:'EMPLOYEES',branches:'BRANCHES_LEGACY',audit:'AUDIT',access:'USER_ACCESS',modules:'MODULE_DIRECTORY',home:'HOME',profile:'PROFILE',settings:'SETTINGS',overview:'OVERVIEW',mywork:'MY_WORK',analytics:'ANALYTICS',notifications:'NOTIFICATIONS'};
  let eligibleKeys=null;
 
@@ -28,6 +28,7 @@
   if(['businesslines','countries'].includes(module))return user.systemRole==='super_admin';
   if(module==='regions')return user.systemRole==='super_admin'||user.role==='admin';
   if(module==='branchmaster'||module==='departmentmaster'||module==='orgroles'||module==='reportinghierarchy'||module==='modulemaster')return user.systemRole==='super_admin';
+  if(module==='rolematrix')return user.systemRole==='super_admin'||user.role==='admin';
   if(['home','overview','mywork','analytics','notifications','modules','settings'].includes(module))return action==='read';
   if(['employees','branches','audit','access'].includes(module))return user.role==='admin';
   if(['read','search','filter','dashboard'].includes(action))return true;
