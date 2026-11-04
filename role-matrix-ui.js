@@ -155,7 +155,7 @@ function mount(host){
   }
   if(action==='save'){await doSave();}
  }
- host.addEventListener('click',onClick);
+
  document.addEventListener('click',onClick);
  load();
  return {canLeave:()=>!state.dirty||confirm('Discard unsaved role changes?'),
