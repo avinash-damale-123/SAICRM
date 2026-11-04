@@ -83,8 +83,8 @@ try{
  assert.equal(await page.locator('#menuBtn').evaluate(node=>!!node.closest('#sidebar .brand')),true,'Desktop nav toggle belongs in the sidebar');
  assert.equal(await page.locator('.topbar #menuBtn').count(),0,'Desktop nav toggle must not occupy the topbar');
  assert.equal((await page.locator('#sidebarSignOut').innerText()).trim(),'Sign out','Sidebar must offer a footer sign out');
- assert.equal(await page.locator('#sidebarProfileLink').count(),0,'No redundant footer profile control');
- assert.equal(await page.locator('#sidebar .profile').count(),0,'Footer contains only Sign out');
+ assert.equal(await page.locator('#sidebarProfileLink').count(),1,'Profile icon in footer');
+ assert.equal(await page.locator('#sidebar .profile-copy').count(),0,'No profile name in footer');
  assert.equal(await page.locator('#navigation [data-nav="profile"]').count(),1,'My Profile remains in Workspace navigation');
  for(const width of [320,360,768,1024,1280]){
    await page.setViewportSize({width,height:850});
