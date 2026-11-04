@@ -82,4 +82,15 @@ export function departmentPermissions(user){
  const eligible=user?.system_role==='super_admin'&&user.email_verified===true&&user.status==='approved';
  return Object.freeze(Object.fromEntries([...actions.map(action=>[action,eligible]),['assign',eligible],['import',eligible],['delete',false]]));
 }
-export const resources = Object.freeze([businessLineResource,countryResource,regionResource,branchMasterResource,departmentResource]);
+export const organizationalRoleResource = Object.freeze({
+ key:'ORGANIZATIONAL_ROLE_MASTER',name:'Organizational Roles',type:'module',section:'Administration',
+ subsection:'Core Masters',route:'#organizational-roles',implementationStatus:'In Development',
+ registration:'automatic',systemLocked:true,superAdminOnly:true,actions,
+ supportsImport:false,supportsDelete:false
+});
+export function organizationalRolePermissions(user){
+ const eligible=user?.system_role==='super_admin'&&user.email_verified===true&&user.status==='approved';
+ return Object.freeze(Object.fromEntries([...actions.map(action=>[action,eligible]),
+  ['import',false],['delete',false]]));
+}
+export const resources = Object.freeze([businessLineResource,countryResource,regionResource,branchMasterResource,departmentResource,organizationalRoleResource]);
