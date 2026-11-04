@@ -22,7 +22,7 @@
   if(!user||user.status!=='approved'||!user.emailVerified)return false;
   if(['businesslines','countries'].includes(module))return user.systemRole==='super_admin';
   if(module==='regions')return user.systemRole==='super_admin'||user.role==='admin';
-  if(module==='branchmaster'||module==='departmentmaster')return user.systemRole==='super_admin';
+  if(module==='branchmaster'||module==='departmentmaster'||module==='orgroles')return user.systemRole==='super_admin';
   if(['home','overview','mywork','analytics','notifications','modules','settings'].includes(module))return action==='read';
   if(['employees','branches','audit','access'].includes(module))return user.role==='admin';
   if(['read','search','filter','dashboard'].includes(action))return true;
@@ -50,7 +50,7 @@
   document.querySelector('.profile').title=user.email;
   document.querySelector('.top-avatar').title=user.email;
   if(loaded){location.reload();return}
-  loaded=true;await script('/app.js');await window.SCRM.appReady;await script('/responsive.js');await script('/workspace-shell.js?v=20261031-department-breadcrumb-r1');window.SCRMWorkspace.init();
+  loaded=true;await script('/app.js');await window.SCRM.appReady;await script('/responsive.js');await script('/workspace-shell.js?v=20261104-orgroles-stage1-r1');window.SCRMWorkspace.init();
  }
  const titles={login:'Welcome to SCRM',register:'Request CRM access',verify:'Verify your email',forgot:'Reset your password',reset:'Choose a new password',resetOtp:'Reset with email code'};
  function draw(message=''){
