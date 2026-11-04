@@ -91,6 +91,8 @@
     persist();
     syncLayout();
   };
+  const profileShortcut = $('#sidebarProfileLink');
+  if (profileShortcut) profileShortcut.onclick = () => window.SCRM.navigateTo('profile');
   mobileMenu.innerHTML = icon('menu');
   mobileMenu.onclick = () => {
     if (!mobile.matches) return;
