@@ -77,6 +77,10 @@ try{
  await page.locator('dialog.org-modal[open] .org-read-grid').waitFor();
  assert.equal(await page.locator('.org-dialog-content input').count(),0,'Role view is read only');
  await page.locator('.org-cancel').click();
+ await page.locator('.org-table [data-org^="edit:"]').first().click();
+ await page.locator('dialog.org-modal[open] #org-form').waitFor();
+ assert.equal(await page.locator('dialog.org-modal [name="name"]').inputValue(),'Branch Manager');
+ await page.locator('.org-cancel').click();
  await page.locator('.org-module-header [data-org="create"]').click();
  await page.locator('dialog.org-modal[open] #org-form').waitFor();
  assert.equal(await page.locator('[name="name"]').getAttribute('required'),'');
