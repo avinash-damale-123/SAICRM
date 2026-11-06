@@ -24,7 +24,7 @@ function passwordUI(menu){
 function profile(){
  const menu=$('.crm-profile-menu');if(menu)passwordUI(menu);
  // The approved footer already has the Profile photo placeholder and Sign out. Remove legacy duplicates.
- $('.sidebar-bottom [data-r10-my-profile], .sidebar-bottom .r10-sidebar-profile-link').forEach(el=>el.remove());
+ document.querySelectorAll('.sidebar-bottom [data-r10-my-profile], .sidebar-bottom .r10-sidebar-profile-link').forEach(el=>el.remove());
 }
 function showProfile(){
  const ws=window.SCRM?.activeWorkspace;if(ws&&!ws.canLeave?.())return;ws?.destroy?.(true);window.SCRM.activeWorkspace=null;
