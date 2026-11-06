@@ -1,4 +1,4 @@
-# CRM Analytics-Y1 — interim legacy CRM reporting
+# CRM Analytics-Y1 — Yiron CRM one-way visibility and analytics
 
 ## Purpose
 Provide a separate, read-only analytics workspace inside SAI-CRM while the replacement CRM modules are being developed. Existing Workspace analytics and Administration remain independent.
@@ -37,3 +37,11 @@ A sanitized API collection or endpoint documentation with 1–2 example response
 - Every legacy page shows correct not-connected copy.
 - No client-side API credentials or hard-coded endpoints.
 - Permission restrictions and real data tests to be added before enabling source access.
+
+## Confirmed user direction (2026-11-06)
+- Yiron CRM is the authoritative source system for this interim analytics workspace.
+- Integration direction is strictly Yiron CRM -> SAI-CRM. Never invoke write, update, delete, or pushback operations against Yiron.
+- Phase 1 is source data retrieval, isolated persistence/cache, and read-only visibility for each authorized dataset. Do not preemptively build analytics without reviewing each dataset.
+- Phase 2 is explicit dataset relationships using stable source IDs and verified keys. Preserve unmatched records for reconciliation rather than silently linking them.
+- Phase 3 is incremental analytics and KPIs, one dataset and use case at a time, as specified by the business owner.
+- Refresh frequency, incremental/full sync behavior, data retention and access controls must be determined from actual API capabilities and business needs.
