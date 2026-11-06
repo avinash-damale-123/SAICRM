@@ -1,6 +1,6 @@
 import { recordsFramework } from './records-framework.mjs';
 import { yironCatalog } from './yiron-analytics.mjs';
-import { legacyMirrorStatus,publishedLegacyBranches,requestLegacyRefresh,LEGACY_BRANCH_SOURCE } from './legacy-refresh.mjs';
+import { legacyMirrorStatus,publishedLegacyBranches,requestLegacyRefresh,exportPublishedLegacyBranches,LEGACY_BRANCH_SOURCE } from './legacy-refresh.mjs';
 import { countryRecordsFramework } from './country-records-framework.mjs';
 import { regionRecordsFramework } from './region-records-framework.mjs';
 import { branchMasterFramework } from './branch-master-framework.mjs';
@@ -294,6 +294,9 @@ export function createHandler({ pool, config, deliver = message => sendEmail(con
      if(path.length===2&&path[1]==='sources'&&method==='GET')return {...yironCatalog(),mirror:await legacyMirrorStatus(client)};
      if(path.length===2&&path[1]==='status'&&method==='GET')return legacyMirrorStatus(client);
      if(path.length===3&&path[1]==='preview'&&method==='GET'&&path[2]===LEGACY_BRANCH_SOURCE)return publishedLegacyBranches(client,url);
+     if(path.length===3&&path[1]==='export'&&method==='GET'&&path[2]===LEGACY_BRANCH_SOURCE){
+      return {legacyFile:await exportPublishedLegacyBranches(client,{format:url.searchParams.get('format')||'csv',actorId:current.id})};
+     }
      if(path.length===3&&path[1]==='refresh'&&method==='POST'&&path[2]===LEGACY_BRANCH_SOURCE){
       if(Object.keys(body).length)fail(400,'Refresh request must not contain payload fields');
       const requested=await requestLegacyRefresh(client,{actorId:current.id,trigger:'manual'});
@@ -399,6 +402,7 @@ export function createHandler({ pool, config, deliver = message => sendEmail(con
    });
    if(result?.workJob){const jobId=result.workJob;delete result.workJob;enqueue(jobId);}
    if(result?.legacyJob){const legacyJobId=result.legacyJob;delete result.legacyJob;enqueueYiron(legacyJobId);}
+   if(result?.legacyFile){const {bytes,contentType,filename}=result.legacyFile;res.statusCode=200;res.setHeader('Content-Type',contentType);res.setHeader('Content-Disposition','attachment; filename="'+filename+'"');res.setHeader('Content-Length',bytes.length);res.end(bytes);return;}
    return reply(200,result);
   } catch (error) {
    if (error.code === '55P03' || error.code === '40P01') return reply(409,{error:'Access changed concurrently. Retry the request.'});
