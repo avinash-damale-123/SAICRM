@@ -58,7 +58,7 @@ export async function fetchYironSource(sourceId,url,{env=process.env,fetchImpl=f
  const timeout=setTimeout(()=>controller.abort(),12000);
  try{
   const response=await fetchImpl(endpoint,{method:'POST',headers:{'x-api-key':config.apiKey,'Accept':'application/json',...(sourceId==='branch_list_BI'?{'Content-Type':'application/json'}:{})},body,signal:controller.signal,redirect:'error'});
-  if(!response.ok)throw Object.assign(new Error('Yiron upstream service failed'),{status:502});
+  if(!response.ok){const code=[401,403].includes(response.status)?'YIRON_AUTH':[400,404,405,415,422].includes(response.status)?'YIRON_CONFIG':response.status===429||response.status>=500?'YIRON_TEMP':'YIRON_RESPONSE';throw Object.assign(new Error('Yiron upstream service failed'),{status:502,code});}
   if(!String(response.headers.get('content-type')||'').includes('application/json'))
    throw Object.assign(new Error('Yiron returned an unsupported response format'),{status:502});
   const text=await response.text();
@@ -66,8 +66,8 @@ export async function fetchYironSource(sourceId,url,{env=process.env,fetchImpl=f
   let data;try{data=JSON.parse(text)}catch{throw Object.assign(new Error('Yiron response was not valid JSON'),{status:502});}
   return {source:sourceId,sourceSystem:'Yiron CRM',fetchedAt:new Date().toISOString(),range,data};
  }catch(error){
-  if(error.name==='AbortError')throw Object.assign(new Error('Yiron request timed out'),{status:504});
+  if(error.name==='AbortError')throw Object.assign(new Error('Yiron request timed out'),{status:504,code:'YIRON_TIMEOUT'});
   if(error.status)throw error;
-  throw Object.assign(new Error('Yiron API could not be reached'),{status:502});
+  throw Object.assign(new Error('Yiron API could not be reached'),{status:502,code:'YIRON_NETWORK'});
  }finally{clearTimeout(timeout);}
 }
