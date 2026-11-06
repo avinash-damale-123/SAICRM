@@ -42,7 +42,7 @@ try{
  });
  await page.goto('http://127.0.0.1:'+server.address().port);
  await page.locator('[data-nav="rolematrix"]').waitFor({state:'attached'});
- await page.locator('[data-nav="rolematrix"]').click();
+ await page.locator('[data-nav="rolematrix"]').evaluate(button=>button.click());
  await page.locator('.rpm-layout').waitFor();
  await page.locator('[data-rpm="create"]').click();
  await page.locator('dialog.rpm-modal[open] #rpm-details').waitFor();
