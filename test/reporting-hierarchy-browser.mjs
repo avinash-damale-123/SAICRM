@@ -59,6 +59,19 @@ try{
  assert.equal(await page.locator('#crmSearchInput').count(),1);
  await page.waitForFunction(()=>document.querySelector('.rh-table tbody')?.textContent.includes('Sales Executive'));
  assert.equal(await page.locator('.rh-table tbody tr').count(),1);
+ await page.locator('.rh-module-header [data-rh="columns"]').click();
+ await page.locator('dialog.scrm-column-dialog[open]').waitFor();
+ await page.locator('dialog.scrm-column-dialog [data-col-index="4"]').uncheck();
+ await page.locator('dialog.scrm-column-dialog [data-col-action="save"]').click();
+ assert.equal(await page.locator('.rh-table thead th:visible').count(),8,'Hidden Context column');
+ await page.locator('.rh-module-header [data-rh="columns"]').click();
+ await page.locator('dialog.scrm-column-dialog [data-col-action="reset"]').click();
+ await page.locator('dialog.scrm-column-dialog [data-col-action="save"]').click();
+ assert.equal(await page.locator('.rh-table thead th:visible').count(),9,'Reset restores hierarchy columns');
+ const csvDownload=page.waitForEvent('download');
+ await page.locator('.rh-module-header [data-rh="export"]').click();
+ assert.equal((await csvDownload).suggestedFilename(),'reporting-hierarchy.csv');
+
  await page.locator('.rh-module-header [data-rh="overview"]').click();
  await page.locator('.rh-metrics').waitFor();
  assert.match(await page.locator('.rh-note').innerText(),/not a CRM permission/);
