@@ -2,7 +2,7 @@ BEGIN;
 SET LOCAL search_path TO public, pg_catalog;
 -- Yiron Analytics-Y1: isolated, read-only reporting mirror. Never link to operational CRM tables.
 CREATE TABLE IF NOT EXISTS legacy_api_sources (
- id text PRIMARY KEY CHECK (id ~ '^[A-Za-z][A-Za-z0-9_]{1,79}),
+ id text PRIMARY KEY CHECK (id ~ '^[A-Za-z][A-Za-z0-9_]{1,79}$'),
  display_name text NOT NULL,
  enabled boolean NOT NULL DEFAULT false,
  refresh_timezone text NOT NULL DEFAULT 'Asia/Kolkata',
