@@ -32,3 +32,24 @@ test('User Master preview bounds returned records',async()=>{
 test('User Master rejects unexpected response shape',async()=>{
  await assert.rejects(()=>fetchYironSource('last_login',url,{env,fetchImpl:async()=>new Response(JSON.stringify({error:'bad response'}),{headers:{'content-type':'application/json'}})}),/record array/);
 });
+
+test('User Master streams a response larger than the old 20 MB limit without exposing secrets',async()=>{
+ const rows=Array.from({length:60},(_,i)=>({user_id:i+1,department:'Marketing',password:'secret',memo:'x'.repeat(400000)}));
+ const payload=JSON.stringify({data:rows});
+ assert.ok(payload.length>20000000);
+ const result=await fetchYironSource('last_login',url,{env,fetchImpl:async()=>new Response(payload,{headers:{'content-type':'application/json'}})});
+ assert.equal(result.data.returnedCount,60);
+ assert.equal(result.data.data.length,50);
+ assert.equal(result.data.data[0].password,undefined);
+ assert.equal(result.data.data[0].memo,undefined);
+ assert.ok(result.data.upstreamBytesRead>20000000);
+});
+test('User Master parses JSON split across network chunk boundaries',async()=>{
+ const payload=JSON.stringify({data:[{user_id:1,first_name:'Alex',password:'redacted'},{user_id:2,branch_id:7}]});
+ const encoder=new TextEncoder();
+ const stream=new ReadableStream({start(controller){for(let i=0;i<payload.length;i+=3)controller.enqueue(encoder.encode(payload.slice(i,i+3)));controller.close();}});
+ const result=await fetchYironSource('last_login',url,{env,fetchImpl:async()=>new Response(stream,{headers:{'content-type':'application/json'}})});
+ assert.equal(result.data.returnedCount,2);
+ assert.equal(result.data.data[1].branch_id,7);
+ assert.equal(result.data.data[0].password,undefined);
+});
