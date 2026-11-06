@@ -23,8 +23,12 @@ function apply(table,id,labels){
    if(cells.length===1&&cells[0].hasAttribute('colspan'))cells[0].colSpan=selected.length;
    continue;
   }
-  for(const cell of cells)cell.remove();
-  for(const i of selected)row.append(cells[i]);
+  cells.forEach((cell,index)=>{if(!cell.hasAttribute('data-original-column'))cell.dataset.originalColumn=String(index)});
+  const byIndex=new Map(cells.map(cell=>[Number(cell.dataset.originalColumn),cell]));
+  for(const i of [...selected,...labels.map((_,i)=>i).filter(i=>!selected.includes(i))]){
+   const cell=byIndex.get(i);
+   if(cell){row.append(cell);cell.hidden=!selected.includes(i);cell.style.display=selected.includes(i)?'':'none';}
+  }
  }
 }
 function open(table,id,labels){
