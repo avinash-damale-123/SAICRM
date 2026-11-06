@@ -84,6 +84,7 @@ try{
  assert.equal(await page.locator('.topbar #menuBtn').count(),0,'Desktop nav toggle must not occupy the topbar');
  assert.equal((await page.locator('#sidebarSignOut').innerText()).trim(),'Sign out','Sidebar must offer a footer sign out');
  assert.equal(await page.locator('#sidebarProfileLink').count(),1,'Profile icon in footer');
+ assert.equal(await page.locator('.sidebar-bottom .r10-sidebar-profile-link').count(),0,'No duplicate profile shortcut');
  assert.equal(await page.locator('#sidebar .profile-copy').count(),0,'No profile name in footer');
  assert.equal(await page.locator('#navigation [data-nav="profile"]').count(),1,'My Profile remains in Workspace navigation');
  for(const width of [320,360,768,1024,1280]){
