@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS legacy_source_records (
  PRIMARY KEY(dataset_version_id,source_record_id)
 );
 CREATE INDEX IF NOT EXISTS legacy_source_records_source_updated_v16 ON legacy_source_records(dataset_version_id,source_updated_at DESC);
+CREATE INDEX IF NOT EXISTS legacy_source_records_updated_v16 ON legacy_source_records(dataset_version_id,(payload->>'updated_on') DESC,source_record_id);
 CREATE TABLE IF NOT EXISTS legacy_record_changes (
  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
  source_id text NOT NULL REFERENCES legacy_api_sources(id),
