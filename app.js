@@ -68,16 +68,18 @@ async function loadYironCatalog(){
  catch(error){yironCatalogError=error.message;};
  if(page.startsWith('legacy'))render();
 }
+function sourceRowsForPage(rows,source,page){if(!Array.isArray(rows))return null;return source==='branch_list_BI'?rows.slice((page-1)*50,page*50):rows;}
 function yironPreviewTable(){
  if(yironPreviewError)return '<p role="alert">'+esc(yironPreviewError)+'</p>';
  if(!yironPreviewState)return '<p class="subtle">Select a source to preview live Yiron records. Data is not imported or saved in SAI-CRM.</p>';
  const data=yironPreviewState.data;
  const arr=Array.isArray(data)?data:Array.isArray(data?.data)?data.data:Array.isArray(data?.records)?data.records:null;
+ const visible=sourceRowsForPage(arr,yironPreviewState.source,yironPreviewPage);
  if(!arr)return '<p>Yiron response received for '+esc(yironPreviewState.source)+'. Shape is not a recognized row array. Verify the schema before creating reports.</p><pre style="white-space:pre-wrap;overflow:auto;max-height:350px">'+esc(JSON.stringify(data,null,2).slice(0,6000))+'</pre>';
- if(!arr.length)return '<p>No records returned by Yiron for this request.</p>';
- const cols=[...new Set(arr.slice(0,20).flatMap(v=>v&&typeof v==='object'&&!Array.isArray(v)?Object.keys(v):[]))].slice(0,22);
- if(!cols.length)return '<pre>'+esc(JSON.stringify(arr.slice(0,5),null,2).slice(0,6000))+'</pre>';
- return '<p class="subtle">Source: '+esc(yironPreviewState.source)+' · Requested rows '+((yironPreviewPage-1)*50+1)+'–'+(yironPreviewPage*50)+' · Returned '+arr.length+' records · Retrieved '+esc(yironPreviewState.fetchedAt||'')+'</p><div class="table-wrap"><table><thead><tr>'+cols.map(k=>'<th>'+esc(k)+'</th>').join('')+'</tr></thead><tbody>'+arr.slice(0,50).map(row=>'<tr>'+cols.map(k=>'<td>'+esc(typeof row?.[k]==='object'?JSON.stringify(row[k]):row?.[k])+'</td>').join('')+'</tr>').join('')+'</tbody></table></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px"><button class="btn" data-yiron-page="previous" '+(yironPreviewPage===1?'disabled':'')+'>Previous 50</button><span>Page '+yironPreviewPage+'</span><button class="btn" data-yiron-page="next" '+(arr.length<50?'disabled':'')+'>Next 50</button><button class="btn" data-yiron-page="refresh">Refresh</button></div><p class="subtle">Source columns are displayed without mapping. Up to 50 rows and 22 columns are shown per page; no operational CRM records are changed.</p>';
+ if(!visible.length)return '<p>No records returned by Yiron for this request or page.</p>';
+ const cols=[...new Set(visible.slice(0,20).flatMap(v=>v&&typeof v==='object'&&!Array.isArray(v)?Object.keys(v):[]))].slice(0,22);
+ if(!cols.length)return '<pre>'+esc(JSON.stringify(visible.slice(0,5),null,2).slice(0,6000))+'</pre>';
+ return '<p class="subtle">Source: '+esc(yironPreviewState.source)+' · Requested rows '+((yironPreviewPage-1)*50+1)+'–'+(yironPreviewPage*50)+' · Returned '+arr.length+' source records · Retrieved '+esc(yironPreviewState.fetchedAt||'')+'</p><div class="table-wrap"><table><thead><tr>'+cols.map(k=>'<th>'+esc(k)+'</th>').join('')+'</tr></thead><tbody>'+visible.slice(0,50).map(row=>'<tr>'+cols.map(k=>'<td>'+esc(typeof row?.[k]==='object'?JSON.stringify(row[k]):row?.[k])+'</td>').join('')+'</tr>').join('')+'</tbody></table></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px"><button class="btn" data-yiron-page="previous" '+(yironPreviewPage===1?'disabled':'')+'>Previous 50</button><span>Page '+yironPreviewPage+'</span><button class="btn" data-yiron-page="next" '+(visible.length<50?'disabled':'')+'>Next 50</button><button class="btn" data-yiron-page="refresh">Refresh</button></div><p class="subtle">Source columns are displayed without mapping. Up to 50 rows and 22 columns are shown per page; no operational CRM records are changed.</p>';
 }
 function legacyAnalyticsPage(p){
  const heading='<div class="page-heading"><div><div class="eyebrow">CRM ANALYTICS-Y1 / YIRON CRM</div><h1>'+esc(labels[p])+'</h1><p>One-way Yiron CRM data visibility. No write-back to Yiron or operational SAI-CRM records.</p></div></div>';
