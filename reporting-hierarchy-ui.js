@@ -217,7 +217,7 @@ function mount(host){
     records.push(...data.records);
    }
    const header=['System ID','Hierarchy Type','Parent Role','Child Role','Context','Scope Level','Scope Record','Status','Last Modified'];
-   const cell=value=>{const s=String(value??'');return '"'+(/^[\\s]*[=+@-]/.test(s)?"'"+s:s).replace(/"/g,'""')+'"';};
+   const cell=value=>{const s=String(value??'');return '"'+(/^[=+@-]/.test(s.trimStart())?"'"+s:s).replace(/"/g,'""')+'"';};
    const rows=[header,...records.map(r=>[r.displayId,r.hierarchyType,r.parentRole,r.childRole,r.applicability,r.scopeLevel,r.scopeName,r.status,r.updatedAt])];
    const blob=new Blob([String.fromCharCode(0xFEFF)+rows.map(row=>row.map(cell).join(',')).join(String.fromCharCode(13,10))],{type:'text/csv;charset=utf-8'});
    const url=URL.createObjectURL(blob),link=document.createElement('a');
