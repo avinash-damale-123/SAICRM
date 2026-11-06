@@ -180,6 +180,7 @@ function mount(host){
   const button=event.target.closest('[data-org]');if(!button)return;
   const [action,id]=button.dataset.org.split(':');event.preventDefault();
   if(action==='filters'){state.filtersOpen=!state.filtersOpen;render();}
+  else if(action==='columns')window.SCRMColumns?.open(host.querySelector('.org-table'),'organizational-roles',["System ID","Role Name","Code","Applicability","Role Family","Status","Last Modified","Actions"]);
   else if(action==='records'||action==='overview'){state.tab=action;render();}
   else if(action==='apply'){state.family=qs(host,'#org-family').value.trim();state.page=1;await load();}
   else if(action==='clear'){state.status='all';state.applicability='all';state.family='';state.page=1;await load();}
