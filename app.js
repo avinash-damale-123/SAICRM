@@ -10,7 +10,7 @@ window.SCRM.appReady = (async()=>{'use strict';const api=window.SCRM.api; let db
  if(p==='audit')db.audit=auditRows;
  if(p==='notifications')notificationRows=notices||[];
  page=p;search='';filter='';view='table';moduleTab='home';moduleFilterOpen=false;
-  if(p.startsWith('legacy')){yironPreviewState=null;yironPreviewError='';if(!yironCatalogState)queueMicrotask(()=>loadYironCatalog());}
+  if(p.startsWith('legacy')){yironPreviewState=null;yironPreviewError='';if(!yironCatalogState&&!yironCatalogError&&isYironAdmin())queueMicrotask(()=>loadYironCatalog());}
  render();window.SCRMWorkspace?.onNavigate(p);
  window.scrollTo(0,0);$('#sidebar').classList.remove('open');
 }
