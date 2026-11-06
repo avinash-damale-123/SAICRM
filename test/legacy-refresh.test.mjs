@@ -39,6 +39,14 @@ test('Worker signatures enforce ID, timestamp and tamper resistance',()=>{
  assert.equal(verifyLegacyWorker(secret,id,when,sig.replace(/^./,'0'),when),sig[0]==='0');
  assert.equal(verifyLegacyWorker(secret,id,when,'invalid',when),false);
 });
+test('Published mirror catalogue stays accessible with invalid upstream configuration',async()=>{
+ const {yironCatalog}=await import('../server/yiron-analytics.mjs');
+ const config={YIRON_ANALYTICS_ENABLED:'true',YIRON_API_BASE_URL:'https://invalid.example/',YIRON_API_KEY:'test-key-for-contract'};
+ const result=yironCatalog(config);
+ assert.equal(result.enabled,false);
+ assert.equal(result.mode,'published-mirror');
+ assert.equal(result.sources.length,15);
+});
 test('API and scheduled cron retain Super Admin gate and UTC-to-IST schedule',async()=>{
  const {readFile}=await import('node:fs/promises');
  const api=await readFile('server/api.mjs','utf8');
