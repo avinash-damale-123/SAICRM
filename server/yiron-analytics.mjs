@@ -50,6 +50,8 @@ export async function fetchYironSource(sourceId,url,{env=process.env,fetchImpl=f
  const range=yironRequestRange(url);
  const endpoint=new URL(source.path,config.base);
  const body=new FormData();
+ // Some Yiron BI endpoints use numeric from/to form-data for row ranges.
+ // Explicitly bounded, caller-provided ranges are sent only when supplied.
  if(range){body.append('from',range.from);body.append('to',range.to);}
  const controller=new AbortController();
  const timeout=setTimeout(()=>controller.abort(),12000);
