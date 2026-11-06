@@ -11,7 +11,7 @@ export const YIRON_SOURCES = Object.freeze([
  {id:'last_login',label:'Last Login',domain:'legacyusers',path:'/staging/api/last_login'},
  {id:'role_list_BI',label:'Role List',domain:'legacyusers',path:'/api/role_list_BI'},
  {id:'contact_list_BI',label:'Contacts',domain:'legacycontacts',path:'/api/contact_list_BI'},
- {id:'branch_list_BI',label:'Branches',domain:'legacybranches',path:'/crm_v12/api/branch_list_BI'},
+ {id:'branch_list_BI',label:'Branches',domain:'legacybranches',path:'/api/branch_list_BI'},
  {id:'region_master_data',label:'Regions',domain:'legacyregions',path:'/staging/api/region_master_data'},
  {id:'erv_account_view_post_for_superadmin',label:'ERV Accounts',domain:'legacyaccounts',path:'/api/erv_account_view_post_for_superadmin'},
  {id:'meeting_view_post_for_superadmin',label:'Meetings',domain:'legacymeetings',path:'/api/meeting_view_post_for_superadmin'},
@@ -49,14 +49,15 @@ export async function fetchYironSource(sourceId,url,{env=process.env,fetchImpl=f
  if(!config.enabled)throw Object.assign(new Error('Yiron API connection is not configured'),{status:503});
  const range=yironRequestRange(url);
  const endpoint=new URL(source.path,config.base);
- const body=sourceId==='branch_list_BI'?undefined:new FormData();
+ const branchRange=range||{from:'1',to:'50'};
+ const body=sourceId==='branch_list_BI'?JSON.stringify(branchRange):new FormData();
  // Some Yiron BI endpoints use numeric from/to form-data for row ranges.
  // Explicitly bounded, caller-provided ranges are sent only when supplied.
- if(range&&body){body.append('from',range.from);body.append('to',range.to);}
+ if(range&&sourceId!=='branch_list_BI'){body.append('from',range.from);body.append('to',range.to);}
  const controller=new AbortController();
  const timeout=setTimeout(()=>controller.abort(),12000);
  try{
-  const response=await fetchImpl(endpoint,{method:'POST',headers:{'x-api-key':config.apiKey,'Accept':'application/json'},body,signal:controller.signal,redirect:'error'});
+  const response=await fetchImpl(endpoint,{method:'POST',headers:{'x-api-key':config.apiKey,'Accept':'application/json',...(sourceId==='branch_list_BI'?{'Content-Type':'application/json'}:{})},body,signal:controller.signal,redirect:'error'});
   if(!response.ok)throw Object.assign(new Error('Yiron upstream service failed'),{status:502});
   if(!String(response.headers.get('content-type')||'').includes('application/json'))
    throw Object.assign(new Error('Yiron returned an unsupported response format'),{status:502});
