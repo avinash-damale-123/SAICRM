@@ -82,7 +82,7 @@ export async function exportPublishedLegacyBranches(client,{format='csv',actorId
   const sheet=workbook.addWorksheet('Yiron Branches');
   sheet.columns=keys.map(key=>({header:key,key,width:Math.min(40,Math.max(16,key.length+4))}));
   sheet.views=[{state:'frozen',ySplit:1}];
-  sheet.autoFilter={from:'A1',to:{row:1,column:keys.length}};
+  sheet.autoFilter={from:{row:1,column:1},to:{row:1,column:keys.length}};
   sheet.getRow(1).font={bold:true};
   for(const row of rows)sheet.addRow(Object.fromEntries(keys.map(key=>[key,exportedValue(row.payload[key])])));
   bytes=Buffer.from(await workbook.xlsx.writeBuffer());
