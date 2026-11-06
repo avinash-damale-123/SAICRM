@@ -23,7 +23,8 @@ function passwordUI(menu){
 }
 function profile(){
  const menu=$('.crm-profile-menu');if(menu)passwordUI(menu);
- const bottom=$('.sidebar-bottom');if(bottom&&!bottom.querySelector('[data-r10-my-profile]')){const b=document.createElement('button');b.type='button';b.className='r10-sidebar-profile-link';b.dataset.r10MyProfile='1';b.innerHTML='<span class="nav-icon" aria-hidden="true">◎</span><span>My Profile</span>';b.onclick=showProfile;bottom.insertBefore(b,bottom.firstElementChild)}
+ // The approved footer already has the Profile photo placeholder and Sign out. Remove legacy duplicates.
+ $('.sidebar-bottom [data-r10-my-profile], .sidebar-bottom .r10-sidebar-profile-link').forEach(el=>el.remove());
 }
 function showProfile(){
  const ws=window.SCRM?.activeWorkspace;if(ws&&!ws.canLeave?.())return;ws?.destroy?.(true);window.SCRM.activeWorkspace=null;
