@@ -1,5 +1,6 @@
 import { recordsFramework } from './records-framework.mjs';
-import { yironCatalog,fetchYironSource } from './yiron-analytics.mjs';
+import { yironCatalog } from './yiron-analytics.mjs';
+import { legacyMirrorStatus,publishedLegacyBranches,requestLegacyRefresh,LEGACY_BRANCH_SOURCE } from './legacy-refresh.mjs';
 import { countryRecordsFramework } from './country-records-framework.mjs';
 import { regionRecordsFramework } from './region-records-framework.mjs';
 import { branchMasterFramework } from './branch-master-framework.mjs';
@@ -79,7 +80,7 @@ async function permitsScope(client,user,module,data) {
 export const sessionCookie = (value,remember=false) => '__Host-scrm=' + value + '; Path=/; HttpOnly; Secure; SameSite=Lax' + (!value?'; Max-Age=0':remember?'; Max-Age=2592000':'');
 const cookie=sessionCookie;
 const oauthCookie=(value)=>'__Host-scrm-oauth='+value+'; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age='+(value?600:0);
-export function createHandler({ pool, config, deliver = message => sendEmail(config, message), googleExchange=exchangeGoogle, enqueue=()=>{} }) {
+export function createHandler({ pool, config, deliver = message => sendEmail(config, message), googleExchange=exchangeGoogle, enqueue=()=>{},enqueueYiron=()=>{} }) {
  return async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -286,13 +287,18 @@ export function createHandler({ pool, config, deliver = message => sendEmail(con
     if (!principal.emailVerified || principal.status !== 'approved') fail(403, 'Access is not approved');
     if (mutation && !equal(req.headers['x-csrf-token'], user.csrf)) fail(403, 'Session check failed');
     if(path[0]==='yiron-analytics'){
-     if(method!=='GET')fail(405,'Yiron analytics supports read-only requests');
-     // Sensitive cross-branch data must not be exposed to standard users until row-level
-     // access mappings are proven from actual Yiron response schemas.
+     // All legacy data and refresh controls are Super-Admin only, enforced on the server.
+     // Browsing reads the latest published snapshot; it never calls Yiron.
      if(current.system_role!=='super_admin')fail(403,'Yiron analytics requires Super Admin access');
      await limit(client,config,'yiron:'+current.id,30,60);
-     if(path.length===2&&path[1]==='sources')return yironCatalog();
-     if(path.length===3&&path[1]==='preview')return await fetchYironSource(path[2],url);
+     if(path.length===2&&path[1]==='sources'&&method==='GET')return {...yironCatalog(),mirror:await legacyMirrorStatus(client)};
+     if(path.length===2&&path[1]==='status'&&method==='GET')return legacyMirrorStatus(client);
+     if(path.length===3&&path[1]==='preview'&&method==='GET'&&path[2]===LEGACY_BRANCH_SOURCE)return publishedLegacyBranches(client,url);
+     if(path.length===3&&path[1]==='refresh'&&method==='POST'&&path[2]===LEGACY_BRANCH_SOURCE){
+      if(Object.keys(body).length)fail(400,'Refresh request must not contain payload fields');
+      const requested=await requestLegacyRefresh(client,{actorId:current.id,trigger:'manual'});
+      return {...requested,legacyJob:requested.jobId};
+     }
      fail(404,'Yiron analytics route not found');
     }
     if (path[0] === 'search') {
@@ -392,6 +398,7 @@ export function createHandler({ pool, config, deliver = message => sendEmail(con
     return {record:{...data,id:existing.id,version:existing.version+1}};
    });
    if(result?.workJob){const jobId=result.workJob;delete result.workJob;enqueue(jobId);}
+   if(result?.legacyJob){const legacyJobId=result.legacyJob;delete result.legacyJob;enqueueYiron(legacyJobId);}
    return reply(200,result);
   } catch (error) {
    if (error.code === '55P03' || error.code === '40P01') return reply(409,{error:'Access changed concurrently. Retry the request.'});
