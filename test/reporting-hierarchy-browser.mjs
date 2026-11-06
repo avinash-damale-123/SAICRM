@@ -74,6 +74,11 @@ try{
  await page.locator('dialog.rh-modal[open] .rh-read-grid').waitFor();
  assert.equal(await page.locator('.rh-dialog-body input').count(),0,'View must be read-only');
  await page.locator('.rh-cancel').click();
+ assert.equal(await page.locator('footer.rh-pagination').count(),1,'Pagination uses correct compact layout class');
+ await page.locator('.rh-table [data-rh^="edit:"]').first().click();
+ await page.locator('dialog.rh-modal[open] #rh-form').waitFor();
+ assert.equal(await page.locator('dialog.rh-modal [name="hierarchyType"]').inputValue(),'Administrative');
+ await page.locator('.rh-cancel').click();
  await page.locator('.rh-module-header [data-rh="create"]').click();
  await page.locator('dialog.rh-modal[open] #rh-form').waitFor();
  await page.locator('[name="hierarchyType"]').selectOption('Functional');

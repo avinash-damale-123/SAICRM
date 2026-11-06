@@ -47,7 +47,7 @@ function mount(host){
     '<tr><td colspan="9"><div class="rh-empty"><strong>'+(empty?'No matching rules':'No Reporting Rules created yet')+
     '</strong><p>'+(empty?'Clear the filters to see other hierarchy rules.':'Define which Organizational Roles may report to which other roles, independently for Administrative and Functional reporting.')+'</p>'+
     btn('Add Reporting Rule','create','rh-primary')+'</div></td></tr>')+
-   '</tbody></table></div><footer class="rh-page"><span>'+fmt(state.total)+' matching rules · Page '+state.page+' of '+Math.max(1,Math.ceil(state.total/state.pageSize))+'</span>'+
+   '</tbody></table></div><footer class="rh-pagination"><span>'+fmt(state.total)+' matching rules · Page '+state.page+' of '+Math.max(1,Math.ceil(state.total/state.pageSize))+'</span>'+
    '<label>Rows per page <select id="rh-page-size">'+list([25,50,75,100].map(x=>[x,String(x)]),state.pageSize)+'</select></label>'+
    btn('Previous','prev')+btn('Next','next')+'</footer>';
  }
