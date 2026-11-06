@@ -79,7 +79,7 @@ function mount(host){
   const dialog=document.createElement('dialog');dialog.className='org-modal';
   dialog.innerHTML='<section class="org-dialog"><header><div><small>SAI-CRM · ORGANIZATIONAL ROLE MASTER</small><h2>'+esc(title)+'</h2></div>'+
    '<button type="button" class="org-dismiss" aria-label="Close">×</button></header>'+
-   '<div class="org-dialog-content">'+body+'</div><footer><button type="button" class="org-cancel">Cancel</button>'+
+   '<div class="org-dialog-content">'+body+'</div><footer><button type="button" class="org-cancel">'+(submit?'Cancel':'Close')+'</button>'+
    (submit?'<button type="submit" form="org-form" class="org-btn org-primary">Save changes</button>':'')+'</footer></section>';
   document.body.append(dialog);dialog.showModal();let busy=false;
   const close=()=>{if(busy)return;if(state.dirty&&!confirm('Discard unsaved role changes?'))return;dialog.close();dialog.remove();state.dialog=false;state.dirty=false;};
