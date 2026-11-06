@@ -63,6 +63,16 @@ try{
  assert.equal(await page.locator('#crmSearchInput').count(),1,'Shared global search only');
  await page.waitForFunction(()=>document.querySelector('.org-table tbody')?.textContent.includes('Branch Manager'));
  assert.equal(await page.locator('.org-table tbody tr').count(),1);
+ await page.locator('.org-module-header [data-org="columns"]').click();
+ await page.locator('dialog.scrm-column-dialog[open]').waitFor();
+ await page.locator('dialog.scrm-column-dialog [data-col-index="4"]').uncheck();
+ await page.locator('dialog.scrm-column-dialog [data-col-action="save"]').click();
+ assert.equal(await page.locator('.org-table thead th:visible').count(),7,'Hidden Role Family column');
+ await page.locator('.org-module-header [data-org="columns"]').click();
+ await page.locator('dialog.scrm-column-dialog [data-col-action="reset"]').click();
+ await page.locator('dialog.scrm-column-dialog [data-col-action="save"]').click();
+ assert.equal(await page.locator('.org-table thead th:visible').count(),8,'Reset restores all columns');
+
  await page.locator('[data-org="overview"]').click();
  await page.locator('.org-stats').waitFor();
  assert.match(await page.locator('.org-info').innerText(),/does not grant|permission/i);

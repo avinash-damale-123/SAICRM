@@ -11,6 +11,8 @@ const staticFiles = [
   'satguru-brand.css',
   'sidebar-final.css',
   'master-review.css',
+  'master-table-columns.css',
+  'master-table-columns.js',
   'workspace-shell.css',
   'workspace-shell.js',
   'module-header.js',

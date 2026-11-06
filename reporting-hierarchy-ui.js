@@ -21,7 +21,9 @@ function mount(host){
    '<button type="button" data-mw="dashboard" data-rh="overview" class="mw-module-tab">Overview</button>'+
    '<button type="button" data-mw="tree" data-rh="tree" class="mw-module-tab">Hierarchy</button></nav>'+
    '<div class="scrm-search-slot"></div><div class="mw-header-actions">'+
+   '<button type="button" class="mw-btn" data-rh="export">Export CSV</button>'+ 
    '<button type="button" class="mw-btn" data-mw="filter-toggle" data-rh="filters">Filter</button>'+
+   '<button type="button" class="mw-btn" data-rh="columns">Customize</button>'+
    '<button type="button" class="mw-btn mw-primary" data-mw="create" data-rh="create">Add Reporting Rule</button></div>';
   headerHost.append(bar);const top=document.querySelector('.topbar');if(top)top.insertAdjacentElement('afterend',headerHost);else host.prepend(headerHost);
   host.classList.add('mw-module-content');bar.addEventListener('click',click);
@@ -72,6 +74,7 @@ function mount(host){
    '<p>Manage role-to-role reporting structures. Organizational Roles, Branches and Departments remain the source masters.</p></header>'+
    (state.error?'<p role="alert" class="rh-error">'+esc(state.error)+'</p>':'')+(state.filtersOpen?controls():'')+
    '<section class="rh-panel">'+(state.loading?'<p>Loading reporting rules…</p>':state.tab==='overview'?overview():state.tab==='tree'?hierarchy():table())+'</section></div>';
+  window.SCRMColumns?.apply(host.querySelector('.rh-table'),'reporting-hierarchy',["System ID","Hierarchy Type","Parent Role","Child Role","Context","Scope","Status","Last Modified","Actions"]);
   host.querySelectorAll('select').forEach(select=>select.onchange=e=>{
    const map={'rh-filter-type':'type','rh-filter-scope':'scope','rh-filter-status':'status','rh-filter-applicability':'applicability','rh-page-size':'pageSize'};
    const k=map[e.target.id];if(!k)return;
@@ -96,7 +99,7 @@ function mount(host){
   state.dialog=true;state.dirty=false;const d=document.createElement('dialog');d.className='rh-modal';
   d.innerHTML='<section class="rh-dialog"><header><div><small>SAI-CRM · REPORTING HIERARCHY</small><h2>'+esc(title)+'</h2></div>'+
    '<button type="button" aria-label="Close" class="rh-dismiss">×</button></header><div class="rh-dialog-body">'+content+'</div>'+
-   '<footer><button type="button" class="rh-cancel">Cancel</button>'+(onSave?'<button class="rh-btn rh-primary" type="submit" form="rh-form">Save changes</button>':'')+'</footer></section>';
+   '<footer><button type="button" class="rh-cancel">'+(onSave?'Cancel':'Close')+'</button>'+(onSave?'<button class="rh-btn rh-primary" type="submit" form="rh-form">Save changes</button>':'')+'</footer></section>';
   document.body.append(d);d.showModal();let saving=false;
   const close=()=>{if(saving)return;if(state.dirty&&!confirm('Discard unsaved reporting changes?'))return;d.close();d.remove();state.dialog=false;state.dirty=false;};
   d.querySelector('.rh-dismiss').onclick=close;d.querySelector('.rh-cancel').onclick=close;
@@ -202,11 +205,32 @@ function mount(host){
    await api('reporting-hierarchy/'+id+'/'+values.action,'POST',{version:r.version,reason:values.reason,targetStatus:values.targetStatus});
   });
  }
+ async function exportCsv(){
+  const q=new URLSearchParams({q:state.q,type:state.type,scope:state.scope,status:state.status,applicability:state.applicability,page:'1',pageSize:'100'});
+  try{
+   const first=await api('reporting-hierarchy?'+q),total=Number(first.total||0);
+   if(total>10000)throw Error('Export limit is 10,000 reporting rules. Narrow your filters.');
+   const records=[...(first.records||[])];
+   for(let p=2;records.length<total;p++){
+    q.set('page',String(p));const data=await api('reporting-hierarchy?'+q);
+    if(!data.records?.length)throw Error('Export interrupted; please retry.');
+    records.push(...data.records);
+   }
+   const header=['System ID','Hierarchy Type','Parent Role','Child Role','Context','Scope Level','Scope Record','Status','Last Modified'];
+   const cell=value=>{const s=String(value??'');return '"'+(/^[=+@-]/.test(s.trimStart())?"'"+s:s).replace(/"/g,'""')+'"';};
+   const rows=[header,...records.map(r=>[r.displayId,r.hierarchyType,r.parentRole,r.childRole,r.applicability,r.scopeLevel,r.scopeName,r.status,r.updatedAt])];
+   const blob=new Blob([String.fromCharCode(0xFEFF)+rows.map(row=>row.map(cell).join(',')).join(String.fromCharCode(13,10))],{type:'text/csv;charset=utf-8'});
+   const url=URL.createObjectURL(blob),link=document.createElement('a');
+   link.href=url;link.download='reporting-hierarchy.csv';link.click();setTimeout(()=>URL.revokeObjectURL(url),5000);
+  }catch(e){alert(e.message||'Unable to export Reporting Hierarchy');}
+ }
  async function click(e){
   const b=e.target.closest('[data-rh]');if(!b)return;e.preventDefault();
   const [action,id]=b.dataset.rh.split(':');
   if(action==='records'||action==='overview'||action==='tree'){state.tab=action;render();}
   else if(action==='filters'){state.filtersOpen=!state.filtersOpen;render();}
+  else if(action==='columns')window.SCRMColumns?.open(host.querySelector('.rh-table'),'reporting-hierarchy',["System ID","Hierarchy Type","Parent Role","Child Role","Context","Scope","Status","Last Modified","Actions"]);
+  else if(action==='export')await exportCsv();
   else if(action==='clear'){state.type='all';state.status='all';state.scope='all';state.applicability='all';state.page=1;load();}
   else if(action==='prev'&&state.page>1){state.page--;load();}
   else if(action==='next'&&state.page*state.pageSize<state.total){state.page++;load();}

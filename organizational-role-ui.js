@@ -19,6 +19,7 @@ function mount(host){
    '<div class="scrm-search-slot"></div><div class="mw-header-actions">'+
    '<button type="button" class="mw-btn" data-mw="export" data-org="export">Export CSV</button>'+
    '<button type="button" class="mw-btn" data-mw="filter-toggle" data-org="filters">Filter</button>'+
+   '<button type="button" class="mw-btn" data-org="columns">Customize</button>'+
    '<button type="button" class="mw-btn mw-primary" data-mw="create" data-org="create">Add Organizational Role</button></div>';
   headerHost.append(shell);
   const bar=document.querySelector('.topbar');if(bar)bar.insertAdjacentElement('afterend',headerHost);else host.prepend(headerHost);
@@ -57,6 +58,7 @@ function mount(host){
    (state.error?'<div role="alert" class="org-error">'+esc(state.error)+'</div>':'')+
    (state.filtersOpen?filters:'')+
    '<section class="org-panel">'+(state.loading?'<p>Loading roles…</p>':state.tab==='overview'?overview:table)+'</section></div>';
+  window.SCRMColumns?.apply(host.querySelector('.org-table'),'organizational-roles',["System ID","Role Name","Code","Applicability","Role Family","Status","Last Modified","Actions"]);
   host.querySelectorAll('select').forEach(x=>x.onchange=()=>{
    if(x.id==='org-page-size'){state.pageSize=Number(x.value);state.page=1;load();}
    if(x.id==='org-status'){state.status=x.value;state.page=1;load();}
@@ -178,6 +180,7 @@ function mount(host){
   const button=event.target.closest('[data-org]');if(!button)return;
   const [action,id]=button.dataset.org.split(':');event.preventDefault();
   if(action==='filters'){state.filtersOpen=!state.filtersOpen;render();}
+  else if(action==='columns')window.SCRMColumns?.open(host.querySelector('.org-table'),'organizational-roles',["System ID","Role Name","Code","Applicability","Role Family","Status","Last Modified","Actions"]);
   else if(action==='records'||action==='overview'){state.tab=action;render();}
   else if(action==='apply'){state.family=qs(host,'#org-family').value.trim();state.page=1;await load();}
   else if(action==='clear'){state.status='all';state.applicability='all';state.family='';state.page=1;await load();}
