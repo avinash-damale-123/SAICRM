@@ -1,0 +1,84 @@
+/* SAI-CRM core-master visual parity, 2026-11-06.
+   Scoped styles only: no API, data, lifecycle or permission changes. */
+
+/* The footer is exactly two actions. The older Round-10 profile shortcut
+   must not be visible even during partial loads or stale JS transitions. */
+.sidebar .sidebar-bottom > :not(#sidebarProfileLink):not(#sidebarSignOut) { display:none !important; }
+.sidebar .sidebar-bottom { background:#fff !important; border-top:1px solid #e0e9e2 !important; }
+
+/* The five masters use one modal language, matching Business Lines. */
+.dm-native-dialog .dm-dialog,
+.org-modal .org-dialog,
+.rh-modal .rh-dialog,
+.mm-modal .mm-dialog,
+.rpm-modal .rpm-dialog { background:#fff; color:#284336; }
+.org-dialog>header,
+.rh-dialog>header,
+.mm-dialog>header,
+.rpm-dialog>header { background:#174b38 !important; color:#fff !important; }
+.org-dialog>header h2,
+.rh-dialog>header h2,
+.mm-dialog>header h2,
+.rpm-dialog>header h2 { font-size:18px; font-weight:700; }
+.org-dialog>footer,
+.rh-dialog>footer,
+.mm-dialog>footer { background:#fff; flex-shrink:0; }
+
+/* Long lists and forms scroll inside the dialog, not under fixed actions. */
+.org-dialog-content,
+.rh-dialog-content,
+.mm-modal-content,
+.dm-dialog-body { min-height:0; overscroll-behavior:contain; }
+.org-form-grid,
+.org-read-grid,
+.rh-form-grid,
+.rh-read-grid { gap:10px; }
+.org-field :is(input,select,textarea),
+.rh-field :is(input,select,textarea) {
+  box-sizing:border-box; width:100%; min-width:0;
+}
+.org-modal :is(button,input,select,textarea):focus-visible,
+.rh-modal :is(button,input,select,textarea):focus-visible,
+.mm-modal :is(button,input,select,textarea):focus-visible,
+.rpm-modal :is(button,input,select,textarea):focus-visible {
+  outline:2px solid #145b3b !important; outline-offset:2px;
+}
+
+/* Reporting Hierarchy: resolve cramped pagination/empty state from screenshots. */
+.rh-pagination {
+  display:flex !important; flex-wrap:wrap !important;
+  align-items:center !important; justify-content:flex-end !important;
+  column-gap:9px !important; row-gap:7px !important;
+  min-height:41px !important; padding:10px 2px 2px !important;
+  white-space:normal;
+}
+.rh-pagination>span { margin-right:auto !important; white-space:normal; }
+.rh-pagination>label { display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
+.rh-pagination .rh-btn { margin:0 !important; }
+
+/* The Role & Permission Matrix wizard should use only its needed height.
+   Large Permission Set grids remain internally scrollable. */
+.rpm-modal { height:auto !important; max-height:calc(100dvh - 28px) !important; }
+.rpm-dialog { height:auto !important; max-height:calc(100dvh - 28px) !important; }
+.rpm-body { flex:0 1 auto !important; min-height:0 !important; overflow:auto !important; }
+.rpm-stepbody { flex:0 1 auto !important; min-height:0 !important; max-height:calc(100dvh - 260px); overflow:auto !important; }
+.rpm-foot { flex-shrink:0; padding:12px 0 0 !important; background:#fff; }
+.rpm-dialog>header { min-height:53px; box-sizing:border-box; }
+.rpm-review { max-height:calc(100dvh - 280px); overflow:auto; }
+
+/* Shared compact table and action spacing without changing CRUD. */
+.mm-container { padding:16px 20px 24px; gap:12px; }
+.mm-heading h2 { font-size:22px; margin:4px 0; }
+.mm-heading p { margin:3px 0 9px; }
+.mm-table th { padding:10px 9px; }
+.mm-table td { padding:7px 9px; }
+.mm-panel,.rpm-panel,.org-panel,.rh-panel,.dm-main-panel { border-color:#dfe8e1; }
+
+/* Ensure forms still fit on tablets and narrow windows. */
+@media(max-width:760px) {
+  .rpm-modal { width:calc(100vw - 16px); max-height:calc(100dvh - 16px) !important; }
+  .rpm-dialog { max-height:calc(100dvh - 16px) !important; }
+  .rpm-stepbody { max-height:calc(100dvh - 220px); }
+  .rh-pagination>span { flex-basis:100%; }
+  .mm-container { padding:12px; }
+}
