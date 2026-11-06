@@ -2,6 +2,7 @@
 // No operational CRM tables are modified and no request to Yiron is performed during browsing.
 import {createHash,randomUUID} from 'node:crypto';
 import {transaction} from './db.mjs';
+import ExcelJS from 'exceljs';
 import {fetchYironSource,yironConfiguration,yironRequestRange} from './yiron-analytics.mjs';
 
 export const LEGACY_BRANCH_SOURCE='branch_list_BI';
@@ -50,6 +51,46 @@ export async function publishedLegacyBranches(client,url){
  if(!current)return {source:LEGACY_BRANCH_SOURCE,sourceSystem:'Yiron CRM',mode:'published-mirror',range,data:[],recordCount:0,fetchedAt:null,noPublishedSnapshot:true};
  const rows=(await client.query('SELECT source_record_id,payload FROM legacy_source_records WHERE dataset_version_id=$1 ORDER BY source_record_id COLLATE "C" LIMIT $2 OFFSET $3',[current.id,Number(range.to)-Number(range.from)+1,Number(range.from)-1])).rows;
  return {source:LEGACY_BRANCH_SOURCE,sourceSystem:'Yiron CRM',mode:'published-mirror',range,data:rows.map(row=>row.payload),recordCount:Number(current.record_count),fetchedAt:iso(current.published_at),datasetVersion:current.id};
+}
+
+const exportedValue=value=>value==null?'':typeof value==='object'?JSON.stringify(value):String(value);
+const csvValue=value=>{
+ let data=exportedValue(value);
+ // Escape formula-leading data for spreadsheet programs and quote every field.
+ if(/^\s*[=+\-@\t\r]/u.test(data))data="'"+data;
+ return '"'+data.replaceAll('"','""')+'"';
+};
+export async function exportPublishedLegacyBranches(client,{format='csv',actorId=null}={}){
+ if(!['csv','xlsx'].includes(format))throw error(400,'Export format must be CSV or XLSX','BAD_FORMAT');
+ const active=(await client.query("SELECT id FROM legacy_dataset_versions WHERE source_id=$1 AND status='published' LIMIT 1",[LEGACY_BRANCH_SOURCE])).rows[0];
+ if(!active)throw error(409,'No validated dataset is available to export','NOT_PUBLISHED');
+ // Full download is intentionally bounded until data volume and export limits are reviewed.
+ const rows=(await client.query('SELECT payload FROM legacy_source_records WHERE dataset_version_id=$1 ORDER BY source_record_id COLLATE "C" LIMIT 2001',[active.id])).rows;
+ if(rows.length>2000)throw error(413,'Branch export exceeds the approved 2,000-record limit','EXPORT_TOO_LARGE');
+ const keys=[...new Set(rows.flatMap(({payload})=>Object.keys(payload)))].slice(0,60);
+ if(!keys.includes('branch_id'))throw error(422,'Published dataset is missing source IDs','BAD_SNAPSHOT');
+ let bytes,contentType,filename;
+ if(format==='csv'){
+  const output=['\uFEFF'+keys.map(csvValue).join(',')];
+  for(const row of rows)output.push(keys.map(key=>csvValue(row.payload[key])).join(','));
+  bytes=Buffer.from(output.join('\r\n')+'\r\n','utf8');
+  contentType='text/csv; charset=utf-8';
+  filename='yiron-branches-published.csv';
+ }else{
+  const workbook=new ExcelJS.Workbook();
+  workbook.creator='SAI-CRM Analytics-Y1';
+  const sheet=workbook.addWorksheet('Yiron Branches');
+  sheet.columns=keys.map(key=>({header:key,key,width:Math.min(40,Math.max(16,key.length+4))}));
+  sheet.views=[{state:'frozen',ySplit:1}];
+  sheet.autoFilter={from:'A1',to:{row:1,column:keys.length}};
+  sheet.getRow(1).font={bold:true};
+  for(const row of rows)sheet.addRow(Object.fromEntries(keys.map(key=>[key,exportedValue(row.payload[key])])));
+  bytes=Buffer.from(await workbook.xlsx.writeBuffer());
+  contentType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  filename='yiron-branches-published.xlsx';
+ }
+ await client.query('INSERT INTO legacy_refresh_audit(source_id,actor_id,action,details) VALUES($1,$2,$3,$4)',[LEGACY_BRANCH_SOURCE,actorId,'dataset_exported',JSON.stringify({datasetVersion:active.id,format,count:rows.length})]);
+ return {bytes,contentType,filename};
 }
 
 export async function requestLegacyRefresh(client,{actorId=null,trigger='manual'}={}){
