@@ -9,7 +9,8 @@ export const LEGACY_PAGE_SIZE=50;
 const MAX_PAGES=400;
 const temporaryCodes=new Set(['YIRON_TEMP','YIRON_TIMEOUT','YIRON_NETWORK']);
 const error=(status,message,code='LEGACY_VALIDATION')=>Object.assign(new Error(message),{status,code});
-const digest=payload=>createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+const canonical=value=>Array.isArray(value)?'['+value.map(canonical).join(',')+']':value&&typeof value==='object'?'{'+Object.keys(value).sort().map(k=>JSON.stringify(k)+':'+canonical(value[k])).join(',')+'}':JSON.stringify(value);
+const digest=payload=>createHash('sha256').update(canonical(payload)).digest('hex');
 const iso=value=>value?new Date(value).toISOString():null;
 
 export function normalizeLegacyBranchPage(response,range){
@@ -96,7 +97,9 @@ async function stageAndMaybePublish(pool,jobId,pageFrom,rows){
   // A conflicting ID across pages is a validation failure, not a silent upsert.
   for(const row of rows)await client.query('INSERT INTO legacy_source_records(dataset_version_id,source_record_id,payload,payload_hash) VALUES($1,$2,$3,$4)',[versionId,row.id,row.payload,row.hash]);
   await client.query('UPDATE legacy_refresh_jobs SET fetched_count=fetched_count+$2,validated_count=validated_count+$2,lease_owner=NULL,lease_until=NULL WHERE id=$1',[jobId,rows.length]);
-  if(rows.length===LEGACY_PAGE_SIZE)return {done:false};
+  // Require one explicit empty page after the last short page, so an endpoint
+  // ignoring from/to cannot silently publish a truncated first snapshot.
+  if(rows.length>0)return {done:false};
   const count=Number((await client.query('SELECT count(*) AS n FROM legacy_source_records WHERE dataset_version_id=$1',[versionId])).rows[0].n);
   if(count<1)throw error(422,'Refusing to publish an empty Branches dataset');
   const previous=(await client.query("SELECT id,record_count FROM legacy_dataset_versions WHERE source_id=$1 AND status='published' FOR UPDATE",[LEGACY_BRANCH_SOURCE])).rows[0];
