@@ -64,6 +64,19 @@ try{
  assert.deepEqual(counted,{changed:1,removed:1});
  const history=(await pool.query("SELECT count(*)::int n FROM legacy_dataset_versions WHERE source_id=$1 AND status='superseded'",[LEGACY_BRANCH_SOURCE])).rows[0].n;
  assert.equal(history,1);
+ const fullUnpaged=[...newer,...Array.from({length:41},(_,i)=>({branch_id:'BR-'+String(105+i).padStart(3,'0'),branch_name:'Branch '+(105+i)}))];
+ const fourth=await transaction(pool,client=>requestLegacyRefresh(client));
+ const fullResponse=async()=>({data:fullUnpaged});
+ const unpaged=await processLegacyBranchRefresh(pool,fourth.jobId,{budgetMs:12000,fetchPage:fullResponse});
+ assert.equal(unpaged.done,true);
+ assert.equal(unpaged.publishedCount,145,'A repeated 145-row unpaged response can be reconciled as one full snapshot');
+ assert.equal((await pool.query("SELECT count(*)::int n FROM legacy_refresh_audit WHERE job_id=$1 AND action='unpaged_response_reconciled'",[fourth.jobId])).rows[0].n,1);
+ const fifth=await transaction(pool,client=>requestLegacyRefresh(client));
+ let calls=0;
+ const inconsistent=async()=>({data:(++calls===1?fullUnpaged:fullUnpaged.map((r,i)=>i===0?{...r,branch_name:'Mismatched'}:r))});
+ const refused=await processLegacyBranchRefresh(pool,fifth.jobId,{budgetMs:12000,fetchPage:inconsistent});
+ assert.equal(refused.done,true);
+ assert.equal((await legacyMirrorStatus(pool)).published.recordCount,145,'Inconsistent full responses must not replace the last published version');
  console.log('PASS Yiron Y1: disabled-by-default, job coalescing, full snapshot, validation failure and atomic version changes');
 }finally{
  await pool.end();
