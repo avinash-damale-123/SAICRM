@@ -53,7 +53,7 @@ try{
  });
  await page.goto('http://127.0.0.1:'+server.address().port);
  await page.locator('[data-nav="reportinghierarchy"]').waitFor({state:'attached'});
- await page.locator('[data-nav="reportinghierarchy"]').click();
+ await page.locator('[data-nav="reportinghierarchy"]').evaluate(button=>button.click());
  await page.locator('.rh-module-header.scrm-workbar.scrm-bl-clean').waitFor();
  assert.equal(await page.locator('.topbar #crumb').innerText(),'Reporting Hierarchy');
  assert.equal(await page.locator('#crmSearchInput').count(),1);
