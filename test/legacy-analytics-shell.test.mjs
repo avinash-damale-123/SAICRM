@@ -28,3 +28,13 @@ test('Yiron source registry and backend are strictly one-way, opt-in and gated',
  assert.match(server,/method!=='GET'/);
  assert.match(server,/current\.system_role!=='super_admin'/);
 });
+
+test('Branches is the first Yiron dataset with paged read-only source visibility',async()=>{
+ const app=await readFile('app.js','utf8');
+ assert.match(app,/Yiron Branches — First API/);
+ assert.match(app,/data-yiron-preview="branch_list_BI"/);
+ assert.match(app,/data-yiron-page/);
+ assert.match(app,/Previous 50/);
+ assert.match(app,/Next 50/);
+ assert.match(app,/not the operational SAI-CRM Branch Master/);
+});
