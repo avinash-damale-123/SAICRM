@@ -47,10 +47,14 @@ export async function legacyMirrorStatus(client){
 export async function publishedLegacyBranches(client,url){
  const range=yironRequestRange(url)||{from:'1',to:'50'};
  if(Number(range.to)-Number(range.from)+1>LEGACY_PAGE_SIZE)throw error(400,'Select at most 50 published rows','BAD_RANGE');
+ const q=String(url.searchParams.get('q')||'').trim();
+ if(q.length>120)throw error(400,'Search term must contain at most 120 characters','BAD_QUERY');
  const current=(await client.query("SELECT id,record_count,published_at FROM legacy_dataset_versions WHERE source_id=$1 AND status='published' LIMIT 1",[LEGACY_BRANCH_SOURCE])).rows[0];
- if(!current)return {source:LEGACY_BRANCH_SOURCE,sourceSystem:'Yiron CRM',mode:'published-mirror',range,data:[],recordCount:0,fetchedAt:null,noPublishedSnapshot:true};
- const rows=(await client.query('SELECT source_record_id,payload FROM legacy_source_records WHERE dataset_version_id=$1 ORDER BY source_record_id COLLATE "C" LIMIT $2 OFFSET $3',[current.id,Number(range.to)-Number(range.from)+1,Number(range.from)-1])).rows;
- return {source:LEGACY_BRANCH_SOURCE,sourceSystem:'Yiron CRM',mode:'published-mirror',range,data:rows.map(row=>row.payload),recordCount:Number(current.record_count),fetchedAt:iso(current.published_at),datasetVersion:current.id};
+ if(!current)return {source:LEGACY_BRANCH_SOURCE,sourceSystem:'Yiron CRM',mode:'published-mirror',range,data:[],recordCount:0,filteredCount:0,fetchedAt:null,noPublishedSnapshot:true};
+ const filter="dataset_version_id=$1 AND ($2::text='' OR position(lower($2) in lower(source_record_id))>0 OR position(lower($2) in lower(COALESCE(payload->>'branch_name','')))>0 OR position(lower($2) in lower(COALESCE(payload->>'branch_code','')))>0)";
+ const filteredCount=q?Number((await client.query('SELECT count(*) AS n FROM legacy_source_records WHERE '+filter,[current.id,q])).rows[0].n):Number(current.record_count);
+ const rows=(await client.query('SELECT source_record_id,payload FROM legacy_source_records WHERE '+filter+" ORDER BY payload->>'updated_on' DESC NULLS LAST, source_record_id COLLATE \"C\" LIMIT $3 OFFSET $4",[current.id,q,Number(range.to)-Number(range.from)+1,Number(range.from)-1])).rows;
+ return {source:LEGACY_BRANCH_SOURCE,sourceSystem:'Yiron CRM',mode:'published-mirror',range,query:q,data:rows.map(row=>row.payload),recordCount:Number(current.record_count),filteredCount,fetchedAt:iso(current.published_at),datasetVersion:current.id};
 }
 
 const exportedValue=value=>value==null?'':typeof value==='object'?JSON.stringify(value):String(value);
