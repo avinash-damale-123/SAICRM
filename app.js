@@ -95,7 +95,7 @@ function legacyAnalyticsPage(p){
 async function previewYironSource(source,requestedPage=1){
  yironPreviewSource=source;yironPreviewPage=Math.max(1,requestedPage);yironPreviewError='';yironPreviewState=null;
  const output=$('#yironPreviewOutput');if(output)output.textContent='Loading source records…';
- try{yironPreviewState=await api('yiron-analytics/preview/'+encodeURIComponent(source)+'?from='+((yironPreviewPage-1)*50+1)+'&to='+(yironPreviewPage*50));}
+ try{const query=source==='branch_list_BI'?'':'?from='+((yironPreviewPage-1)*50+1)+'&to='+(yironPreviewPage*50);yironPreviewState=await api('yiron-analytics/preview/'+encodeURIComponent(source)+query);}
  catch(error){yironPreviewError=error.message;}
  if(page.startsWith('legacy'))render();
 }
