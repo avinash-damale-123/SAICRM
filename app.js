@@ -10,6 +10,7 @@ window.SCRM.appReady = (async()=>{'use strict';const api=window.SCRM.api; let db
  if(p==='audit')db.audit=auditRows;
  if(p==='notifications')notificationRows=notices||[];
  page=p;search='';filter='';view='table';moduleTab='home';moduleFilterOpen=false;
+  if(p.startsWith('legacy')){yironPreviewState=null;yironPreviewError='';if(!yironCatalogState)queueMicrotask(()=>loadYironCatalog());}
  render();window.SCRMWorkspace?.onNavigate(p);
  window.scrollTo(0,0);$('#sidebar').classList.remove('open');
 }
@@ -52,17 +53,50 @@ function board(p,rows){const stages=p==='leads'?['New','Warm','In Process','Prop
  legacycontacts:['Contacts','Client contacts and relationship owners'],
  legacyaccounts:['Accounts & Leads','Existing accounts and prospect accounts, kept distinctly']
 };
+const yironDomains=Object.fromEntries([
+ ['account_view','legacyaccounts'],['log_a_call_view','legacycalls'],['facts_details','legacyoverview'],
+ ['meeting_visit_BI','legacymeetings'],['call_log_BI','legacycalls'],['potential_amount','legacyaccounts'],
+ ['last_login','legacyusers'],['role_list_BI','legacyusers'],['contact_list_BI','legacycontacts'],
+ ['branch_list_BI','legacybranches'],['region_master_data','legacyregions'],
+ ['erv_account_view_post_for_superadmin','legacyaccounts'],['meeting_view_post_for_superadmin','legacymeetings'],
+ ['call_log_view_post_for_superadmin','legacycalls'],['nca_account_view_post_for_superadmin','legacyaccounts']]);
+let yironCatalogState=null,yironCatalogError='',yironPreviewState=null,yironPreviewError='';
+const isYironAdmin=()=>window.SCRM?.user?.systemRole==='super_admin';
+async function loadYironCatalog(){
+ if(!isYironAdmin())return;
+ try{yironCatalogState=await api('yiron-analytics/sources');yironCatalogError='';}
+ catch(error){yironCatalogError=error.message;};
+ if(page.startsWith('legacy'))render();
+}
+function yironPreviewTable(){
+ if(yironPreviewError)return '<p role="alert">'+esc(yironPreviewError)+'</p>';
+ if(!yironPreviewState)return '<p class="subtle">Select a source to preview live Yiron records. Data is not imported or saved in SAI-CRM.</p>';
+ const data=yironPreviewState.data;
+ const arr=Array.isArray(data)?data:Array.isArray(data?.data)?data.data:Array.isArray(data?.records)?data.records:null;
+ if(!arr)return '<p>Yiron response received for '+esc(yironPreviewState.source)+'. Shape is not a recognized row array. Verify the schema before creating reports.</p><pre style="white-space:pre-wrap;overflow:auto;max-height:350px">'+esc(JSON.stringify(data,null,2).slice(0,6000))+'</pre>';
+ if(!arr.length)return '<p>No records returned by Yiron for this request.</p>';
+ const cols=[...new Set(arr.slice(0,20).flatMap(v=>v&&typeof v==='object'&&!Array.isArray(v)?Object.keys(v):[]))].slice(0,22);
+ if(!cols.length)return '<pre>'+esc(JSON.stringify(arr.slice(0,5),null,2).slice(0,6000))+'</pre>';
+ return '<div class="table-wrap"><table><thead><tr>'+cols.map(k=>'<th>'+esc(k)+'</th>').join('')+'</tr></thead><tbody>'+arr.slice(0,50).map(row=>'<tr>'+cols.map(k=>'<td>'+esc(typeof row?.[k]==='object'?JSON.stringify(row[k]):row?.[k])+'</td>').join('')+'</tr>').join('')+'</tbody></table></div><p class="subtle">Showing up to 50 source rows and 22 source fields. No transformations or relationships have been applied.</p>';
+}
 function legacyAnalyticsPage(p){
- const heading='<div class="page-heading"><div><div class="eyebrow">CRM ANALYTICS-Y1 / LEGACY CRM</div><h1>'+esc(labels[p])+'</h1><p>Read-only reporting workspace for data from the previous CRM.</p></div></div>';
- const explanation='<div class="panel"><div class="panel-body"><p><strong>Connection not configured.</strong> No legacy API data has been fetched or imported. This section is reserved for reporting and will not create or update new CRM operational records.</p><p class="subtle">API credentials and endpoint URLs must be configured securely on the server, with access controls and source-to-record reconciliation, before data can be displayed.</p></div></div>';
- if(p==='legacyoverview'){
-  return heading+explanation+'<div class="feature-grid">'+Object.entries(legacyDomains).map(([id,details])=>'<div class="feature"><h3>'+esc(details[0])+'</h3><p>'+esc(details[1])+'</p><span class="badge orange">Not connected</span><p><button type="button" class="btn" data-nav="'+id+'">Open section</button></p></div>').join('')+'</div>';
- }
- if(p==='legacysources'){
-  return heading+explanation+'<div class="panel"><div class="panel-header"><h3>Legacy API connection requirements</h3></div><div class="panel-body"><p>Required: API base URL, authentication method, endpoint inventory, response examples, pagination and rate limits, update timestamps, and permitted visibility for each data domain.</p><p>Intended architecture: server-only read connector, source IDs retained, independently scoped reporting storage or cache, sync status and error logs. Never place API keys in browser JavaScript or the Git repository.</p></div></div>';
- }
- const domain=legacyDomains[p];
- return heading+explanation+'<div class="panel"><div class="panel-header"><h3>'+esc(domain[0])+'</h3><small>Source: previous CRM</small></div><div class="panel-body"><p>'+esc(domain[1])+'</p><p class="subtle">No data available until a validated, authorized source connection is configured. Production CRM records remain unchanged.</p></div></div>';
+ const heading='<div class="page-heading"><div><div class="eyebrow">CRM ANALYTICS-Y1 / YIRON CRM</div><h1>'+esc(labels[p])+'</h1><p>One-way Yiron CRM data visibility. No write-back to Yiron or operational SAI-CRM records.</p></div></div>';
+ if(!isYironAdmin())return heading+'<div class="panel"><div class="panel-body"><p>Yiron CRM data access is restricted until record-level access rules are validated. Super Admin access is currently required.</p></div></div>';
+ const enabled=!!yironCatalogState?.enabled;
+ const status='<div class="panel"><div class="panel-body"><p><strong>'+(enabled?'Yiron API preview available.':'Yiron API connection not configured.')+'</strong> '+(enabled?'Preview requests use a server-only, read-only connector.':'No Yiron records have been fetched or imported.')+'</p>'+(yironCatalogError?'<p role="alert">'+esc(yironCatalogError)+'</p>':'')+'<p class="subtle">No automatic synchronization, data storage or analytics relationships are enabled.</p></div></div>';
+ const sourceLinks=(yironCatalogState?.sources||[]).filter(s=>p==='legacysources'||p==='legacyoverview'||s.domain===p);
+ const sourcePanel='<div class="panel"><div class="panel-header"><h3>Yiron API sources</h3><small>15 registered sources</small></div><div class="panel-body"><p class="subtle">Listed paths are supplied by the business owner. Verify their route prefixes before enabling the API.</p>'+(!sourceLinks.length?'<p>API catalog will appear after connection status loads.</p>':sourceLinks.map(s=>'<div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--border,#ddd)"><div><strong>'+esc(s.label)+'</strong> <small>'+esc(s.path)+'</small></div><button class="btn" data-yiron-preview="'+esc(s.id)+'" '+(enabled?'':'disabled')+'>Preview records</button></div>').join(''))+'</div></div>';
+ const preview='<div class="panel"><div class="panel-header"><h3>Read-only data preview</h3></div><div class="panel-body" id="yironPreviewOutput">'+yironPreviewTable()+'</div></div>';
+ if(p==='legacyoverview')return heading+status+'<div class="feature-grid">'+Object.entries(legacyDomains).map(([id,details])=>'<div class="feature"><h3>'+esc(details[0])+'</h3><p>'+esc(details[1])+'</p><p><button type="button" class="btn" data-nav="'+id+'">Open section</button></p></div>').join('')+'</div>'+sourcePanel+preview;
+ if(p==='legacysources')return heading+status+sourcePanel+preview;
+ const domain=legacyDomains[p];return heading+status+'<div class="panel"><div class="panel-header"><h3>'+esc(domain[0])+'</h3></div><div class="panel-body"><p>'+esc(domain[1])+'</p></div></div>'+sourcePanel+preview;
+}
+async function previewYironSource(source){
+ yironPreviewError='';yironPreviewState=null;
+ const output=$('#yironPreviewOutput');if(output)output.textContent='Loading source records…';
+ try{yironPreviewState=await api('yiron-analytics/preview/'+encodeURIComponent(source)+'?from=1&to=50');}
+ catch(error){yironPreviewError=error.message;}
+ if(page.startsWith('legacy'))render();
 }
 function render(){
  nav();$('#crumb').textContent=labels[page];
@@ -72,6 +106,7 @@ function render(){
  }
  $('#content').innerHTML=page==='home'?homePage():page==='profile'?myProfile():page==='notifications'?notificationsPage():page==='overview'?overview():page==='mywork'?mywork():page==='analytics'?analytics():page.startsWith('legacy')?legacyAnalyticsPage(page):page==='modules'?modules():page==='settings'?settings():page==='audit'?audit():configs[page]?records(page):homePage();
  $('#content').querySelectorAll('[data-nav]').forEach(e=>e.onclick=()=>navigate(e.dataset.nav));
+ $('#content').querySelectorAll('[data-yiron-preview]').forEach(e=>e.onclick=()=>previewYironSource(e.dataset.yironPreview));
  $('#content').querySelectorAll('[data-action]').forEach(e=>e.onclick=()=>handle(e.dataset.action));
  $('#content').querySelectorAll('[data-open]').forEach(e=>e.onclick=()=>detail(e.dataset.open));
  $('#content').querySelectorAll('[data-action="new"],[data-action="newLead"]').forEach(button=>button.hidden=!window.SCRM.can(button.dataset.action==='newLead'?'leads':page==='mywork'?'activities':page,'create'));
