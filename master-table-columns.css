@@ -1,0 +1,21 @@
+/* Common Business Lines-style table customization for Organization and Hierarchy. */
+.scrm-column-dialog { border:0; border-radius:12px; padding:0; width:min(520px,calc(100vw - 24px)); max-height:calc(100dvh - 28px); box-shadow:0 22px 75px #142f2340; color:#263f30; }
+.scrm-column-dialog::backdrop { background:rgba(10,31,21,.55); }
+.scrm-column-panel { display:flex; flex-direction:column; min-height:0; max-height:calc(100dvh - 28px); background:#fff; }
+.scrm-column-panel>header { display:flex; align-items:center; justify-content:space-between; gap:12px; background:#194c39; color:#fff; padding:14px 18px; }
+.scrm-column-panel h2 { font-size:17px; margin:0; }
+.scrm-column-panel>header button { background:#ac3941; border:1px solid #d28d90; border-radius:5px; color:white; width:31px; height:31px; cursor:pointer; }
+.scrm-column-panel>p { margin:14px 18px 8px; font-size:13px; }
+.scrm-column-items { min-height:0; overflow-y:auto; margin:0 18px; padding:4px 0; }
+.scrm-column-item { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 10px; border:1px solid #dce6df; border-radius:6px; margin-bottom:5px; }
+.scrm-column-item label,.scrm-column-hidden label { display:inline-flex; align-items:center; gap:9px; cursor:pointer; font-size:13px; }
+.scrm-column-item input,.scrm-column-hidden input { accent-color:#145b3b; }
+.scrm-column-item>div { display:flex; gap:5px; }
+.scrm-column-item>div button { border:1px solid #cadacf; background:#f6f9f7; border-radius:5px; min-width:30px; min-height:28px; cursor:pointer; }
+.scrm-column-item>div button:disabled { opacity:.35; cursor:not-allowed; }
+.scrm-column-hidden { display:grid; gap:8px; padding:10px 18px; border-top:1px solid #e4ebe5; }
+.scrm-column-hidden:empty { display:none; }
+.scrm-column-panel>footer { display:flex; gap:8px; justify-content:flex-end; padding:12px 18px; border-top:1px solid #e0e9e2; }
+.scrm-column-panel>footer button { border:1px solid #cddbcf; border-radius:5px; padding:7px 12px; background:#fff; cursor:pointer; }
+.scrm-column-panel>footer .scrm-column-save { background:#145b3b; color:#fff; border-color:#145b3b; }
+.scrm-column-dialog :is(button,input):focus-visible { outline:2px solid #145b3b; outline-offset:2px; }
