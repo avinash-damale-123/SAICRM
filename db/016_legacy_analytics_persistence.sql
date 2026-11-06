@@ -95,5 +95,13 @@ CREATE OR REPLACE TRIGGER legacy_refresh_audit_append_only_v16 BEFORE UPDATE OR 
 -- The migration deliberately does not grant browser-facing roles access.
 -- Server-side application permission checks and controlled grants are required before enabling ingestion.
 INSERT INTO legacy_api_sources(id,display_name,enabled) VALUES('branch_list_BI','Yiron Branches',false) ON CONFLICT(id) DO NOTHING;
+-- Read/write access is limited to the existing service runtime role when present.
+DO $grants$
+BEGIN
+ IF EXISTS(SELECT 1 FROM pg_roles WHERE rolname='saicrm_runtime') THEN
+  GRANT SELECT,INSERT,UPDATE ON legacy_api_sources,legacy_refresh_jobs,legacy_dataset_versions,legacy_source_records,legacy_record_changes,legacy_refresh_batches,legacy_refresh_requests,legacy_refresh_audit TO saicrm_runtime;
+  GRANT USAGE,SELECT ON SEQUENCE legacy_refresh_requests_id_seq,legacy_record_changes_id_seq,legacy_refresh_batches_id_seq,legacy_refresh_audit_id_seq TO saicrm_runtime;
+ END IF;
+END $grants$;
 INSERT INTO schema_migrations(version) VALUES(16) ON CONFLICT DO NOTHING;
 COMMIT;
