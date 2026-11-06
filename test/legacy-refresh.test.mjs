@@ -15,13 +15,20 @@ test('Yiron Branches recognizes a bounded, stable JSON array and original identi
  assert.deepEqual(result[0].payload,rows(1)[0]);
 });
 test('Yiron Branches rejects oversized or non-array upstream pagination responses',()=>{
- assert.throws(()=>normalizeLegacyBranchPage(page(rows(145)),range),/more than the requested 50/i);
+ assert.throws(()=>normalizeLegacyBranchPage(page(rows(145)),range),/more than the permitted Branches records/i);
  assert.throws(()=>normalizeLegacyBranchPage({data:{count:145}},range),/recognized record array/i);
 });
 test('Yiron Branches rejects duplicate or unverified source identifiers',()=>{
  assert.throws(()=>normalizeLegacyBranchPage(page([{branch_id:1},{branch_id:'1'}]),range),/duplicate/i);
  assert.throws(()=>normalizeLegacyBranchPage(page([{name:'missing id'}]),range),/branch_id/i);
  assert.throws(()=>normalizeLegacyBranchPage(page([null]),range),/invalid Branches row/i);
+});
+test('Stable hashes ignore JSON object-key order but preserve content changes',()=>{
+ const left=normalizeLegacyBranchPage(page([{branch_id:1,nested:{country:140,region:15}}]),range);
+ const right=normalizeLegacyBranchPage(page([{nested:{region:15,country:140},branch_id:1}]),range);
+ const changed=normalizeLegacyBranchPage(page([{nested:{region:16,country:140},branch_id:1}]),range);
+ assert.equal(left[0].hash,right[0].hash);
+ assert.notEqual(left[0].hash,changed[0].hash);
 });
 test('Worker signatures enforce ID, timestamp and tamper resistance',()=>{
  const secret='test-only-secret-not-for-deployment-1234567890';
