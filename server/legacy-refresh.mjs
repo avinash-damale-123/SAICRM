@@ -95,7 +95,7 @@ async function stageAndMaybePublish(pool,jobId,pageFrom,rows){
   if(!batch.rowCount)return {done:false};
   // A conflicting ID across pages is a validation failure, not a silent upsert.
   for(const row of rows)await client.query('INSERT INTO legacy_source_records(dataset_version_id,source_record_id,payload,payload_hash) VALUES($1,$2,$3,$4)',[versionId,row.id,row.payload,row.hash]);
-  await client.query('UPDATE legacy_refresh_jobs SET fetched_count=fetched_count+$2,validated_count=validated_count+$2,lease_until=now()+interval \'45 seconds\' WHERE id=$1',[jobId,rows.length]);
+  await client.query('UPDATE legacy_refresh_jobs SET fetched_count=fetched_count+$2,validated_count=validated_count+$2,lease_owner=NULL,lease_until=NULL WHERE id=$1',[jobId,rows.length]);
   if(rows.length===LEGACY_PAGE_SIZE)return {done:false};
   const count=Number((await client.query('SELECT count(*) AS n FROM legacy_source_records WHERE dataset_version_id=$1',[versionId])).rows[0].n);
   if(count<1)throw error(422,'Refusing to publish an empty Branches dataset');
@@ -103,7 +103,7 @@ async function stageAndMaybePublish(pool,jobId,pageFrom,rows){
   if(previous&&count<Math.ceil(Number(previous.record_count)*0.8))
    throw error(422,'Branches count decreased more than 20%; refresh quarantined for review');
   if(previous){
-   await client.query("INSERT INTO legacy_record_changes(source_id,dataset_version_id,source_record_id,change_kind,old_hash,new_hash) SELECT $1,$2,COALESCE(n.source_record_id,o.source_record_id),CASE WHEN o.source_record_id IS NULL THEN 'added' WHEN n.source_record_id IS NULL THEN 'removed' ELSE 'changed' END,o.payload_hash,n.payload_hash FROM legacy_source_records n FULL OUTER JOIN legacy_source_records o ON n.source_record_id=o.source_record_id AND o.dataset_version_id=$3 WHERE n.dataset_version_id=$2 OR (n.dataset_version_id IS NULL AND o.dataset_version_id=$3) AND (n.payload_hash IS DISTINCT FROM o.payload_hash)",[LEGACY_BRANCH_SOURCE,versionId,previous.id]);
+   await client.query("INSERT INTO legacy_record_changes(source_id,dataset_version_id,source_record_id,change_kind,old_hash,new_hash) SELECT $1,$2,COALESCE(n.source_record_id,o.source_record_id),CASE WHEN o.source_record_id IS NULL THEN 'added' WHEN n.source_record_id IS NULL THEN 'removed' ELSE 'changed' END,o.payload_hash,n.payload_hash FROM legacy_source_records n FULL OUTER JOIN legacy_source_records o ON n.source_record_id=o.source_record_id AND o.dataset_version_id=$3 WHERE (n.dataset_version_id=$2 OR (n.dataset_version_id IS NULL AND o.dataset_version_id=$3)) AND n.payload_hash IS DISTINCT FROM o.payload_hash",[LEGACY_BRANCH_SOURCE,versionId,previous.id]);
    await client.query("UPDATE legacy_dataset_versions SET status='superseded' WHERE id=$1",[previous.id]);
   }else{
    await client.query("INSERT INTO legacy_record_changes(source_id,dataset_version_id,source_record_id,change_kind,new_hash) SELECT $1,$2,source_record_id,'added',payload_hash FROM legacy_source_records WHERE dataset_version_id=$2",[LEGACY_BRANCH_SOURCE,versionId]);
