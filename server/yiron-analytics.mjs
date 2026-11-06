@@ -1,3 +1,4 @@
+import {readYironUserPreview} from './yiron-user-preview.mjs';
 // Yiron CRM Analytics-Y1 source registry. Paths are provided by the business owner;
 // the Branch endpoint path is supplied in the Postman collection; its response has not been validated.
 export const YIRON_SOURCE_HOST = 'https://crm.satgurutravel.com';
@@ -38,9 +39,10 @@ export function yironConfiguration(env=process.env){
  return {enabled:true,configured:true,base:base.origin,apiKey:env.YIRON_API_KEY};
 }
 export function yironCatalog(env=process.env){
- const config=yironConfiguration(env);
- return {enabled:config.enabled,configured:config.configured,mode:'read-only',source:'Yiron CRM',
-   sources:YIRON_SOURCES.map(({id,label,domain,path})=>({id,label,domain,path,status:config.enabled?'Available for manual retrieval':'Not connected'}))};
+ // A broken upstream configuration must not hide already published snapshots.
+ let config;try{config=yironConfiguration(env);}catch{config={enabled:false,configured:false};}
+ return {enabled:config.enabled,configured:config.configured,mode:'published-mirror',source:'Yiron CRM',
+   sources:YIRON_SOURCES.map(({id,label,domain,path})=>({id,label,domain,path,status:id==='branch_list_BI'&&config.enabled?'Connector configured; source requires verification':'Ingestion not connected'}))};
 }
 export async function fetchYironSource(sourceId,url,{env=process.env,fetchImpl=fetch}={}){
  const source=YIRON_SOURCE_MAP.get(sourceId);
@@ -50,24 +52,28 @@ export async function fetchYironSource(sourceId,url,{env=process.env,fetchImpl=f
  const range=yironRequestRange(url);
  const endpoint=new URL(source.path,config.base);
  const branchRange=range||{from:'1',to:'50'};
- const body=sourceId==='branch_list_BI'?JSON.stringify(branchRange):new FormData();
+ const body=['branch_list_BI','last_login'].includes(sourceId)?JSON.stringify(branchRange):new FormData();
  // Some Yiron BI endpoints use numeric from/to form-data for row ranges.
  // Explicitly bounded, caller-provided ranges are sent only when supplied.
- if(range&&sourceId!=='branch_list_BI'){body.append('from',range.from);body.append('to',range.to);}
+ if(range&&!['branch_list_BI','last_login'].includes(sourceId)){body.append('from',range.from);body.append('to',range.to);}
  const controller=new AbortController();
- const timeout=setTimeout(()=>controller.abort(),12000);
+ const timeout=setTimeout(()=>controller.abort(),sourceId==='last_login'?30000:12000);
  try{
-  const response=await fetchImpl(endpoint,{method:'POST',headers:{'x-api-key':config.apiKey,'Accept':'application/json',...(sourceId==='branch_list_BI'?{'Content-Type':'application/json'}:{})},body,signal:controller.signal,redirect:'error'});
-  if(!response.ok)throw Object.assign(new Error('Yiron upstream service failed'),{status:502});
+  const response=await fetchImpl(endpoint,{method:'POST',headers:{'x-api-key':config.apiKey,'Accept':'application/json',...(['branch_list_BI','last_login'].includes(sourceId)?{'Content-Type':'application/json'}:{})},body,signal:controller.signal,redirect:'error'});
+  if(!response.ok){const code=[401,403].includes(response.status)?'YIRON_AUTH':[400,404,405,415,422].includes(response.status)?'YIRON_CONFIG':response.status===429||response.status>=500?'YIRON_TEMP':'YIRON_RESPONSE';throw Object.assign(new Error('Yiron upstream service failed'),{status:502,code});}
   if(!String(response.headers.get('content-type')||'').includes('application/json'))
    throw Object.assign(new Error('Yiron returned an unsupported response format'),{status:502});
+  if(sourceId==='last_login'){
+   const preview=await readYironUserPreview(response);
+   return {source:sourceId,sourceSystem:'Yiron CRM',fetchedAt:new Date().toISOString(),range,data:preview};
+  }
   const text=await response.text();
   if(text.length>750000)throw Object.assign(new Error('Yiron response exceeds the display size limit'),{status:502});
   let data;try{data=JSON.parse(text)}catch{throw Object.assign(new Error('Yiron response was not valid JSON'),{status:502});}
   return {source:sourceId,sourceSystem:'Yiron CRM',fetchedAt:new Date().toISOString(),range,data};
  }catch(error){
-  if(error.name==='AbortError')throw Object.assign(new Error('Yiron request timed out'),{status:504});
+  if(error.name==='AbortError')throw Object.assign(new Error('Yiron request timed out'),{status:504,code:'YIRON_TIMEOUT'});
   if(error.status)throw error;
-  throw Object.assign(new Error('Yiron API could not be reached'),{status:502});
+  throw Object.assign(new Error('Yiron API could not be reached'),{status:502,code:'YIRON_NETWORK'});
  }finally{clearTimeout(timeout);}
 }

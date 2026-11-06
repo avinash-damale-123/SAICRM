@@ -9,7 +9,7 @@ test('CRM Analytics-Y1 has separate sidebar navigation and read-only unconnected
  for(const id of ['legacyoverview','legacyusers','legacybranches','legacyregions','legacymeetings','legacymoms','legacycalls','legacycontacts','legacyaccounts','legacysources']){
   assert.match(app,new RegExp(id));
  }
- assert.match(app,/Yiron API connection not configured/);
+ assert.match(app,/Branches mirror awaiting its first validated snapshot/);
  assert.match(app,/page\.startsWith\('legacy'\)/);
  assert.match(workspace,/p\.startsWith\('legacy'\)/);
  assert.match(app,/\['ADMINISTRATION'/);
@@ -25,7 +25,8 @@ test('Yiron source registry and backend are strictly one-way, opt-in and gated',
  assert.match(source,/method:'POST'/);
  assert.match(source,/redirect:'error'/);
  assert.match(server,/path\[0\]==='yiron-analytics'/);
- assert.match(server,/method!=='GET'/);
+ assert.match(server,/publishedLegacyBranches\(client,url\)/);
+ assert.match(server,/requestLegacyRefresh\(client,/);
  assert.match(server,/current\.system_role!=='super_admin'/);
 });
 
