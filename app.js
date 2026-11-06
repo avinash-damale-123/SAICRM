@@ -60,7 +60,7 @@ const yironDomains=Object.fromEntries([
  ['branch_list_BI','legacybranches'],['region_master_data','legacyregions'],
  ['erv_account_view_post_for_superadmin','legacyaccounts'],['meeting_view_post_for_superadmin','legacymeetings'],
  ['call_log_view_post_for_superadmin','legacycalls'],['nca_account_view_post_for_superadmin','legacyaccounts']]);
-let yironCatalogState=null,yironCatalogError='',yironPreviewState=null,yironPreviewError='';
+let yironCatalogState=null,yironCatalogError='',yironPreviewState=null,yironPreviewError='',yironPreviewPage=1,yironPreviewSource='';
 const isYironAdmin=()=>window.SCRM?.user?.systemRole==='super_admin';
 async function loadYironCatalog(){
  if(!isYironAdmin())return;
@@ -77,7 +77,7 @@ function yironPreviewTable(){
  if(!arr.length)return '<p>No records returned by Yiron for this request.</p>';
  const cols=[...new Set(arr.slice(0,20).flatMap(v=>v&&typeof v==='object'&&!Array.isArray(v)?Object.keys(v):[]))].slice(0,22);
  if(!cols.length)return '<pre>'+esc(JSON.stringify(arr.slice(0,5),null,2).slice(0,6000))+'</pre>';
- return '<div class="table-wrap"><table><thead><tr>'+cols.map(k=>'<th>'+esc(k)+'</th>').join('')+'</tr></thead><tbody>'+arr.slice(0,50).map(row=>'<tr>'+cols.map(k=>'<td>'+esc(typeof row?.[k]==='object'?JSON.stringify(row[k]):row?.[k])+'</td>').join('')+'</tr>').join('')+'</tbody></table></div><p class="subtle">Showing up to 50 source rows and 22 source fields. No transformations or relationships have been applied.</p>';
+ return '<p class="subtle">Source: '+esc(yironPreviewState.source)+' · Requested rows '+((yironPreviewPage-1)*50+1)+'–'+(yironPreviewPage*50)+' · Returned '+arr.length+' records · Retrieved '+esc(yironPreviewState.fetchedAt||'')+'</p><div class="table-wrap"><table><thead><tr>'+cols.map(k=>'<th>'+esc(k)+'</th>').join('')+'</tr></thead><tbody>'+arr.slice(0,50).map(row=>'<tr>'+cols.map(k=>'<td>'+esc(typeof row?.[k]==='object'?JSON.stringify(row[k]):row?.[k])+'</td>').join('')+'</tr>').join('')+'</tbody></table></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px"><button class="btn" data-yiron-page="previous" '+(yironPreviewPage===1?'disabled':'')+'>Previous 50</button><span>Page '+yironPreviewPage+'</span><button class="btn" data-yiron-page="next" '+(arr.length<50?'disabled':'')+'>Next 50</button><button class="btn" data-yiron-page="refresh">Refresh</button></div><p class="subtle">Source columns are displayed without mapping. Up to 50 rows and 22 columns are shown per page; no operational CRM records are changed.</p>';
 }
 function legacyAnalyticsPage(p){
  const heading='<div class="page-heading"><div><div class="eyebrow">CRM ANALYTICS-Y1 / YIRON CRM</div><h1>'+esc(labels[p])+'</h1><p>One-way Yiron CRM data visibility. No write-back to Yiron or operational SAI-CRM records.</p></div></div>';
@@ -89,12 +89,13 @@ function legacyAnalyticsPage(p){
  const preview='<div class="panel"><div class="panel-header"><h3>Read-only data preview</h3></div><div class="panel-body" id="yironPreviewOutput">'+yironPreviewTable()+'</div></div>';
  if(p==='legacyoverview')return heading+status+'<div class="feature-grid">'+Object.entries(legacyDomains).map(([id,details])=>'<div class="feature"><h3>'+esc(details[0])+'</h3><p>'+esc(details[1])+'</p><p><button type="button" class="btn" data-nav="'+id+'">Open section</button></p></div>').join('')+'</div>'+sourcePanel+preview;
  if(p==='legacysources')return heading+status+sourcePanel+preview;
+ if(p==='legacybranches')return heading+status+'<div class="panel"><div class="panel-header"><h3>Yiron Branches — First API</h3></div><div class="panel-body"><p><strong>Source:</strong> <code>branch_list_BI</code>. This is a separate read-only Yiron Branch dataset, not the operational SAI-CRM Branch Master.</p><p class="subtle">Review original source identifiers, all returned fields and record completeness before confirming the Branch layout. No matching, merging or overwriting is performed.</p><button class="btn" data-yiron-preview="branch_list_BI" '+(enabled?'':'disabled')+'>Load Branches (first 50)</button></div></div>'+preview;
  const domain=legacyDomains[p];return heading+status+'<div class="panel"><div class="panel-header"><h3>'+esc(domain[0])+'</h3></div><div class="panel-body"><p>'+esc(domain[1])+'</p></div></div>'+sourcePanel+preview;
 }
-async function previewYironSource(source){
- yironPreviewError='';yironPreviewState=null;
+async function previewYironSource(source,requestedPage=1){
+ yironPreviewSource=source;yironPreviewPage=Math.max(1,requestedPage);yironPreviewError='';yironPreviewState=null;
  const output=$('#yironPreviewOutput');if(output)output.textContent='Loading source records…';
- try{yironPreviewState=await api('yiron-analytics/preview/'+encodeURIComponent(source)+'?from=1&to=50');}
+ try{yironPreviewState=await api('yiron-analytics/preview/'+encodeURIComponent(source)+'?from='+((yironPreviewPage-1)*50+1)+'&to='+(yironPreviewPage*50));}
  catch(error){yironPreviewError=error.message;}
  if(page.startsWith('legacy'))render();
 }
@@ -107,6 +108,7 @@ function render(){
  $('#content').innerHTML=page==='home'?homePage():page==='profile'?myProfile():page==='notifications'?notificationsPage():page==='overview'?overview():page==='mywork'?mywork():page==='analytics'?analytics():page.startsWith('legacy')?legacyAnalyticsPage(page):page==='modules'?modules():page==='settings'?settings():page==='audit'?audit():configs[page]?records(page):homePage();
  $('#content').querySelectorAll('[data-nav]').forEach(e=>e.onclick=()=>navigate(e.dataset.nav));
  $('#content').querySelectorAll('[data-yiron-preview]').forEach(e=>e.onclick=()=>previewYironSource(e.dataset.yironPreview));
+ $('#content').querySelectorAll('[data-yiron-page]').forEach(e=>e.onclick=()=>previewYironSource(yironPreviewSource,e.dataset.yironPage==='previous'?yironPreviewPage-1:e.dataset.yironPage==='next'?yironPreviewPage+1:yironPreviewPage));
  $('#content').querySelectorAll('[data-action]').forEach(e=>e.onclick=()=>handle(e.dataset.action));
  $('#content').querySelectorAll('[data-open]').forEach(e=>e.onclick=()=>detail(e.dataset.open));
  $('#content').querySelectorAll('[data-action="new"],[data-action="newLead"]').forEach(button=>button.hidden=!window.SCRM.can(button.dataset.action==='newLead'?'leads':page==='mywork'?'activities':page,'create'));
