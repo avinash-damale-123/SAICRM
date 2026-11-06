@@ -9,7 +9,7 @@ test('CRM Analytics-Y1 has separate sidebar navigation and read-only unconnected
  for(const id of ['legacyoverview','legacyusers','legacybranches','legacyregions','legacymeetings','legacymoms','legacycalls','legacycontacts','legacyaccounts','legacysources']){
   assert.match(app,new RegExp(id));
  }
- assert.match(app,/Connection not configured/);
+ assert.match(app,/Yiron API connection not configured/);
  assert.match(app,/page\.startsWith\('legacy'\)/);
  assert.match(workspace,/p\.startsWith\('legacy'\)/);
  assert.match(app,/\['ADMINISTRATION'/);
