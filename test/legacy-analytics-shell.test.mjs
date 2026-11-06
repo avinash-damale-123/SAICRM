@@ -56,5 +56,5 @@ test('Yiron Branches matches working Power BI endpoint, JSON request and paginat
  assert.deepEqual(JSON.parse(requests[0].body),{from:'1',to:'50'});
  assert.deepEqual(JSON.parse(requests[1].body),{from:'51',to:'100'});
  const app=await readFile('app.js','utf8');
- assert.match(app,/const query='\\?from='/);
+ assert.ok(app.includes("const query='?from='"));
 });
