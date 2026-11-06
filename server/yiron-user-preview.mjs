@@ -5,12 +5,13 @@ export async function readYironUserPreview(response,{maxBytes=120000000,maxPrevi
  const reader=response.body?.getReader();
  if(!reader)throw Object.assign(new Error('Yiron User Master response could not be streamed'),{status:502});
  const decoder=new TextDecoder();
- let bytes=0,buffer='',started=false,done=false,depth=0,inString=false,escaped=false,part='',count=0;
+ let bytes=0,buffer='',started=false,done=false,depth=0,inString=false,escaped=false,part='',count=0,rowStarted=false;
  const rows=[];
  const fail=message=>{throw Object.assign(new Error(message),{status:502});};
  const pushRow=()=>{
   const raw=part.trim();part='';
-  if(!raw)return;
+  if(!rowStarted)return;
+  rowStarted=false;
   count++;
   if(count>maxPreview)return;
   let value;try{value=JSON.parse(raw);}catch{fail('Yiron User Master contains invalid JSON records');}
@@ -42,6 +43,7 @@ export async function readYironUserPreview(response,{maxBytes=120000000,maxPrevi
     pos=0;
     for(const ch of remaining){
      if(done)break;
+     if(ch!==','&&!(ch===']'&&!inString&&depth===0)&&!/^\\s$/.test(ch))rowStarted=true;
      if(inString){if(count<maxPreview)part+=ch;if(escaped)escaped=false;else if(ch==='\\')escaped=true;else if(ch==='"')inString=false;continue;}
      if(ch==='"'){inString=true;if(count<maxPreview)part+=ch;continue;}
      if(ch==='['||ch==='{'){depth++;if(count<maxPreview)part+=ch;continue;}
@@ -60,6 +62,7 @@ export async function readYironUserPreview(response,{maxBytes=120000000,maxPrevi
    }
    for(const ch of chunk){
     if(done)break;
+    if(ch!==','&&!(ch===']'&&!inString&&depth===0)&&!/^\\s$/.test(ch))rowStarted=true;
     if(inString){if(count<maxPreview)part+=ch;if(escaped)escaped=false;else if(ch==='\\')escaped=true;else if(ch==='"')inString=false;continue;}
     if(ch==='"'){inString=true;if(count<maxPreview)part+=ch;continue;}
     if(ch==='['||ch==='{'){depth++;if(count<maxPreview)part+=ch;continue;}
@@ -72,7 +75,7 @@ export async function readYironUserPreview(response,{maxBytes=120000000,maxPrevi
     if(count<maxPreview){part+=ch;if(part.length>1048576)fail('Yiron User Master preview row exceeds 1 MB');}
    }
   }
-  if(!done)fail('Yiron User Master response ended before the data array was complete');
+  if(!done)fail('Yiron User Master response is not a complete record array');
   return {data:rows,returnedCount:count,previewLimited:count>maxPreview,upstreamBytesRead:bytes};
  }finally{await reader.cancel().catch(()=>{});reader.releaseLock();}
 }
