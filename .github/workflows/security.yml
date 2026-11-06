@@ -41,6 +41,7 @@ jobs:
       - run: node --check business-lines-ui.js
       - run: node --check department-master-ui.js && node --check server/department-master.mjs && node --check server/department-transfers.mjs
       - run: node --check server/organizational-role-master.mjs && node --check organizational-role-ui.js && node --check server/reporting-hierarchy-master.mjs && node --check reporting-hierarchy-ui.js && node --check server/module-master.mjs && node --check module-master-ui.js && node --check server/role-matrix.mjs && node --check role-matrix-ui.js
+      - run: node --check server/legacy-refresh.mjs && node --check server/legacy-worker.mjs && node --check api/index.js
       - run: npm test
       - name: Department migration and real PostgreSQL transfer acceptance
         run: node test/department-db-acceptance.mjs
@@ -52,6 +53,8 @@ jobs:
         run: node test/module-master-db-acceptance.mjs
       - name: Role Matrix migration and PostgreSQL permissions acceptance
         run: node test/role-matrix-db-acceptance.mjs
+      - name: Isolated Yiron Analytics-Y1 schema and durable snapshot acceptance
+        run: node test/legacy-analytics-db-acceptance.mjs
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
       - run: npm run test:business-browser
