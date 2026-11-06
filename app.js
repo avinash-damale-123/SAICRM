@@ -60,7 +60,7 @@ const yironDomains=Object.fromEntries([
  ['branch_list_BI','legacybranches'],['region_master_data','legacyregions'],
  ['erv_account_view_post_for_superadmin','legacyaccounts'],['meeting_view_post_for_superadmin','legacymeetings'],
  ['call_log_view_post_for_superadmin','legacycalls'],['nca_account_view_post_for_superadmin','legacyaccounts']]);
-let yironCatalogState=null,yironCatalogError='',yironPreviewState=null,yironPreviewError='',yironPreviewPage=1,yironPreviewSource='';
+let yironCatalogState=null,yironCatalogError='',yironPreviewState=null,yironPreviewError='',yironPreviewPage=1,yironPreviewSource='',yironSearch='';
 const isYironAdmin=()=>window.SCRM?.user?.systemRole==='super_admin';
 async function loadYironCatalog(){
  if(!isYironAdmin())return;
@@ -80,7 +80,7 @@ function yironPreviewTable(){
  if(!visible.length)return '<p>No published Branches records on this page.</p>';
  const cols=[...new Set(visible.slice(0,20).flatMap(v=>v&&typeof v==='object'&&!Array.isArray(v)?Object.keys(v):[]))].slice(0,22);
  if(!cols.length)return '<pre>'+esc(JSON.stringify(visible.slice(0,5),null,2).slice(0,6000))+'</pre>';
- return '<p class="subtle">Source: '+esc(yironPreviewState.source)+' · Requested rows '+((yironPreviewPage-1)*50+1)+'–'+(yironPreviewPage*50)+' · Returned '+arr.length+' source records · Published '+esc(yironPreviewState.fetchedAt||'')+'</p><div class="table-wrap"><table><thead><tr>'+cols.map(k=>'<th>'+esc(k)+'</th>').join('')+'</tr></thead><tbody>'+visible.slice(0,50).map(row=>'<tr>'+cols.map(k=>'<td>'+esc(typeof row?.[k]==='object'?JSON.stringify(row[k]):row?.[k])+'</td>').join('')+'</tr>').join('')+'</tbody></table></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px"><button class="btn" data-yiron-page="previous" '+(yironPreviewPage===1?'disabled':'')+'>Previous 50</button><span>Page '+yironPreviewPage+'</span><button class="btn" data-yiron-page="next" '+(yironPreviewPage*50>=Number(yironPreviewState.recordCount||0)?'disabled':'')+'>Next 50</button><button class="btn" data-yiron-page="refresh">Refresh</button></div><p class="subtle">Source columns are displayed without mapping. Up to 50 rows and 22 columns are shown per page; no operational CRM records are changed.</p>';
+ return '<p class="subtle">Source: '+esc(yironPreviewState.source)+' · Requested rows '+((yironPreviewPage-1)*50+1)+'–'+(yironPreviewPage*50)+' · Returned '+arr.length+' source records · Published '+esc(yironPreviewState.fetchedAt||'')+'</p><div class="table-wrap"><table><thead><tr>'+cols.map(k=>'<th>'+esc(k)+'</th>').join('')+'</tr></thead><tbody>'+visible.slice(0,50).map(row=>'<tr>'+cols.map(k=>'<td>'+esc(typeof row?.[k]==='object'?JSON.stringify(row[k]):row?.[k])+'</td>').join('')+'</tr>').join('')+'</tbody></table></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px"><button class="btn" data-yiron-page="previous" '+(yironPreviewPage===1?'disabled':'')+'>Previous 50</button><span>Page '+yironPreviewPage+'</span><button class="btn" data-yiron-page="next" '+(yironPreviewPage*50>=Number(yironPreviewState.filteredCount??yironPreviewState.recordCount??0)?'disabled':'')+'>Next 50</button><button class="btn" data-yiron-page="refresh">Refresh</button></div><p class="subtle">Source columns are displayed without mapping. Up to 50 rows and 22 columns are shown per page; no operational CRM records are changed.</p>';
 }
 function legacyAnalyticsPage(p){
  const heading='<div class="page-heading"><div><div class="eyebrow">CRM ANALYTICS-Y1 / YIRON CRM</div><h1>'+esc(labels[p])+'</h1><p>One-way Yiron CRM data visibility. No write-back to Yiron or operational SAI-CRM records.</p></div></div>';
@@ -97,7 +97,7 @@ function legacyAnalyticsPage(p){
  const preview='<div class="panel"><div class="panel-header"><h3>Read-only published records</h3></div><div class="panel-body" id="yironPreviewOutput">'+yironPreviewTable()+'</div></div>';
  if(p==='legacyoverview')return heading+statusWithHistory+'<div class="feature-grid">'+Object.entries(legacyDomains).map(([id,details])=>'<div class="feature"><h3>'+esc(details[0])+'</h3><p>'+esc(details[1])+'</p><p><button type="button" class="btn" data-nav="'+id+'">Open section</button></p></div>').join('')+'</div>'+sourcePanel+preview;
  if(p==='legacysources')return heading+statusWithHistory+sourcePanel+preview;
- if(p==='legacybranches')return heading+statusWithHistory+'<div class="panel"><div class="panel-header"><h3>Yiron Branches — First API</h3></div><div class="panel-body"><p><strong>Source:</strong> <code>branch_list_BI</code>. This is a separate read-only Yiron Branch dataset, not the operational SAI-CRM Branch Master.</p><p class="subtle">Review original source identifiers, all returned fields and record completeness before confirming the Branch layout. No matching, merging or overwriting is performed.</p><button class="btn" data-yiron-preview="branch_list_BI" '+(enabled?'':'disabled')+'>View Branches (first 50)</button> <button class="btn" data-yiron-refresh="branch_list_BI" '+(refreshAllowed?'':'disabled')+'>Start refresh</button> <button class="btn" data-yiron-export="csv" '+(enabled?'':'disabled')+'>Export CSV</button> <button class="btn" data-yiron-export="xlsx" '+(enabled?'':'disabled')+'>Export Excel</button></div></div>'+preview;
+ if(p==='legacybranches')return heading+statusWithHistory+'<div class="panel"><div class="panel-header"><h3>Yiron Branches — First API</h3></div><div class="panel-body"><p><strong>Source:</strong> <code>branch_list_BI</code>. This is a separate read-only Yiron Branch dataset, not the operational SAI-CRM Branch Master.</p><p class="subtle">Review original source identifiers, all returned fields and record completeness before confirming the Branch layout. No matching, merging or overwriting is performed.</p><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0"><input id="yironBranchSearch" class="input" type="search" maxlength="120" aria-label="Search published Branches by name, code or ID" placeholder="Search Branch Name, Code or ID" value="'+esc(yironSearch)+'" '+(enabled?'':'disabled')+'><button class="btn" data-yiron-search="1" '+(enabled?'':'disabled')+'>Search</button><button class="btn" data-yiron-clear="1" '+(enabled?'':'disabled')+'>Clear</button></div><button class="btn" data-yiron-preview="branch_list_BI" '+(enabled?'':'disabled')+'>View Branches (first 50)</button> <button class="btn" data-yiron-refresh="branch_list_BI" '+(refreshAllowed?'':'disabled')+'>Start refresh</button> <button class="btn" data-yiron-export="csv" '+(enabled?'':'disabled')+'>Export CSV</button> <button class="btn" data-yiron-export="xlsx" '+(enabled?'':'disabled')+'>Export Excel</button></div></div>'+preview;
  const domain=legacyDomains[p];return heading+statusWithHistory+'<div class="panel"><div class="panel-header"><h3>'+esc(domain[0])+'</h3></div><div class="panel-body"><p>'+esc(domain[1])+'</p></div></div>'+sourcePanel+preview;
 }
 async function requestYironRefresh(){
@@ -108,7 +108,7 @@ async function previewYironSource(source,requestedPage=1){
  
  yironPreviewSource=source;yironPreviewPage=Math.max(1,requestedPage);yironPreviewError='';yironPreviewState=null;
  const output=$('#yironPreviewOutput');if(output)output.textContent='Loading source records…';
- try{const query='?from='+((yironPreviewPage-1)*50+1)+'&to='+(yironPreviewPage*50);yironPreviewState=await api('yiron-analytics/preview/'+encodeURIComponent(source)+query);}
+ try{const query='?from='+((yironPreviewPage-1)*50+1)+'&to='+(yironPreviewPage*50)+'&q='+encodeURIComponent(yironSearch);yironPreviewState=await api('yiron-analytics/preview/'+encodeURIComponent(source)+query);}
  catch(error){yironPreviewError=error.message;}
  if(page.startsWith('legacy'))render();
 }
@@ -124,6 +124,10 @@ function render(){
  $('#content').querySelectorAll('[data-yiron-status]').forEach(e=>e.onclick=()=>loadYironCatalog());
  $('#content').querySelectorAll('[data-yiron-refresh]').forEach(e=>e.onclick=()=>requestYironRefresh());
  $('#content').querySelectorAll('[data-yiron-export]').forEach(e=>e.onclick=()=>{if(['csv','xlsx'].includes(e.dataset.yironExport))window.location.assign('/api/yiron-analytics/export/branch_list_BI?format='+e.dataset.yironExport);});
+ const applyYironSearch=()=>{yironSearch=($('#yironBranchSearch')?.value||'').trim().slice(0,120);previewYironSource('branch_list_BI',1);};
+ $('#content').querySelectorAll('[data-yiron-search]').forEach(e=>e.onclick=applyYironSearch);
+ $('#content').querySelectorAll('[data-yiron-clear]').forEach(e=>e.onclick=()=>{yironSearch='';previewYironSource('branch_list_BI',1);});
+ const yironSearchField=$('#yironBranchSearch');if(yironSearchField)yironSearchField.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();applyYironSearch();}};
  $('#content').querySelectorAll('[data-yiron-page]').forEach(e=>e.onclick=()=>previewYironSource(yironPreviewSource,e.dataset.yironPage==='previous'?yironPreviewPage-1:e.dataset.yironPage==='next'?yironPreviewPage+1:yironPreviewPage));
  $('#content').querySelectorAll('[data-action]').forEach(e=>e.onclick=()=>handle(e.dataset.action));
  $('#content').querySelectorAll('[data-open]').forEach(e=>e.onclick=()=>detail(e.dataset.open));
