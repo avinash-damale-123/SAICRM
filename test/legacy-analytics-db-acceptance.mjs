@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import pg from 'pg';
 import {transaction} from '../server/db.mjs';
-import {LEGACY_BRANCH_SOURCE,legacyMirrorStatus,publishedLegacyBranches,requestLegacyRefresh,processLegacyBranchRefresh} from '../server/legacy-refresh.mjs';
+import {LEGACY_BRANCH_SOURCE,legacyMirrorStatus,publishedLegacyBranches,requestLegacyRefresh,processLegacyBranchRefresh,exportPublishedLegacyBranches} from '../server/legacy-refresh.mjs';
 
 const cs=process.env.TEST_DATABASE_URL;
 assert.ok(cs,'TEST_DATABASE_URL required');
@@ -71,6 +71,15 @@ try{
  assert.equal(unpaged.done,true);
  assert.equal(unpaged.publishedCount,145,'A repeated 145-row unpaged response can be reconciled as one full snapshot');
  assert.equal((await pool.query("SELECT count(*)::int n FROM legacy_refresh_audit WHERE job_id=$1 AND action='unpaged_response_reconciled'",[fourth.jobId])).rows[0].n,1);
+ const csv=await transaction(pool,client=>exportPublishedLegacyBranches(client,{format:'csv'}));
+ assert.equal(csv.contentType,'text/csv; charset=utf-8');
+ assert.ok(Buffer.isBuffer(csv.bytes));
+ assert.match(csv.bytes.toString('utf8'),/branch_id/);
+ assert.match(csv.bytes.toString('utf8'),/BR-145/);
+ const excel=await transaction(pool,client=>exportPublishedLegacyBranches(client,{format:'xlsx'}));
+ assert.match(excel.contentType,/spreadsheetml/);
+ assert.equal(excel.bytes.subarray(0,2).toString('ascii'),'PK');
+ assert.equal((await pool.query("SELECT count(*)::int n FROM legacy_refresh_audit WHERE action='dataset_exported'")).rows[0].n,2);
  const fifth=await transaction(pool,client=>requestLegacyRefresh(client));
  let calls=0;
  const inconsistent=async()=>({data:(++calls===1?fullUnpaged:fullUnpaged.map((r,i)=>i===0?{...r,branch_name:'Mismatched'}:r))});
