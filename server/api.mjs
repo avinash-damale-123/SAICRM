@@ -1,4 +1,5 @@
 import { recordsFramework } from './records-framework.mjs';
+import { yironCatalog,fetchYironSource } from './yiron-analytics.mjs';
 import { countryRecordsFramework } from './country-records-framework.mjs';
 import { regionRecordsFramework } from './region-records-framework.mjs';
 import { branchMasterFramework } from './branch-master-framework.mjs';
@@ -284,6 +285,16 @@ export function createHandler({ pool, config, deliver = message => sendEmail(con
     const principal = publicUser(current);
     if (!principal.emailVerified || principal.status !== 'approved') fail(403, 'Access is not approved');
     if (mutation && !equal(req.headers['x-csrf-token'], user.csrf)) fail(403, 'Session check failed');
+    if(path[0]==='yiron-analytics'){
+     if(method!=='GET')fail(405,'Yiron analytics supports read-only requests');
+     // Sensitive cross-branch data must not be exposed to standard users until row-level
+     // access mappings are proven from actual Yiron response schemas.
+     if(current.system_role!=='super_admin')fail(403,'Yiron analytics requires Super Admin access');
+     await limit(client,config,'yiron:'+current.id,30,60);
+     if(path.length===2&&path[1]==='sources')return yironCatalog();
+     if(path.length===3&&path[1]==='preview')return await fetchYironSource(path[2],url);
+     fail(404,'Yiron analytics route not found');
+    }
     if (path[0] === 'search') {
      if (method !== 'GET' || path.length !== 1) fail(405, 'Method not allowed');
      await limit(client, config, 'search:' + current.id, 120, 60);
