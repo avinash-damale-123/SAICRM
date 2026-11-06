@@ -38,9 +38,10 @@ export function yironConfiguration(env=process.env){
  return {enabled:true,configured:true,base:base.origin,apiKey:env.YIRON_API_KEY};
 }
 export function yironCatalog(env=process.env){
- const config=yironConfiguration(env);
- return {enabled:config.enabled,configured:config.configured,mode:'read-only',source:'Yiron CRM',
-   sources:YIRON_SOURCES.map(({id,label,domain,path})=>({id,label,domain,path,status:config.enabled?'Available for manual retrieval':'Not connected'}))};
+ // A broken upstream configuration must not hide already published snapshots.
+ let config;try{config=yironConfiguration(env);}catch{config={enabled:false,configured:false};}
+ return {enabled:config.enabled,configured:config.configured,mode:'published-mirror',source:'Yiron CRM',
+   sources:YIRON_SOURCES.map(({id,label,domain,path})=>({id,label,domain,path,status:id==='branch_list_BI'&&config.enabled?'Connector configured; source requires verification':'Ingestion not connected'}))};
 }
 export async function fetchYironSource(sourceId,url,{env=process.env,fetchImpl=fetch}={}){
  const source=YIRON_SOURCE_MAP.get(sourceId);
