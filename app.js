@@ -68,7 +68,7 @@ async function loadYironCatalog(){
  catch(error){yironCatalogError=error.message;};
  if(page.startsWith('legacy'))render();
 }
-function sourceRowsForPage(rows,source,page){if(!Array.isArray(rows))return null;return source==='branch_list_BI'?rows.slice((page-1)*50,page*50):rows;}
+function sourceRowsForPage(rows,source,page){if(!Array.isArray(rows))return null;return rows;}
 function yironPreviewTable(){
  if(yironPreviewError)return '<p role="alert">'+esc(yironPreviewError)+'</p>';
  if(!yironPreviewState)return '<p class="subtle">Select a source to preview live Yiron records. Data is not imported or saved in SAI-CRM.</p>';
@@ -95,10 +95,10 @@ function legacyAnalyticsPage(p){
  const domain=legacyDomains[p];return heading+status+'<div class="panel"><div class="panel-header"><h3>'+esc(domain[0])+'</h3></div><div class="panel-body"><p>'+esc(domain[1])+'</p></div></div>'+sourcePanel+preview;
 }
 async function previewYironSource(source,requestedPage=1){
- if(source==='branch_list_BI'&&yironPreviewState&&yironPreviewSource===source&&requestedPage!==yironPreviewPage){yironPreviewPage=Math.max(1,requestedPage);render();return;}
+ 
  yironPreviewSource=source;yironPreviewPage=Math.max(1,requestedPage);yironPreviewError='';yironPreviewState=null;
  const output=$('#yironPreviewOutput');if(output)output.textContent='Loading source records…';
- try{const query=source==='branch_list_BI'?'':'?from='+((yironPreviewPage-1)*50+1)+'&to='+(yironPreviewPage*50);yironPreviewState=await api('yiron-analytics/preview/'+encodeURIComponent(source)+query);}
+ try{const query='?from='+((yironPreviewPage-1)*50+1)+'&to='+(yironPreviewPage*50);yironPreviewState=await api('yiron-analytics/preview/'+encodeURIComponent(source)+query);}
  catch(error){yironPreviewError=error.message;}
  if(page.startsWith('legacy'))render();
 }

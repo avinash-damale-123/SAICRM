@@ -38,3 +38,23 @@ test('Branches is the first Yiron dataset with paged read-only source visibility
  assert.match(app,/Next 50/);
  assert.match(app,/not the operational SAI-CRM Branch Master/);
 });
+
+
+test('Yiron Branches matches working Power BI endpoint, JSON request and pagination',async()=>{
+ const {fetchYironSource}=await import('../server/yiron-analytics.mjs');
+ const env={YIRON_ANALYTICS_ENABLED:'true',YIRON_API_BASE_URL:'https://crm.satgurutravel.com/',YIRON_API_KEY:'test-key-for-contract'};
+ const requests=[];
+ const fetchImpl=async(url,options)=>{
+  requests.push({url:String(url),method:options.method,headers:options.headers,body:options.body});
+  return new Response(JSON.stringify({data:[{branch_id:'1',branch_name:'Test Branch'}]}),{status:200,headers:{'content-type':'application/json'}});
+ };
+ await fetchYironSource('branch_list_BI',new URL('https://saicrm.vercel.app/api/yiron-analytics/preview/branch_list_BI'),{env,fetchImpl});
+ await fetchYironSource('branch_list_BI',new URL('https://saicrm.vercel.app/api/yiron-analytics/preview/branch_list_BI?from=51&to=100'),{env,fetchImpl});
+ assert.equal(requests[0].url,'https://crm.satgurutravel.com/api/branch_list_BI');
+ assert.equal(requests[0].method,'POST');
+ assert.equal(requests[0].headers['Content-Type'],'application/json');
+ assert.deepEqual(JSON.parse(requests[0].body),{from:'1',to:'50'});
+ assert.deepEqual(JSON.parse(requests[1].body),{from:'51',to:'100'});
+ const app=await readFile('app.js','utf8');
+ assert.ok(app.includes("const query='?from='"));
+});
