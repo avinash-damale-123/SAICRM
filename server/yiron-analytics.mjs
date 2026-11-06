@@ -63,7 +63,7 @@ export async function fetchYironSource(sourceId,url,{env=process.env,fetchImpl=f
   if(!String(response.headers.get('content-type')||'').includes('application/json'))
    throw Object.assign(new Error('Yiron returned an unsupported response format'),{status:502});
   const text=await response.text();
-  if(text.length>(sourceId==='last_login'?5000000:750000))throw Object.assign(new Error('Yiron response exceeds the display size limit'),{status:502});
+  if(text.length>(sourceId==='last_login'?20000000:750000))throw Object.assign(new Error('Yiron response exceeds the display size limit'),{status:502});
   let data;try{data=JSON.parse(text)}catch{throw Object.assign(new Error('Yiron response was not valid JSON'),{status:502});}
   if(sourceId==='last_login'){
    const rows=Array.isArray(data)?data:Array.isArray(data?.data)?data.data:null;
