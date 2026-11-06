@@ -7,17 +7,18 @@ import {fetchYironSource,yironConfiguration,yironRequestRange} from './yiron-ana
 export const LEGACY_BRANCH_SOURCE='branch_list_BI';
 export const LEGACY_PAGE_SIZE=50;
 const MAX_PAGES=400;
+const MAX_FULL_BRANCHES=1000;
 const temporaryCodes=new Set(['YIRON_TEMP','YIRON_TIMEOUT','YIRON_NETWORK']);
 const error=(status,message,code='LEGACY_VALIDATION')=>Object.assign(new Error(message),{status,code});
 const canonical=value=>Array.isArray(value)?'['+value.map(canonical).join(',')+']':value&&typeof value==='object'?'{'+Object.keys(value).sort().map(k=>JSON.stringify(k)+':'+canonical(value[k])).join(',')+'}':JSON.stringify(value);
 const digest=payload=>createHash('sha256').update(canonical(payload)).digest('hex');
 const iso=value=>value?new Date(value).toISOString():null;
 
-export function normalizeLegacyBranchPage(response,range){
+export function normalizeLegacyBranchPage(response,range,{allowFullUnpaged=false}={}){
  const value=response?.data;
  const rows=Array.isArray(value)?value:Array.isArray(value?.data)?value.data:Array.isArray(value?.records)?value.records:null;
  if(!Array.isArray(rows))throw error(422,'Yiron Branches response is not a recognized record array');
- if(rows.length>LEGACY_PAGE_SIZE)throw error(422,'Yiron returned more than the requested 50 records; pagination is unverified');
+ if(rows.length>MAX_FULL_BRANCHES||rows.length>LEGACY_PAGE_SIZE&&!allowFullUnpaged)throw error(422,'Yiron returned more than the permitted Branches records; pagination is unverified');
  if(rows.length && (!range||Number(range.from)<1))throw error(422,'Missing pagination boundary');
  const seen=new Set();
  return rows.map((record,index)=>{
@@ -85,21 +86,22 @@ async function terminalFailure(pool,jobId,problem){
  });
 }
 
-async function stageAndMaybePublish(pool,jobId,pageFrom,rows){
+async function stageAndMaybePublish(pool,jobId,pageFrom,rows,{fullUnpaged=false}={}){
  return transaction(pool,async client=>{
   await client.query("SET LOCAL lock_timeout='5s'");
   const job=(await client.query('SELECT * FROM legacy_refresh_jobs WHERE id=$1 FOR UPDATE',[jobId])).rows[0];
   if(!job||job.state!=='running'||!job.lease_until||new Date(job.lease_until)<new Date())return {done:false};
   const versionId=(await client.query("SELECT id FROM legacy_dataset_versions WHERE job_id=$1",[jobId])).rows[0]?.id||randomUUID();
   await client.query("INSERT INTO legacy_dataset_versions(id,source_id,job_id) VALUES($1,$2,$3) ON CONFLICT(job_id) DO NOTHING",[versionId,LEGACY_BRANCH_SOURCE,jobId]);
-  const batch=await client.query('INSERT INTO legacy_refresh_batches(job_id,page_from,page_to,response_count,response_hash,completed_at) VALUES($1,$2,$3,$4,$5,now()) ON CONFLICT(job_id,page_from,page_to) DO NOTHING RETURNING id',[jobId,pageFrom,pageFrom+LEGACY_PAGE_SIZE-1,rows.length,digest(rows.map(r=>r.hash))]);
+  const batch=await client.query('INSERT INTO legacy_refresh_batches(job_id,page_from,page_to,response_count,response_hash,completed_at) VALUES($1,$2,$3,$4,$5,now()) ON CONFLICT(job_id,page_from,page_to) DO NOTHING RETURNING id',[jobId,pageFrom,fullUnpaged?pageFrom+rows.length-1:pageFrom+LEGACY_PAGE_SIZE-1,rows.length,digest(rows.map(r=>r.hash))]);
   if(!batch.rowCount)return {done:false};
   // A conflicting ID across pages is a validation failure, not a silent upsert.
   for(const row of rows)await client.query('INSERT INTO legacy_source_records(dataset_version_id,source_record_id,payload,payload_hash) VALUES($1,$2,$3,$4)',[versionId,row.id,row.payload,row.hash]);
   await client.query('UPDATE legacy_refresh_jobs SET fetched_count=fetched_count+$2,validated_count=validated_count+$2,lease_owner=NULL,lease_until=NULL WHERE id=$1',[jobId,rows.length]);
   // Require one explicit empty page after the last short page, so an endpoint
   // ignoring from/to cannot silently publish a truncated first snapshot.
-  if(rows.length>0)return {done:false};
+  if(rows.length>0&&!fullUnpaged)return {done:false};
+  if(fullUnpaged)await client.query('INSERT INTO legacy_refresh_audit(job_id,source_id,action,details) VALUES($1,$2,$3,$4)',[jobId,LEGACY_BRANCH_SOURCE,'unpaged_response_reconciled',JSON.stringify({count:rows.length,confirmedWithTwoDisjointRanges:true})]);
   const count=Number((await client.query('SELECT count(*) AS n FROM legacy_source_records WHERE dataset_version_id=$1',[versionId])).rows[0].n);
   if(count<1)throw error(422,'Refusing to publish an empty Branches dataset');
   const previous=(await client.query("SELECT id,record_count FROM legacy_dataset_versions WHERE source_id=$1 AND status='published' FOR UPDATE",[LEGACY_BRANCH_SOURCE])).rows[0];
@@ -133,6 +135,21 @@ export async function stepLegacyBranchRefresh(pool,jobId,{fetchPage=fetchYironSo
   if(claim.done||!claim.from)return claim;
   const from=claim.from,to=from+LEGACY_PAGE_SIZE-1;
   const response=await fetchPage(LEGACY_BRANCH_SOURCE,new URL('https://saicrm.invalid/?from='+from+'&to='+to));
+  const data=response?.data;
+  const candidate=Array.isArray(data)?data:Array.isArray(data?.data)?data.data:Array.isArray(data?.records)?data.records:null;
+  if(Array.isArray(candidate)&&candidate.length>LEGACY_PAGE_SIZE){
+   if(from!==1)throw error(422,'Unexpected oversized response beyond the first page');
+   // The existing Yiron screenshot shows 145 records for a requested 1-50 range.
+   // An unpaged snapshot is accepted only when a disjoint-range request returns
+   // exactly the same IDs and canonical payloads, proving the range is ignored.
+   const confirmed=await fetchPage(LEGACY_BRANCH_SOURCE,new URL('https://saicrm.invalid/?from=51&to=100'));
+   const first=normalizeLegacyBranchPage(response,{from:'1',to:'50'},{allowFullUnpaged:true});
+   const second=normalizeLegacyBranchPage(confirmed,{from:'51',to:'100'},{allowFullUnpaged:true});
+   const fingerprint=records=>records.map(r=>r.id+':'+r.hash).sort().join('|');
+   if(first.length!==second.length||fingerprint(first)!==fingerprint(second))
+    throw error(422,'Yiron oversized responses differ between disjoint ranges; refusing an incomplete snapshot');
+   return stageAndMaybePublish(pool,jobId,1,first,{fullUnpaged:true});
+  }
   const rows=normalizeLegacyBranchPage(response,{from:String(from),to:String(to)});
   return await stageAndMaybePublish(pool,jobId,from,rows);
  }catch(problem){
