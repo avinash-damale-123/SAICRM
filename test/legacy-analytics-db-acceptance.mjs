@@ -43,6 +43,10 @@ try{
  assert.equal(browser.mode,'published-mirror');
  assert.equal(browser.data.length,50);
  assert.equal(browser.recordCount,105);
+ const searched=await publishedLegacyBranches(pool,new URL('https://saicrm.invalid/?from=1&to=50&q=Branch%20104'));
+ assert.equal(searched.filteredCount,1);
+ assert.equal(searched.data[0].branch_id,'BR-104');
+ await assert.rejects(()=>publishedLegacyBranches(pool,new URL('https://saicrm.invalid/?q='+('x'.repeat(121)))),/120 characters/);
  const second=await transaction(pool,client=>requestLegacyRefresh(client));
  const corrupted=async()=>({data:[{branch_id:'BR-001'},{branch_id:'BR-001'}]});
  const failed=await processLegacyBranchRefresh(pool,second.jobId,{budgetMs:12000,fetchPage:corrupted});
