@@ -1,3 +1,4 @@
+import { crmV3 } from './crm-v3.mjs';
 import { recordsFramework } from './records-framework.mjs';
 import { yironCatalog,fetchYironSource } from './yiron-analytics.mjs';
 import { countryRecordsFramework } from './country-records-framework.mjs';
@@ -304,6 +305,7 @@ export function createHandler({ pool, config, deliver = message => sendEmail(con
      if (method !== 'GET' || path.length !== 1) fail(405, 'Method not allowed');
      return await notificationsFeed(client, principal, current);
     }
+    if (path[0] === 'crm-v3') return await crmV3({client,user:current,path,method,url,body});
     if (path[0] === 'business-lines') return await recordsFramework({client,user:current,path,method,url,body});
     if (path[0] === 'countries') return await countryRecordsFramework({client,user:current,path,method,url,body});
     if (path[0] === 'regions') return await regionRecordsFramework({client,user:current,path,method,url,body});
