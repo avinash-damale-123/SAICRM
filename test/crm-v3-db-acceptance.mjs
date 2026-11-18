@@ -52,6 +52,7 @@ try {
  assert.equal(updated.profile.legalName,'Sample Corporate LLC');
  const submitted=(await run(['crfs',crf.id,'submit'],'POST',{version:updated.version})).record;
  assert.ok(submitted.submitted_at);
+ await assert.rejects(()=>run(['crfs',crf.id,'submit'],'POST',{version:submitted.version}),/already submitted/i);
  await assert.rejects(()=>run(['crfs',crf.id,'decide'],'POST',{version:submitted.version,decision:'Approved',evidenceVerified:true},sales),/requester cannot approve|explicit Finance approval access/i);
  await assert.rejects(()=>run(['crfs',crf.id,'decide'],'POST',{version:submitted.version,decision:'Approved',evidenceVerified:false},reviewer),/verify/i);
  const approved=await run(['crfs',crf.id,'decide'],'POST',{version:submitted.version,decision:'Approved',evidenceVerified:true},reviewer);
