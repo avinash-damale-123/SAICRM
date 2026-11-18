@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {SEGMENTS,TARGET_STAGES,LEAD_STAGES,CRF_STATUSES,segment,qualificationEvidence,requireCoreAccess,canSubmitCrf,canDecideFinance,validateFinanceDecision,restrictCrfProfile,validActivityLink,permitSequenceExecution} from '../server/crm-v3-policy.mjs';
 
-const admin={id:'admin',role:'admin',email_verified:true,status:'approved'};
+const admin={id:'admin',role:'admin',system_role:'super_admin',email_verified:true,status:'approved'};
 const sales={id:'sales',role:'member',email_verified:true,status:'approved'};
 const crf={id:'crf-1',lead_id:'lead-1',status:'In Progress',submitted_at:new Date(),created_by:'sales',submitted_by:'sales'};
 const lead={id:'lead-1',stage:'Commercially Won',commercial_won_at:new Date()};
@@ -22,8 +22,9 @@ test('Target cannot convert to Lead on a blank or token-only qualification',()=>
  denied(()=>qualificationEvidence('seen'),400);
  assert.equal(qualificationEvidence('Client requested travel-management proposal'),'Client requested travel-management proposal');
 });
-test('admin is permitted pilot core access, other user remains denied before permission-role linkage',()=>{
+test('only Super Admin is permitted pilot core access until scoped permission-role linkage',()=>{
  requireCoreAccess(admin);
+ denied(()=>requireCoreAccess({...admin,system_role:'user'}),403);
  denied(()=>requireCoreAccess(sales),403);
  denied(()=>requireCoreAccess({...admin,email_verified:false}),403);
  denied(()=>requireCoreAccess({...admin,status:'suspended'}),403);
