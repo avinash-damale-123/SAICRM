@@ -29,10 +29,12 @@ test('only Super Admin is permitted pilot core access until scoped permission-ro
  denied(()=>requireCoreAccess({...admin,email_verified:false}),403);
  denied(()=>requireCoreAccess({...admin,status:'suspended'}),403);
 });
-test('CRF submission requires Commercially Won and valid state',()=>{
- assert.equal(canSubmitCrf({crf,lead}),true);
- denied(()=>canSubmitCrf({crf,lead:{...lead,stage:'Negotiation'}}),409);
- denied(()=>canSubmitCrf({crf:{...crf,status:'Approved'},lead}),409);
+test('CRF submission requires Commercially Won, valid state, and must not repeat',()=>{
+ const draft={...crf,submitted_at:null};
+ assert.equal(canSubmitCrf({crf:draft,lead}),true);
+ denied(()=>canSubmitCrf({crf:draft,lead:{...lead,stage:'Negotiation'}}),409);
+ denied(()=>canSubmitCrf({crf:{...draft,status:'Approved'},lead}),409);
+ denied(()=>canSubmitCrf({crf,lead}),409);
 });
 test('Finance approval is explicit and maker-checker separation is enforced',()=>{
  const finance={...admin,id:'finance'};
