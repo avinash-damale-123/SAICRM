@@ -20,9 +20,9 @@ export function validLeadStage(value){return allowed(value,LEAD_STAGES,'Lead sta
 export function validCrfStatus(value){return allowed(value,CRF_STATUSES,'CRF status');}
 export function validActivityKind(value){return allowed(value,ACTIVITY_KINDS,'activity type');}
 export function canAccessCore(user){
- return user?.email_verified===true&&user?.status==='approved'&&(user?.system_role==='super_admin'||user?.role==='admin');
+ return user?.email_verified===true&&user?.status==='approved'&&user?.system_role==='super_admin';
 }
-export function requireCoreAccess(user){if(!canAccessCore(user))fail(403,'CRM v3 access requires an approved administrator until permission-role assignment is implemented');}
+export function requireCoreAccess(user){if(!canAccessCore(user))fail(403,'CRM v3 pilot requires an approved Super Admin until scoped permission-role assignment is implemented');}
 export function canDecideFinance({actor,crf,lead,financeAuthorized=false}){
  if(!canAccessCore(actor)||!financeAuthorized)fail(403,'Explicit Finance approval access is required');
  if(!crf||!lead||crf.lead_id!==lead.id)fail(404,'Linked CRF/Lead not found');
