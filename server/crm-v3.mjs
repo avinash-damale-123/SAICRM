@@ -49,6 +49,7 @@ async function list(client,kind,url){
   where+=' AND '+col+' ILIKE $'+args.length+" ESCAPE '\\'";
  }
  const branchId=url.searchParams.get('branchId');
+ if(branchId&&['globalclients'].includes(kind))fail(400,'This module is global and cannot be filtered by Branch');
  if(branchId){
   requiredUUID(branchId,'Branch ID');args.push(branchId);
   where+=' AND '+(kind==='crfs'?'l.branch_id':'t.branch_id')+'=$'+args.length;
