@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS crm_v3_leads (
  version int NOT NULL DEFAULT 1 CHECK(version>0),
  archived_at timestamptz,
  FOREIGN KEY(branch_id,business_line_id) REFERENCES branch_masters(id,business_line_id),
- CHECK((stage='Commercially Won')=(commercial_won_at IS NOT NULL))
+ CHECK(stage<>'Commercially Won' OR commercial_won_at IS NOT NULL)
 );
 CREATE INDEX IF NOT EXISTS crm_v3_leads_scope_v16 ON crm_v3_leads(business_line_id,branch_id,stage,updated_at DESC);
 
@@ -99,7 +99,7 @@ CREATE TABLE IF NOT EXISTS crm_v3_crfs (
  created_at timestamptz NOT NULL DEFAULT now(),
  updated_at timestamptz NOT NULL DEFAULT now(),
  version int NOT NULL DEFAULT 1 CHECK(version>0),
- CHECK((status='Approved')=(finance_decided_at IS NOT NULL AND finance_decided_by IS NOT NULL)),
+ CHECK(status NOT IN ('Approved','Rejected','Returned for Correction') OR (finance_decided_at IS NOT NULL AND finance_decided_by IS NOT NULL)),
  CHECK(status<>'Approved' OR submitted_at IS NOT NULL)
 );
 CREATE INDEX IF NOT EXISTS crm_v3_crf_review_v16 ON crm_v3_crfs(status,submitted_at);
@@ -277,7 +277,7 @@ BEGIN
  IF EXISTS(SELECT 1 FROM pg_roles WHERE rolname='saicrm_runtime') THEN
   GRANT SELECT,INSERT,UPDATE ON crm_v3_global_clients,crm_v3_targets,crm_v3_leads,crm_v3_crfs,crm_v3_accounts,crm_v3_contacts,crm_v3_activities,crm_v3_campaigns,crm_v3_campaign_recipients,crm_v3_campaign_step_execution,crm_v3_contact_suppression TO saicrm_runtime;
   GRANT SELECT,INSERT ON crm_v3_contact_links,crm_v3_campaign_steps,crm_v3_events TO saicrm_runtime;
-  GRANT USAGE,SELECT ON ALL SEQUENCES IN SCHEMA public TO saicrm_runtime;
+  GRANT USAGE,SELECT ON SEQUENCE crm_v3_global_clients_sequence_no_seq,crm_v3_targets_sequence_no_seq,crm_v3_leads_sequence_no_seq,crm_v3_crfs_sequence_no_seq,crm_v3_accounts_sequence_no_seq,crm_v3_contacts_sequence_no_seq,crm_v3_activities_sequence_no_seq,crm_v3_campaigns_sequence_no_seq,crm_v3_events_id_seq TO saicrm_runtime;
  END IF;
 END $grants$;
 INSERT INTO schema_migrations(version) VALUES(16) ON CONFLICT DO NOTHING;
