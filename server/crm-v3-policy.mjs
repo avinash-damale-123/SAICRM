@@ -41,6 +41,7 @@ export function canSubmitCrf({crf,lead}){
  if(!crf||!lead||crf.lead_id!==lead.id)fail(404,'Linked CRF/Lead not found');
  if(lead.stage!=='Commercially Won'||!lead.commercial_won_at)fail(409,'Complete the commercial win before CRF submission');
  if(!['Pending','In Progress','Returned for Correction'].includes(crf.status))fail(409,'The CRF cannot be submitted from its current status');
+ if(crf.submitted_at&&crf.status!=='Returned for Correction')fail(409,'The CRF is already submitted for Finance review');
  return true;
 }
 export function restrictCrfProfile(input){
