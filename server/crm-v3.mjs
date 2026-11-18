@@ -107,7 +107,7 @@ async function createActivity(client,user,body){
 async function createCampaign(client,user,body){
  only(body,['name','businessLineId','branchId','purpose']);
  const scope=await branch(client,body.businessLineId,body.branchId),id=randomUUID();
- const r=await client.query('INSERT INTO crm_v3_campaigns(id,name,business_line_id,branch_id,purpose,owner_id,created_by) VALUES($1,$2,$3,$4,$5,$6,$6) RETURNING *',
+ const r=await client.query('INSERT INTO crm_v3_campaigns(id,name,business_line_id,branch_id,purpose,owner_id,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$6,$6,$6) RETURNING *',
  [id,txt(body.name,'Campaign Name',200,true),scope.business_line_id,scope.id,body.purpose==='Operational'?'Operational':'Marketing',user.id]);
  await event(client,user,'Campaign',id,'Created',{status:'Draft',sendingEnabled:false});return{record:r.rows[0],sendingEnabled:false};
 }
