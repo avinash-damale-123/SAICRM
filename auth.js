@@ -5,7 +5,7 @@
  let email='', csrf='', user=null, loaded=false, mode='login', resetToken='', googleEnabled=false, remember=false;
  let authInitializing=true;
  const resourceMap={businesslines:'BUSINESS_LINES',countries:'COUNTRIES',regions:'REGIONS',branchmaster:'BRANCH_MASTER',departmentmaster:'DEPARTMENT_MASTER',orgroles:'ORGANIZATIONAL_ROLE_MASTER',reportinghierarchy:'REPORTING_HIERARCHY_MASTER',modulemaster:'MODULE_MASTER',rolematrix:'ROLE_MATRIX',
- leads:'LEADS',customers:'CUSTOMERS',contacts:'CONTACTS',opportunities:'OPPORTUNITIES',activities:'ACTIVITIES',quotes:'QUOTES',bookings:'BOOKINGS',employees:'EMPLOYEES',branches:'BRANCHES_LEGACY',audit:'AUDIT',access:'USER_ACCESS',modules:'MODULE_DIRECTORY',home:'HOME',profile:'PROFILE',settings:'SETTINGS',overview:'OVERVIEW',mywork:'MY_WORK',analytics:'ANALYTICS',notifications:'NOTIFICATIONS'};
+ leads:'LEADS',customers:'CUSTOMERS',contacts:'CONTACTS',opportunities:'OPPORTUNITIES',activities:'ACTIVITIES',quotes:'QUOTES',bookings:'BOOKINGS',employees:'EMPLOYEES',branches:'BRANCHES_LEGACY',audit:'AUDIT',access:'USER_ACCESS',modules:'MODULE_DIRECTORY',home:'HOME',profile:'PROFILE',settings:'SETTINGS',overview:'OVERVIEW',mywork:'MY_WORK',analytics:'ANALYTICS',notifications:'NOTIFICATIONS',v3targets:'CRM_V3_TARGETS',v3leads:'CRM_V3_LEADS',v3crfs:'CRM_V3_CRFS',v3accounts:'CRM_V3_ACCOUNTS',v3contacts:'CRM_V3_CONTACTS',v3activities:'CRM_V3_ACTIVITIES',v3campaigns:'CRM_V3_CAMPAIGNS',v3dashboard:'CRM_V3_DASHBOARD',v3globalclients:'CRM_V3_GLOBAL_CLIENTS'};
  let eligibleKeys=null;
 
  function captureReset(){const params=new URLSearchParams(location.hash.slice(1));if(!params.has('reset'))return false;resetToken=params.get('reset');email=params.get('email')||'';mode='reset';history.replaceState(null,'',location.pathname);document.querySelector('#overlay').classList.add('hidden');return true}
@@ -25,6 +25,7 @@
  function can(module,action='read') {
   if(eligibleKeys&&user?.systemRole!=='super_admin'&&resourceMap[module]&&!eligibleKeys.has(resourceMap[module]))return false;
   if(!user||user.status!=='approved'||!user.emailVerified)return false;
+  if(module.startsWith('v3'))return user.systemRole==='super_admin'||(!!eligibleKeys&&!!resourceMap[module]&&eligibleKeys.has(resourceMap[module])&&['read','search','filter','dashboard'].includes(action));
   if(['businesslines','countries'].includes(module))return user.systemRole==='super_admin';
   if(module==='regions')return user.systemRole==='super_admin'||user.role==='admin';
   if(module==='branchmaster'||module==='departmentmaster'||module==='orgroles'||module==='reportinghierarchy'||module==='modulemaster')return user.systemRole==='super_admin';
