@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto';
+import {accessFor,requireAction,recordScope,scopedSql,operationalResources,roleAssignmentsApi} from './crm-v3-access.mjs';
 import {requireCoreAccess,segment,cleanText,qualificationEvidence,commercialWinEvidence,validateLeadStageTransition,validTargetStage,validLeadStage,validActivityKind,validActivityLink,canSubmitCrf,canDecideFinance,validateFinanceDecision,restrictCrfProfile} from './crm-v3-policy.mjs';
 
 const fail=(status,message)=>{throw Object.assign(new Error(message),{status});};
@@ -38,24 +39,28 @@ async function event(client,user,kind,id,action,changes={},reason=''){
  await client.query('INSERT INTO crm_v3_events(entity_kind,entity_id,action,actor_id,changes,reason) VALUES($1,$2,$3,$4,$5::jsonb,$6)',[kind,id,action,user.id,safe,reason]);
  await client.query('INSERT INTO audit(actor,action,module,record_id) VALUES($1,$2,$3,$4)',[user.id,action,'crm-v3:'+kind,id]);
 }
-async function list(client,kind,url){
+async function list(client,kind,url,user){
+ const access=await accessFor(client,user,kind,'View');
+ if(!access.has)fail(403,'This CRM module is not available for your assigned Role Matrix');
  const table=tables[kind],limit=limitOf(url),page=pageOf(url),offset=(page-1)*limit;
  const q=txt(url.searchParams.get('q'),'Search',160,false);
  let from=table+' t',where=' WHERE 1=1',args=[];
- if(kind==='crfs'){from+=' JOIN crm_v3_leads l ON l.id=t.lead_id';}
+ if(kind==='crfs')from+=' JOIN crm_v3_leads l ON l.id=t.lead_id';
  if(q){
   args.push('%'+q.replace(/[%_\\]/g,'\\$&')+'%');
   const col=kind==='crfs'?'l.name':kind==='contacts'?'t.full_name':kind==='activities'?'t.subject':'t.name';
   where+=' AND '+col+' ILIKE $'+args.length+" ESCAPE '\\'";
  }
  const branchId=url.searchParams.get('branchId');
- if(branchId&&['globalclients'].includes(kind))fail(400,'This module is global and cannot be filtered by Branch');
+ if(branchId&&kind==='globalclients')fail(400,'Global Client identity is not Branch-specific');
  if(branchId){
   requiredUUID(branchId,'Branch ID');args.push(branchId);
-  where+=' AND '+(kind==='crfs'?'l.branch_id':'t.branch_id')+'=$'+args.length;
+  const field=kind==='crfs'?'l.branch_id':kind==='activities'?'COALESCE(tg.branch_id,ld.branch_id,ac.branch_id)':'t.branch_id';
+  where+=' AND '+field+'=$'+args.length;
  }
  const status=url.searchParams.get('status');
  if(status){args.push(status);where+=' AND t.'+(kind==='targets'||kind==='leads'?'stage':'status')+'=$'+args.length;}
+ if(!access.all){const scoped=scopedSql(kind,access,user,args,where);from=scoped.join;where=scoped.where;}
  const count=(await client.query('SELECT count(*)::int AS count FROM '+from+where,args)).rows[0]?.count||0;
  args.push(limit,offset);
  const rows=await client.query('SELECT t.*'+(kind==='crfs'?',l.name AS lead_name,l.segment,l.branch_id,l.business_line_id':'')+
@@ -72,9 +77,10 @@ function assertSameScope(first,second){
  if(first.business_line_id!==second.business_line_id||first.branch_id!==second.branch_id)fail(403,'Cross-Branch or cross-Business Line linking requires a separate authorized mapping');
 }
 function userIsFinanceReviewer(user,request){
- // Pilot safety ceiling: only a distinct approved Super Admin may approve.
- // Later replace with effective-dated Role Matrix assignment and Finance queue scope.
- return user?.system_role==='super_admin'&&user.id!==request.created_by&&user.id!==request.submitted_by;
+ // The API checks the actor's effective, active Finance Department Approve
+ // assignment for the Lead's Branch before entering the decision transaction.
+ return user?.email_verified===true&&user?.status==='approved'&&
+  user.id!==request.created_by&&user.id!==request.submitted_by;
 }
 async function createTarget(client,user,body){
  only(body,['name','segment','businessLineId','branchId','source','assignedUserId','globalClientId']);
@@ -223,46 +229,105 @@ async function linkContact(client,user,id,body){
  await event(client,user,'Contact',id,'Linked to '+linked.kind,{linkId,entityId:linked.id});
  return{link:r.rows[0]};
 }
-async function getDashboard(client){
+async function getDashboard(client,user){
  const keys=['targets','leads','crfs','accounts','contacts','activities','campaigns'];
- const out={};for(const kind of keys){
-  const field=kind==='targets'||kind==='leads'?'stage':'status',r=await client.query('SELECT '+field+' AS category,count(*)::int AS total FROM '+tables[kind]+' GROUP BY '+field+' ORDER BY '+field);
+ const out={};
+ for(const kind of keys){
+  const access=await accessFor(client,user,kind,'View');
+  if(!access.has){out[kind]={total:0,byStatus:[],notAuthorized:true};continue;}
+  const field=kind==='targets'||kind==='leads'?'stage':'status';
+  let from=tables[kind]+' t',where='',args=[];
+  if(kind==='crfs')from+=' JOIN crm_v3_leads l ON l.id=t.lead_id';
+  if(!access.all){const sc=scopedSql(kind,access,user,args,' WHERE 1=1');from=sc.join;where=sc.where;}
+  const r=await client.query('SELECT t.'+field+' AS category,count(*)::int AS total FROM '+from+where+
+   ' GROUP BY t.'+field+' ORDER BY t.'+field,args);
   out[kind]={total:r.rows.reduce((a,x)=>a+x.total,0),byStatus:r.rows};
  }
- return{metrics:out,source:'SAI-CRM v3 operational records',separateFromActualSales:true};
+ return {metrics:out,source:'SAI-CRM v3 operational records',separateFromActualSales:true};
 }
 export async function crmV3({client,user,path,method,url,body={}}){
- requireCoreAccess(user);
  if(path[0]!=='crm-v3')fail(404,'Not found');
  const kind=path[1];
+ if(kind==='access')return await roleAssignmentsApi({client,user,path,method,body});
  if(kind==='bootstrap'&&method==='GET'&&path.length===2){
-  const branches=await client.query("SELECT b.id,b.display_id,b.code,b.name,b.business_line_id,bl.name AS business_line,c.name AS country FROM branch_masters b JOIN business_lines bl ON bl.id=b.business_line_id JOIN countries c ON c.id=b.country_id JOIN regions rg ON rg.id=b.region_id JOIN country_business_lines cb ON cb.country_id=c.id AND cb.business_line_id=bl.id AND cb.removed_at IS NULL WHERE b.status='Active' AND b.archived_at IS NULL AND b.deleted_at IS NULL AND bl.status='Active' AND bl.archived_at IS NULL AND bl.deleted_at IS NULL AND c.status='Active' AND c.archived_at IS NULL AND c.deleted_at IS NULL AND rg.status='Active' AND rg.archived_at IS NULL AND rg.deleted_at IS NULL ORDER BY bl.name,b.name LIMIT 1000");
-  return{branches:branches.rows,segments:['Corporate','Non-IATA'],targetStages:['New','Contact Attempted','Contacted','On Hold','Closed/Not Interested'],leadStages:['Qualified','Hot','Proposal Submitted','Negotiation','Commercially Won','Closed & Dead'],crfStatuses:['Pending','In Progress','Returned for Correction','Approved','Rejected','Cancelled'],permissions:{read:true,create:true,financeApprove:user.system_role==='super_admin',emailSending:false},status:'Pilot API: Finance documents require independent verification; connected outbound email sending is disabled'};
+  const keys=['targets','leads','crfs','accounts','contacts','activities','campaigns','dashboard'];
+  const views=await Promise.all(keys.map(k=>accessFor(client,user,k,'View')));
+  if(!views.some(g=>g.has))fail(403,'No active operational CRM role has been assigned');
+  const all=views.some(g=>g.all),branchIds=[...new Set(views.flatMap(g=>[...g.branch,...g.mine]))];
+  const query="SELECT b.id,b.display_id,b.code,b.name,b.business_line_id,bl.name AS business_line,c.name AS country "+
+    "FROM branch_masters b JOIN business_lines bl ON bl.id=b.business_line_id JOIN countries c ON c.id=b.country_id "+
+    "JOIN regions rg ON rg.id=b.region_id JOIN country_business_lines cb ON cb.country_id=c.id AND cb.business_line_id=bl.id AND cb.removed_at IS NULL "+
+    "WHERE b.status='Active' AND b.archived_at IS NULL AND b.deleted_at IS NULL AND bl.status='Active' AND bl.archived_at IS NULL "+
+    "AND bl.deleted_at IS NULL AND c.status='Active' AND c.archived_at IS NULL AND c.deleted_at IS NULL "+
+    "AND rg.status='Active' AND rg.archived_at IS NULL AND rg.deleted_at IS NULL "+
+    (all?"":"AND b.id=ANY($1::uuid[]) ")+"ORDER BY bl.name,b.name LIMIT 1000";
+  const branches=await client.query(query,all?[]:[branchIds]);
+  const finance=await accessFor(client,user,'crfs','Approve');
+  const canCreate=(await accessFor(client,user,'targets','Create')).has;
+  return {branches:branches.rows,segments:['Corporate','Non-IATA'],targetStages:['New','Contact Attempted','Contacted','On Hold','Closed/Not Interested'],leadStages:['Qualified','Hot','Proposal Submitted','Negotiation','Commercially Won','Closed & Dead'],crfStatuses:['Pending','In Progress','Returned for Correction','Approved','Rejected','Cancelled'],permissions:{read:true,create:canCreate,financeApprove:finance.has,emailSending:false},status:'Branch-scoped Role Matrix permissions. Finance decisions require a separately assigned active Finance Department Approve role. Outbound email sending is disabled.'};
  }
- if(kind==='dashboard'&&method==='GET'&&path.length===2)return await getDashboard(client);
+ if(kind==='dashboard'&&method==='GET'&&path.length===2){
+  if(!(await accessFor(client,user,'dashboard','View')).has)fail(403,'Dashboard permission is required');
+  return await getDashboard(client,user);
+ }
  if(kind==='history'&&method==='GET'&&path.length===4){
   const type=path[2],id=requiredUUID(path[3],'history ID');
-  if(!Object.values(entityKind).includes(type))fail(404,'Invalid history type');
+  const reverse=Object.entries(entityKind).find(([,name])=>name===type);
+  if(!reverse)fail(404,'Invalid history type');
+  await recordScope(client,user,reverse[0],id,'View');
   const rows=await client.query('SELECT e.id,e.action,e.changes,e.reason,e.created_at,u.name AS actor FROM crm_v3_events e JOIN users u ON u.id=e.actor_id WHERE e.entity_kind=$1 AND e.entity_id=$2 ORDER BY e.id DESC LIMIT 200',[type,id]);
   return{history:rows.rows};
  }
  if(!Object.hasOwn(tables,kind))fail(404,'CRM module not found');
- if(method==='GET'&&path.length===2)return await list(client,kind,url);
- if(method==='GET'&&path.length===3)return {record:await record(client,tables[kind],path[2])};
+ if(method==='GET'&&path.length===2)return await list(client,kind,url,user);
+ if(method==='GET'&&path.length===3){
+  await recordScope(client,user,kind,path[2],'View');
+  return {record:await record(client,tables[kind],path[2])};
+ }
  if(method==='POST'&&path.length===2){
-  if(kind==='targets')return await createTarget(client,user,body);
-  if(kind==='contacts')return await createContact(client,user,body);
-  if(kind==='activities')return await createActivity(client,user,body);
-  if(kind==='campaigns')return await createCampaign(client,user,body);
-  if(kind==='globalclients')return await createGlobalClient(client,user,body);
+  if(kind==='globalclients'){
+   if(user.system_role!=='super_admin')fail(403,'Global Client is centrally Admin-controlled');
+   return await createGlobalClient(client,user,body);
+  }
+  if(['targets','contacts','campaigns'].includes(kind)){
+   await requireAction(client,user,kind,'Create',body?.branchId,user.id);
+   if(kind==='targets')return await createTarget(client,user,body);
+   if(kind==='contacts')return await createContact(client,user,body);
+   return await createCampaign(client,user,body);
+  }
+  if(kind==='activities'){
+   const linked=await linkedBusiness(client,body||{});
+   await recordScope(client,user,linked.kind,linked.id,'View');
+   await requireAction(client,user,'activities','Create',linked.record.branch_id,user.id);
+   return await createActivity(client,user,body);
+  }
   fail(405,'This record type is created only through the approved conversion/Finance workflow');
  }
- if(kind==='targets'&&method==='POST'&&path.length===4&&path[3]==='qualify')return await qualifyTarget(client,user,path[2],body);
- if(kind==='targets'&&method==='PUT'&&path.length===3)return await updateTarget(client,user,path[2],body);
- if(kind==='leads'&&method==='PUT'&&path.length===3)return await updateLead(client,user,path[2],body);
- if(kind==='crfs'&&method==='PUT'&&path.length===3)return await updateCrf(client,user,path[2],body);
- if(kind==='crfs'&&method==='POST'&&path.length===4&&path[3]==='submit')return await submitCrf(client,user,path[2],body);
- if(kind==='crfs'&&method==='POST'&&path.length===4&&path[3]==='decide')return await decideCrf(client,user,path[2],body);
- if(kind==='contacts'&&method==='POST'&&path.length===4&&path[3]==='link')return await linkContact(client,user,path[2],body);
+ if(kind==='targets'&&method==='POST'&&path.length===4&&path[3]==='qualify'){
+  await recordScope(client,user,'targets',path[2],'Edit');
+  const tgt=await record(client,tables.targets,path[2]);
+  await requireAction(client,user,'leads','Create',tgt.branch_id,tgt.owner_id);
+  return await qualifyTarget(client,user,path[2],body);
+ }
+ if(['targets','leads','crfs'].includes(kind)&&method==='PUT'&&path.length===3){
+  await recordScope(client,user,kind,path[2],'Edit');
+  if(kind==='targets')return await updateTarget(client,user,path[2],body);
+  if(kind==='leads')return await updateLead(client,user,path[2],body);
+  return await updateCrf(client,user,path[2],body);
+ }
+ if(kind==='crfs'&&method==='POST'&&path.length===4&&path[3]==='submit'){
+  await recordScope(client,user,'crfs',path[2],'Edit');
+  return await submitCrf(client,user,path[2],body);
+ }
+ if(kind==='crfs'&&method==='POST'&&path.length===4&&path[3]==='decide'){
+  await recordScope(client,user,'crfs',path[2],'Approve');
+  return await decideCrf(client,user,path[2],body);
+ }
+ if(kind==='contacts'&&method==='POST'&&path.length===4&&path[3]==='link'){
+  await recordScope(client,user,'contacts',path[2],'Edit');
+  const linked=await linkedBusiness(client,body||{});
+  await recordScope(client,user,linked.kind,linked.id,'View');
+  return await linkContact(client,user,path[2],body);
+ }
  fail(405,'CRM action is not available');
 }
