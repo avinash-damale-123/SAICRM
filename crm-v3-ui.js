@@ -74,7 +74,7 @@ function mount(root,pageId){
    if(!bootstrap){bootstrap=await api('crm-v3/bootstrap');}
    if(kind==='dashboard')detail=await api('crm-v3/dashboard');
    else {const params=new URLSearchParams({page:String(page),limit:'25'});if(q)params.set('q',q);if(status)params.set('status',status);const res=await api('crm-v3/'+kind+'?'+params);rows=res.records||[];total=res.total||0;}
-  }catch(e){error=e?.message||'Unable to read CRM v3. Migration 016 may not be applied to this environment.';rows=[];total=0;}
+  }catch(e){error=e?.message||'Unable to read CRM v3. Migration 017 may not be applied to this environment.';rows=[];total=0;}
   loading=false;render();
  }
  function show(kindOfForm,item){
