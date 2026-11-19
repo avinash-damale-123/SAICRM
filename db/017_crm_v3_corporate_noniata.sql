@@ -4,7 +4,7 @@ SET LOCAL search_path TO public, pg_catalog;
 -- This migration requires a tested database recovery point before Production application.
 
 -- Composite FK ensures that every operational Branch stays in its canonical Business Line.
-CREATE UNIQUE INDEX IF NOT EXISTS branch_masters_id_line_v16
+CREATE UNIQUE INDEX IF NOT EXISTS branch_masters_id_line_v17
  ON branch_masters (id,business_line_id);
 
 CREATE TABLE IF NOT EXISTS crm_v3_global_clients (
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS crm_v3_global_clients (
  version int NOT NULL DEFAULT 1 CHECK(version>0),
  CHECK(parent_id IS NULL OR parent_id<>id)
 );
-CREATE INDEX IF NOT EXISTS crm_v3_global_clients_name_v16 ON crm_v3_global_clients(lower(name));
+CREATE INDEX IF NOT EXISTS crm_v3_global_clients_name_v17 ON crm_v3_global_clients(lower(name));
 
 CREATE TABLE IF NOT EXISTS crm_v3_targets (
  id uuid PRIMARY KEY,
@@ -49,8 +49,8 @@ CREATE TABLE IF NOT EXISTS crm_v3_targets (
  archived_at timestamptz,
  FOREIGN KEY(branch_id,business_line_id) REFERENCES branch_masters(id,business_line_id)
 );
-CREATE INDEX IF NOT EXISTS crm_v3_targets_scope_v16 ON crm_v3_targets(business_line_id,branch_id,stage,updated_at DESC);
-CREATE INDEX IF NOT EXISTS crm_v3_targets_name_v16 ON crm_v3_targets(lower(name));
+CREATE INDEX IF NOT EXISTS crm_v3_targets_scope_v17 ON crm_v3_targets(business_line_id,branch_id,stage,updated_at DESC);
+CREATE INDEX IF NOT EXISTS crm_v3_targets_name_v17 ON crm_v3_targets(lower(name));
 
 CREATE TABLE IF NOT EXISTS crm_v3_leads (
  id uuid PRIMARY KEY,
@@ -79,7 +79,7 @@ CREATE TABLE IF NOT EXISTS crm_v3_leads (
  FOREIGN KEY(branch_id,business_line_id) REFERENCES branch_masters(id,business_line_id),
  CHECK(stage<>'Commercially Won' OR commercial_won_at IS NOT NULL)
 );
-CREATE INDEX IF NOT EXISTS crm_v3_leads_scope_v16 ON crm_v3_leads(business_line_id,branch_id,stage,updated_at DESC);
+CREATE INDEX IF NOT EXISTS crm_v3_leads_scope_v17 ON crm_v3_leads(business_line_id,branch_id,stage,updated_at DESC);
 
 CREATE TABLE IF NOT EXISTS crm_v3_crfs (
  id uuid PRIMARY KEY,
@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS crm_v3_crfs (
  CHECK(status NOT IN ('Approved','Rejected','Returned for Correction') OR (finance_decided_at IS NOT NULL AND finance_decided_by IS NOT NULL)),
  CHECK(status<>'Approved' OR submitted_at IS NOT NULL)
 );
-CREATE INDEX IF NOT EXISTS crm_v3_crf_review_v16 ON crm_v3_crfs(status,submitted_at);
+CREATE INDEX IF NOT EXISTS crm_v3_crf_review_v17 ON crm_v3_crfs(status,submitted_at);
 
 CREATE TABLE IF NOT EXISTS crm_v3_accounts (
  id uuid PRIMARY KEY,
@@ -124,7 +124,7 @@ CREATE TABLE IF NOT EXISTS crm_v3_accounts (
  version int NOT NULL DEFAULT 1 CHECK(version>0),
  FOREIGN KEY(branch_id,business_line_id) REFERENCES branch_masters(id,business_line_id)
 );
-CREATE INDEX IF NOT EXISTS crm_v3_accounts_scope_v16 ON crm_v3_accounts(business_line_id,branch_id,status,updated_at DESC);
+CREATE INDEX IF NOT EXISTS crm_v3_accounts_scope_v17 ON crm_v3_accounts(business_line_id,branch_id,status,updated_at DESC);
 
 CREATE TABLE IF NOT EXISTS crm_v3_contacts (
  id uuid PRIMARY KEY,
@@ -147,7 +147,7 @@ CREATE TABLE IF NOT EXISTS crm_v3_contacts (
  version int NOT NULL DEFAULT 1 CHECK(version>0),
  FOREIGN KEY(branch_id,business_line_id) REFERENCES branch_masters(id,business_line_id)
 );
-CREATE INDEX IF NOT EXISTS crm_v3_contacts_scope_v16 ON crm_v3_contacts(business_line_id,branch_id,lower(email));
+CREATE INDEX IF NOT EXISTS crm_v3_contacts_scope_v17 ON crm_v3_contacts(business_line_id,branch_id,lower(email));
 
 CREATE TABLE IF NOT EXISTS crm_v3_contact_links (
  id uuid PRIMARY KEY,
@@ -161,9 +161,9 @@ CREATE TABLE IF NOT EXISTS crm_v3_contact_links (
  created_at timestamptz NOT NULL DEFAULT now(),
  CHECK(num_nonnulls(target_id,lead_id,account_id)=1)
 );
-CREATE UNIQUE INDEX IF NOT EXISTS crm_v3_contact_target_v16 ON crm_v3_contact_links(contact_id,target_id) WHERE target_id IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS crm_v3_contact_lead_v16 ON crm_v3_contact_links(contact_id,lead_id) WHERE lead_id IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS crm_v3_contact_account_v16 ON crm_v3_contact_links(contact_id,account_id) WHERE account_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS crm_v3_contact_target_v17 ON crm_v3_contact_links(contact_id,target_id) WHERE target_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS crm_v3_contact_lead_v17 ON crm_v3_contact_links(contact_id,lead_id) WHERE lead_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS crm_v3_contact_account_v17 ON crm_v3_contact_links(contact_id,account_id) WHERE account_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS crm_v3_activities (
  id uuid PRIMARY KEY,
@@ -188,7 +188,7 @@ CREATE TABLE IF NOT EXISTS crm_v3_activities (
  version int NOT NULL DEFAULT 1 CHECK(version>0),
  CHECK(num_nonnulls(target_id,lead_id,account_id)=1)
 );
-CREATE INDEX IF NOT EXISTS crm_v3_activity_due_v16 ON crm_v3_activities(owner_id,status,due_at);
+CREATE INDEX IF NOT EXISTS crm_v3_activity_due_v17 ON crm_v3_activities(owner_id,status,due_at);
 
 CREATE TABLE IF NOT EXISTS crm_v3_campaigns (
  id uuid PRIMARY KEY,
@@ -258,17 +258,17 @@ CREATE TABLE IF NOT EXISTS crm_v3_events (
  reason text NOT NULL DEFAULT '',
  created_at timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS crm_v3_events_lookup_v16 ON crm_v3_events(entity_kind,entity_id,id DESC);
-CREATE OR REPLACE TRIGGER crm_v3_events_append_only_v16 BEFORE UPDATE OR DELETE ON crm_v3_events FOR EACH ROW EXECUTE FUNCTION prevent_audit_mutation();
+CREATE INDEX IF NOT EXISTS crm_v3_events_lookup_v17 ON crm_v3_events(entity_kind,entity_id,id DESC);
+CREATE OR REPLACE TRIGGER crm_v3_events_append_only_v17 BEFORE UPDATE OR DELETE ON crm_v3_events FOR EACH ROW EXECUTE FUNCTION prevent_audit_mutation();
 
-CREATE OR REPLACE FUNCTION crm_v3_forbid_delete_v16() RETURNS trigger LANGUAGE plpgsql AS $$
+CREATE OR REPLACE FUNCTION crm_v3_forbid_delete_v17() RETURNS trigger LANGUAGE plpgsql AS $$
  BEGIN RAISE EXCEPTION 'CRM operational history cannot be physically deleted' USING ERRCODE='23514'; END $$;
 DO $tables$
 DECLARE t text;
 BEGIN
  FOREACH t IN ARRAY ARRAY['crm_v3_global_clients','crm_v3_targets','crm_v3_leads','crm_v3_crfs','crm_v3_accounts','crm_v3_contacts','crm_v3_activities','crm_v3_campaigns'] LOOP
-  EXECUTE format('DROP TRIGGER IF EXISTS forbid_delete_v16 ON %I',t);
-  EXECUTE format('CREATE TRIGGER forbid_delete_v16 BEFORE DELETE ON %I FOR EACH ROW EXECUTE FUNCTION crm_v3_forbid_delete_v16()',t);
+  EXECUTE format('DROP TRIGGER IF EXISTS forbid_delete_v17 ON %I',t);
+  EXECUTE format('CREATE TRIGGER forbid_delete_v17 BEFORE DELETE ON %I FOR EACH ROW EXECUTE FUNCTION crm_v3_forbid_delete_v17()',t);
  END LOOP;
 END $tables$;
 
