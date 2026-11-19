@@ -42,7 +42,13 @@ try{
   await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(data)});
  });
  await page.goto('http://127.0.0.1:'+server.address().port+'/',{waitUntil:'networkidle'});
- await page.locator('[data-nav="v3targets"]').waitFor({timeout:12000});
+ // The new Operational CRM sidebar group is initially collapsed by the approved
+ // independent-group navigation standard. Expand it like an actual user.
+ await page.locator('[data-nav="v3targets"]').waitFor({state:'attached',timeout:12000});
+ if(!await page.locator('[data-nav="v3targets"]').isVisible()){
+  await page.getByRole('button',{name:/OPERATIONAL CRM/}).click();
+ }
+ await page.locator('[data-nav="v3targets"]').waitFor({state:'visible',timeout:12000});
  await page.locator('[data-nav="v3targets"]').click();
  await page.getByRole('heading',{name:'Target Lists'}).waitFor({timeout:12000});
  await page.getByRole('button',{name:/Add Target/}).click();
