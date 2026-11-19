@@ -19,6 +19,7 @@ const staticFiles = [
   'module-header.css',
   'app.js',
   'crm-v3-ui.js',
+  'crm-v3-access-ui.js',
   'crm-v3.css',
   'responsive.js',
   'auth.js',
