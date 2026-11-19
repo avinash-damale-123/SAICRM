@@ -11,17 +11,21 @@ assert.match(url.pathname,/test/i,'Refusing database without test in name');
 const pool=new pg.Pool({connectionString:value,max:2}),client=await pool.connect();
 try {
  const sql=await readFile(new URL('../db/017_crm_v3_corporate_noniata.sql',import.meta.url),'utf8');
+ const accessSql=await readFile(new URL('../db/018_crm_v3_effective_access.sql',import.meta.url),'utf8');
  await client.query(sql);
  await client.query(sql);
+ await client.query(accessSql);
+ await client.query(accessSql);
  assert.equal((await client.query('SELECT COUNT(*)::int n FROM schema_migrations WHERE version=17')).rows[0].n,1);
+ assert.equal((await client.query('SELECT COUNT(*)::int n FROM schema_migrations WHERE version=18')).rows[0].n,1);
  await client.query('BEGIN');
  const userId=(await client.query('SELECT id FROM users ORDER BY created_at LIMIT 1')).rows[0]?.id;
  assert.ok(userId,'Prior integration test must create a user');
  const reviewerId=randomUUID();
- await client.query("INSERT INTO users(id,email,name,password_hash,email_verified,status,role,system_role) VALUES($1,$2,'Finance Reviewer','test-only',true,'approved','admin','super_admin')",
+ await client.query("INSERT INTO users(id,email,name,password_hash,email_verified,status,role,system_role) VALUES($1,$2,'Finance Reviewer','test-only',true,'approved','admin','user')",
  [reviewerId,'finance-crm-v3-'+reviewerId+'@example.test']);
  const sales={id:userId,system_role:'super_admin',email_verified:true,status:'approved',role:'admin'};
- const reviewer={id:reviewerId,system_role:'super_admin',email_verified:true,status:'approved',role:'admin'};
+ const reviewer={id:reviewerId,system_role:'user',email_verified:true,status:'approved',role:'admin'};
  const bl=randomUUID(),country=randomUUID(),region=randomUUID(),branchId=randomUUID();
  await client.query("INSERT INTO business_lines(id,name,code,owner_id,created_by,updated_by) VALUES($1,'CRM v3 Test Business Line',$2,$3,$3,$3)",[bl,'V3BL',userId]);
  await client.query("INSERT INTO countries(id,name,code,iso3,iso_numeric,dialing_code,default_currency,nationality,continent,owner_id,created_by,updated_by) VALUES($1,'Testland CRM V3','VX','VXX','999','+998','USD','Testlander','Asia',$2,$2,$2)",[country,userId]);
@@ -29,6 +33,16 @@ try {
  await client.query("INSERT INTO regions(id,business_line_id,name,code,regional_manager,owner_id,created_by,updated_by) VALUES($1,$2,'CRM v3 Region','V3RG','CRM v3 Manager',$3,$3,$3)",[region,bl,userId]);
  await client.query("INSERT INTO branch_masters(id,business_line_id,region_id,country_id,code,name,city,time_zone,owner_id,created_by,updated_by) VALUES($1,$2,$3,$4,'V3-BRANCH','CRM v3 Test Branch','Test City','UTC',$5,$5,$5)",[branchId,bl,region,country,userId]);
  const run=(path,method='GET',body={},actor=sales,query='')=>crmV3({client,user:actor,path:['crm-v3',...path],method,body,url:new URL('https://crm.invalid/api/crm-v3/'+path.join('/')+query)});
+ const financeDept=randomUUID(),financeRole=randomUUID();
+ await client.query("INSERT INTO department_units(id,scope,level,name,code,created_by,updated_by) VALUES($1,'Central','Department','Finance','FIN-V3-TEST',$2,$2)",[financeDept,userId]);
+ const rolePermissions={CRM_V3_CRFS:{actions:['View','Approve'],scope:'Branch'}};
+ await client.query("INSERT INTO crm_permission_roles(id,name,code,department_id,user_type,permissions,created_by,updated_by) VALUES($1,'CRM Finance Reviewer','FIN-V3-REVIEW',$2,'Admin',$3::jsonb,$4,$4)",[financeRole,financeDept,JSON.stringify(rolePermissions),userId]);
+ await assert.rejects(()=>run(['crfs'],'GET',{},reviewer),/Role Matrix|permission/i);
+ const assignment=await run(['access'],'POST',{userId:reviewerId,roleId:financeRole,branchId,note:'Test Finance approval delegated by Super Admin'},sales);
+ assert.ok(assignment.assignmentId);
+ assert.equal((await run(['access'],'GET',{},sales)).assignments.length,1);
+ await assert.rejects(()=>run(['access'],'GET',{},reviewer),/Super Admin/i);
+
  const boot=await run(['bootstrap']);
  assert.ok(boot.branches.some(b=>b.id===branchId));
  const target=(await run(['targets'],'POST',{name:'Sample Corporate for CRM v3',segment:'Corporate',businessLineId:bl,branchId,source:'Reference'})).record;
@@ -56,7 +70,8 @@ try {
  const submitted=(await run(['crfs',crf.id,'submit'],'POST',{version:updated.version})).record;
  assert.ok(submitted.submitted_at);
  await assert.rejects(()=>run(['crfs',crf.id,'submit'],'POST',{version:submitted.version}),/already submitted/i);
- await assert.rejects(()=>run(['crfs',crf.id,'decide'],'POST',{version:submitted.version,decision:'Approved',evidenceVerified:true},sales),/requester cannot approve|explicit Finance approval access/i);
+ await assert.rejects(()=>run(['crfs',crf.id,'decide'],'POST',{version:submitted.version,decision:'Approved',evidenceVerified:true},sales),/Role Matrix|Finance|permission/i);
+ assert.equal((await run(['crfs'],'GET',{},reviewer)).total,1);
  await assert.rejects(()=>run(['crfs',crf.id,'decide'],'POST',{version:submitted.version,decision:'Approved',evidenceVerified:false},reviewer),/verify/i);
  const approved=await run(['crfs',crf.id,'decide'],'POST',{version:submitted.version,decision:'Approved',evidenceVerified:true},reviewer);
  assert.equal(approved.record.status,'Approved');
@@ -78,5 +93,5 @@ try {
  await assert.rejects(()=>client.query('DELETE FROM crm_v3_accounts WHERE id=$1',[approved.account.id]),/cannot be physically deleted/i);
  await client.query('ROLLBACK TO SAVEPOINT no_change');
  await client.query('ROLLBACK');
- console.log('PASS CRM v3: migrations reapply; master foreign keys; Corporate-only qualification; Contacts/Activities; CRF maker-checker; Approved Account; audits; draft-only Campaign');
+ console.log('PASS CRM v3: migrations 017/018; scoped Finance Role Matrix grant; Corporate-only qualification; Contacts/Activities; maker-checker; Approved Account; audits; draft-only Campaign');
 } catch(e) {await client.query('ROLLBACK').catch(()=>{});throw e;} finally {client.release();await pool.end();}
