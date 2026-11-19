@@ -15,6 +15,14 @@ export function cleanText(value,label,max=200,required=true){
  return v;
 }
 export function qualificationEvidence(value){const s=cleanText(value,'Qualification evidence',3000);if(s.length<10)fail(400,'Record a qualifying interest or business requirement (minimum 10 characters)');return s;}
+export function commercialWinEvidence(value){const s=cleanText(value,'Commercial win evidence',3000);if(s.length<10)fail(400,'Commercially Won requires written business confirmation or evidence (minimum 10 characters)');return s;}
+export function validateLeadStageTransition(from,to,{winEvidence='',closeReason=''}={}){
+ validLeadStage(from);validLeadStage(to);
+ if(from!==to&&['Commercially Won','Closed & Dead'].includes(from))fail(409,'A terminal Lead requires a separately reviewed reversal; ordinary stage editing is blocked');
+ if(to==='Commercially Won'&&from!==to)commercialWinEvidence(winEvidence);
+ if(to==='Closed & Dead'&&from!==to)cleanText(closeReason,'Close Reason',1000);
+ return true;
+}
 export function validTargetStage(value){return allowed(value,TARGET_STAGES,'Target stage');}
 export function validLeadStage(value){return allowed(value,LEAD_STAGES,'Lead stage');}
 export function validCrfStatus(value){return allowed(value,CRF_STATUSES,'CRF status');}
