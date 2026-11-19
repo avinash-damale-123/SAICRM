@@ -5,11 +5,11 @@ Purpose: One reviewed release for Corporate + Non-IATA Target -> Lead -> Commerc
 - Production `main` + Vercel READY: `a7a195a8610221d66ff1433be7666c60910adbd9` (6 Nov 2026).
 - Development PR #74 is the database-backed implementation, draft, **not merged or Production deployed**.
 - PR #75 is a separate policy-document/test draft; do not merge it as a substitute for PR #74. Reconcile approved business rules into the release implementation.
-- Yiron PR #73 is also draft and reserves migration 016 in a different stream. Do not merge both incompatible migration-016 files into main. Assign a unique migration version as part of an intentional sequence.
-- Branch `feat/crm-v3-corporate-noniata-core` has `db/016_crm_v3_corporate_noniata.sql`, `crm-v3-ui.js`, `server/crm-v3.mjs`, policy and PostgreSQL/browser tests.
+- Yiron PR #73 is also draft and reserves migration 017 in a different stream. Do not merge both incompatible migration-016 files into main. Assign a unique migration version as part of an intentional sequence.
+- Branch `feat/crm-v3-corporate-noniata-core` has `db/017_crm_v3_corporate_noniata.sql`, `crm-v3-ui.js`, `server/crm-v3.mjs`, policy and PostgreSQL/browser tests.
 - Its UI now follows the sidebar standard of independently collapsed groups, corrected in browser test commit `0e67f54`.
 - Vercel Preview has a READY build for this code but its Preview environment has no unscoped DATABASE_URL for this branch, so a READY build is **not authenticated, database-backed UAT**.
-- Verified connected Neon organization **Vercel: Avinash Damale's projects**, project `young-math-69929116` and default branch `br-silent-moon-b8tk6fsp`. Read-only production `schema_migrations` confirms versions **1–15** are already registered. No CRM v3 migration has been applied.
+- Verified connected Neon organization **Vercel: Avinash Damale's projects**, project `young-math-69929116` and default branch `br-silent-moon-b8tk6fsp`. Read-only production `schema_migrations` confirms versions **1–15** are already registered. No CRM v3 migration has been applied; local CI is green on Node 22/24 at commit `41a6a9d`.
 - **Capacity blocker:** attempting to create an isolated v3-validation branch returned `HTTP 422 branches limit exceeded`, and trying to create a new pre-release snapshot returned `HTTP 422 snapshots limit exceeded` on the linked Free plan. Do not recycle/delete historical branches or replace the sole existing snapshot without an approved retention decision. The production database has not been altered.
 
 ## Gate 1 — Scope and security (OPEN)
@@ -23,8 +23,8 @@ Purpose: One reviewed release for Corporate + Non-IATA Target -> Lead -> Commerc
 - [x] Identify the Neon project and default branch containing the legacy SAI-CRM migration history (versions 1–15).
 - [ ] Independently verify Vercel Production DATABASE_URL's exact target using non-secret metadata; sensitive environment values are unavailable to this connector.
 - [ ] Capture a verified recovery point or backup and test restore/rollback.
-- [ ] Run migration 016 on an isolated Neon branch from the matching live database; run negative/authenticated tests and record schema diff.
-- [ ] Resolve migration-number conflict with Analytics-Y1 draft PR #73.
+- [ ] Run migration 017 on an isolated Neon branch from the matching live database; run negative/authenticated tests and record schema diff.
+- [ ] Resolve migration order when adding Analytics-Y1 PR #73.
 - [ ] Apply approved additive migrations to Production via direct DB connection and verify `schema_migrations` and object permissions.
 - [ ] Set up an isolated Preview database and test accounts; NEVER point Preview tests at Production DB.
 
