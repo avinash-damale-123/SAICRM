@@ -10,10 +10,10 @@ assert.ok(['localhost','127.0.0.1','[::1]'].includes(url.hostname),'Refusing any
 assert.match(url.pathname,/test/i,'Refusing database without test in name');
 const pool=new pg.Pool({connectionString:value,max:2}),client=await pool.connect();
 try {
- const sql=await readFile(new URL('../db/016_crm_v3_corporate_noniata.sql',import.meta.url),'utf8');
+ const sql=await readFile(new URL('../db/017_crm_v3_corporate_noniata.sql',import.meta.url),'utf8');
  await client.query(sql);
  await client.query(sql);
- assert.equal((await client.query('SELECT COUNT(*)::int n FROM schema_migrations WHERE version=16')).rows[0].n,1);
+ assert.equal((await client.query('SELECT COUNT(*)::int n FROM schema_migrations WHERE version=17')).rows[0].n,1);
  await client.query('BEGIN');
  const userId=(await client.query('SELECT id FROM users ORDER BY created_at LIMIT 1')).rows[0]?.id;
  assert.ok(userId,'Prior integration test must create a user');
