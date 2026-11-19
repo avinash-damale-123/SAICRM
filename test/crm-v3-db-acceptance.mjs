@@ -43,7 +43,10 @@ try {
  const lead=(await run(['targets',target.id,'qualify'],'POST',{version:target.version,qualificationEvidence:'The customer asked for a formal corporate travel proposal',potentialUsd:125000})).record;
  assert.match(lead.display_id,/^LD-\d{6,}$/);
  assert.equal(lead.target_id,target.id);
- const moved=await run(['leads',lead.id],'PUT',{version:lead.version,stage:'Commercially Won'});
+ await assert.rejects(()=>run(['leads',lead.id],'PUT',{version:lead.version,stage:'Commercially Won'}),/Commercially Won requires written business confirmation/i);
+ const moved=await run(['leads',lead.id],'PUT',{version:lead.version,stage:'Commercially Won',commercialWinEvidence:'Signed proposal accepted by the business customer'});
+ assert.equal(moved.record.commercial_win_evidence,'Signed proposal accepted by the business customer');
+ await assert.rejects(()=>run(['leads',lead.id],'PUT',{version:moved.record.version,stage:'Closed & Dead',closeReason:'Test'}),/terminal Lead requires a separately reviewed reversal/i);
  assert.ok(moved.record.commercial_won_at);
  assert.ok(moved.crf);
  const crf=moved.crf;
