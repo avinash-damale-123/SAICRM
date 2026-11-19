@@ -1,4 +1,5 @@
 import { crmV3 } from './crm-v3.mjs';
+import { effectiveOperationalResourceKeys } from './crm-v3-access.mjs';
 import { recordsFramework } from './records-framework.mjs';
 import { yironCatalog,fetchYironSource } from './yiron-analytics.mjs';
 import { countryRecordsFramework } from './country-records-framework.mjs';
@@ -312,7 +313,11 @@ export function createHandler({ pool, config, deliver = message => sendEmail(con
     if (path[0] === 'branch-master') return await branchMasterFramework({client,user:current,path,method,url,body});
     if (path[0] === 'department-master') return await departmentMaster({client,user:current,path,method,url,body});
     if (path[0] === 'organizational-roles') return await organizationalRoleMaster({client,user:current,path,method,url,body});
-    if(path[0]==='resource-eligibility'&&path.length===1&&method==='GET') return {keys:await eligibleResourceKeys(client,current)};
+    if(path[0]==='resource-eligibility'&&path.length===1&&method==='GET') {
+     const keys=await eligibleResourceKeys(client,current);
+     const operational=await effectiveOperationalResourceKeys(client,current);
+     return {keys:keys.filter(k=>!k.startsWith('CRM_V3_')||operational.includes(k))};
+    }
     if (path[0] === 'module-master') return await moduleMaster({client,user:current,path,method,url,body});
     if (path[0] === 'role-matrix') return await roleMatrix({client,user:current,path,method,url,body});
     const resourceKey=keyForApi(path[0]);
