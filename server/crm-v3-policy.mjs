@@ -15,7 +15,7 @@ export function cleanText(value,label,max=200,required=true){
  return v;
 }
 export function qualificationEvidence(value){const s=cleanText(value,'Qualification evidence',3000);if(s.length<10)fail(400,'Record a qualifying interest or business requirement (minimum 10 characters)');return s;}
-export function commercialWinEvidence(value){const s=cleanText(value,'Commercial win evidence',3000);if(s.length<10)fail(400,'Commercially Won requires written business confirmation or evidence (minimum 10 characters)');return s;}
+export function commercialWinEvidence(value){const s=cleanText(value??'','Commercial win evidence',3000,false);if(s.length<10)fail(400,'Commercially Won requires written business confirmation or evidence (minimum 10 characters)');return s;}
 export function validateLeadStageTransition(from,to,{winEvidence='',closeReason=''}={}){
  validLeadStage(from);validLeadStage(to);
  if(from!==to&&['Commercially Won','Closed & Dead'].includes(from))fail(409,'A terminal Lead requires a separately reviewed reversal; ordinary stage editing is blocked');
