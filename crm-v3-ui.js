@@ -110,7 +110,11 @@ function mount(root,pageId){
     if(next===null)return;
     const reason=next==='Closed & Dead'?window.prompt('Closure reason (mandatory):',''):'';
     if(reason===null)return;
-    await api('crm-v3/leads/'+id,'PUT',{version:row.version,stage:next,closeReason:reason});
+    const winEvidence=next==='Commercially Won'&&next!==row.stage?window.prompt('Describe the confirmed commercial win and evidence (minimum 10 characters):',''):undefined;
+    if(winEvidence===null)return;
+    const payload={version:row.version,stage:next,closeReason:reason};
+    if(winEvidence!==undefined)payload.commercialWinEvidence=winEvidence;
+    await api('crm-v3/leads/'+id,'PUT',payload);
     await refresh();return;
    }
    if(action==='crfedit'){const res=await api('crm-v3/crfs/'+id);show('crfedit',res.record);root.dataset.crfId=id;root.dataset.crfVersion=String(res.record.version);return;}
