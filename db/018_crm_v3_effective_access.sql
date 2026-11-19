@@ -42,5 +42,25 @@ BEGIN
   GRANT USAGE,SELECT ON SEQUENCE crm_v3_access_events_id_seq TO saicrm_runtime;
  END IF;
 END $grants$;
+-- Register operational resources without rewriting existing Module Directory policies.
+-- Existing per-user-type eligibility is preserved on conflict.
+INSERT INTO module_master_resources
+ (id,resource_key,name,resource_type,section,category,route,description,
+  system_locked,essential,common_resource,admin_allowed,manager_allowed,standard_allowed)
+SELECT gen_random_uuid(),k.resource_key,k.name,'MODULE',
+ 'Operational CRM — Corporate / Non-IATA','Non-Retail CRM','#'||k.route,
+ 'Corporate and Non-IATA operational CRM',false,false,false,true,true,true
+FROM (VALUES
+ ('CRM_V3_TARGETS','Target Lists','v3targets'),
+ ('CRM_V3_LEADS','Qualified Leads','v3leads'),
+ ('CRM_V3_CRFS','CRF / Finance Approvals','v3crfs'),
+ ('CRM_V3_ACCOUNTS','Local Accounts','v3accounts'),
+ ('CRM_V3_CONTACTS','Shared Contacts','v3contacts'),
+ ('CRM_V3_ACTIVITIES','Activities & Tasks','v3activities'),
+ ('CRM_V3_CAMPAIGNS','Campaigns / Email Sequencing','v3campaigns'),
+ ('CRM_V3_DASHBOARD','Sales Dashboard','v3dashboard'),
+ ('CRM_V3_GLOBAL_CLIENTS','Global Clients','v3globalclients')
+) AS k(resource_key,name,route)
+ON CONFLICT(resource_key) DO NOTHING;
 INSERT INTO schema_migrations(version) VALUES(18) ON CONFLICT DO NOTHING;
 COMMIT;
