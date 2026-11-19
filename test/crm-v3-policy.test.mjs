@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {SEGMENTS,TARGET_STAGES,LEAD_STAGES,CRF_STATUSES,segment,qualificationEvidence,requireCoreAccess,canSubmitCrf,canDecideFinance,validateFinanceDecision,restrictCrfProfile,validActivityLink,permitSequenceExecution} from '../server/crm-v3-policy.mjs';
+import {SEGMENTS,TARGET_STAGES,LEAD_STAGES,CRF_STATUSES,segment,qualificationEvidence,commercialWinEvidence,validateLeadStageTransition,requireCoreAccess,canSubmitCrf,canDecideFinance,validateFinanceDecision,restrictCrfProfile,validActivityLink,permitSequenceExecution} from '../server/crm-v3-policy.mjs';
 
 const admin={id:'admin',role:'admin',system_role:'super_admin',email_verified:true,status:'approved'};
 const sales={id:'sales',role:'member',email_verified:true,status:'approved'};
@@ -21,6 +21,14 @@ test('Target cannot convert to Lead on a blank or token-only qualification',()=>
  denied(()=>qualificationEvidence(''),400);
  denied(()=>qualificationEvidence('seen'),400);
  assert.equal(qualificationEvidence('Client requested travel-management proposal'),'Client requested travel-management proposal');
+});
+test('Commercially Won requires recorded evidence; a terminal Lead cannot be silently reverted',()=>{
+ denied(()=>commercialWinEvidence('Won'),400);
+ assert.equal(commercialWinEvidence('Written commercial confirmation'),'Written commercial confirmation');
+ denied(()=>validateLeadStageTransition('Negotiation','Commercially Won'),400);
+ validateLeadStageTransition('Negotiation','Commercially Won',{winEvidence:'Signed corporate travel agreement'});
+ denied(()=>validateLeadStageTransition('Commercially Won','Closed & Dead',{closeReason:'Cancelled'}),409);
+ denied(()=>validateLeadStageTransition('Closed & Dead','Hot'),409);
 });
 test('only Super Admin is permitted pilot core access until scoped permission-role linkage',()=>{
  requireCoreAccess(admin);
