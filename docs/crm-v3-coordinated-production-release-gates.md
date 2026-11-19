@@ -9,7 +9,8 @@ Purpose: One reviewed release for Corporate + Non-IATA Target -> Lead -> Commerc
 - Branch `feat/crm-v3-corporate-noniata-core` has `db/016_crm_v3_corporate_noniata.sql`, `crm-v3-ui.js`, `server/crm-v3.mjs`, policy and PostgreSQL/browser tests.
 - Its UI now follows the sidebar standard of independently collapsed groups, corrected in browser test commit `0e67f54`.
 - Vercel Preview has a READY build for this code but its Preview environment has no unscoped DATABASE_URL for this branch, so a READY build is **not authenticated, database-backed UAT**.
-- Available connected Neon account listed **zero projects**, so the live database cannot currently be backed up/branched/migrated through that connected service.
+- Verified connected Neon organization **Vercel: Avinash Damale's projects**, project `young-math-69929116` and default branch `br-silent-moon-b8tk6fsp`. Read-only production `schema_migrations` confirms versions **1–15** are already registered. No CRM v3 migration has been applied.
+- **Capacity blocker:** attempting to create an isolated v3-validation branch returned `HTTP 422 branches limit exceeded`, and trying to create a new pre-release snapshot returned `HTTP 422 snapshots limit exceeded` on the linked Free plan. Do not recycle/delete historical branches or replace the sole existing snapshot without an approved retention decision. The production database has not been altered.
 
 ## Gate 1 — Scope and security (OPEN)
 - [ ] Integrate effective User Management / Role Matrix assignment, including action and field permission checks for each CRM v3 module.
@@ -19,7 +20,8 @@ Purpose: One reviewed release for Corporate + Non-IATA Target -> Lead -> Commerc
 - [ ] Complete suppression/consent/mailbox approvals before any customer sending. Current Campaign UI is draft-only, and real email sequencing is NOT operational.
 
 ## Gate 2 — Database and integrations (OPEN)
-- [ ] Match Production Neon project and default branch to the Vercel Production DATABASE_URL without exposing credential values.
+- [x] Identify the Neon project and default branch containing the legacy SAI-CRM migration history (versions 1–15).
+- [ ] Independently verify Vercel Production DATABASE_URL's exact target using non-secret metadata; sensitive environment values are unavailable to this connector.
 - [ ] Capture a verified recovery point or backup and test restore/rollback.
 - [ ] Run migration 016 on an isolated Neon branch from the matching live database; run negative/authenticated tests and record schema diff.
 - [ ] Resolve migration-number conflict with Analytics-Y1 draft PR #73.
