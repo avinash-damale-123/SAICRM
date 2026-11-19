@@ -32,7 +32,7 @@ export function canAccessCore(user){
 }
 export function requireCoreAccess(user){if(!canAccessCore(user))fail(403,'CRM v3 pilot requires an approved Super Admin until scoped permission-role assignment is implemented');}
 export function canDecideFinance({actor,crf,lead,financeAuthorized=false}){
- if(!canAccessCore(actor)||!financeAuthorized)fail(403,'Explicit Finance approval access is required');
+ if(actor?.status!=='approved'||actor?.email_verified!==true||!financeAuthorized)fail(403,'Explicit, active Finance Department approval access is required');
  if(!crf||!lead||crf.lead_id!==lead.id)fail(404,'Linked CRF/Lead not found');
  if(crf.created_by===actor.id||crf.submitted_by===actor.id)fail(403,'The CRF requester cannot approve or reject their own submission');
  if(crf.status!=='In Progress'&&crf.status!=='Pending')fail(409,'Only a submitted or pending CRF can be decided');
