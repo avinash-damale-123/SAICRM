@@ -3,7 +3,6 @@ import {resourceEligible} from './module-master.mjs';
 import {canAccessCore} from './crm-v3-policy.mjs';
 
 const fail=(status,message)=>{throw Object.assign(new Error(message),{status});};
-const uuid=x=>typeof x==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i.test(x);
 const safeId=x=>typeof x==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(x);
 export const operationalResources=Object.freeze({
  targets:'CRM_V3_TARGETS',leads:'CRM_V3_LEADS',crfs:'CRM_V3_CRFS',
@@ -106,7 +105,7 @@ const baseAssignmentQuery=`SELECT a.*,u.name AS user_name,r.name AS role_name,d.
  JOIN branch_masters b ON b.id=a.branch_id`;
 export async function roleAssignmentsApi({client,user,path,method,body={}}){
  ensureAdmin(user);
- if(method==='GET'&&path.length===3){
+ if(method==='GET'&&path.length===2){
   const [users,roles,branches,assignments]=await Promise.all([
    client.query("SELECT id,name,email,role FROM users WHERE status='approved' AND email_verified=true ORDER BY name,id LIMIT 500"),
    client.query("SELECT r.id,r.name,r.user_type,r.permissions,d.name department FROM crm_permission_roles r JOIN department_units d ON d.id=r.department_id WHERE r.status='Active' AND d.status='Active' AND d.archived_at IS NULL AND d.deleted_at IS NULL ORDER BY d.name,r.name"),
@@ -115,7 +114,7 @@ export async function roleAssignmentsApi({client,user,path,method,body={}}){
   ]);
   return {users:users.rows,roles:roles.rows,branches:branches.rows,assignments:assignments.rows.map(showAssignment)};
  }
- if(method==='POST'&&path.length===3){
+ if(method==='POST'&&path.length===2){
   if(!body||Object.keys(body).some(k=>!['userId','roleId','branchId','note'].includes(k)))fail(400,'Invalid assignment fields');
   for(const k of ['userId','roleId','branchId'])if(!safeId(body[k]))fail(400,'Invalid '+k);
   const target=(await client.query('SELECT id,role,status,email_verified FROM users WHERE id=$1 FOR SHARE',[body.userId])).rows[0];
@@ -141,9 +140,9 @@ export async function roleAssignmentsApi({client,user,path,method,body={}}){
   await client.query('INSERT INTO audit(actor,action,module,record_id) VALUES($1,$2,$3,$4)',[user.id,'Granted Role Matrix access','crm-v3:Access',id]);
   return {assignmentId:id,message:'Operational CRM role assigned. Permissions take effect on the next request'};
  }
- if(method==='DELETE'&&path.length===4){
-  if(!safeId(path[3]))fail(400,'Invalid role assignment ID');
-  const id=path[3],note=cleanNote(body?.reason??'Revoked by Super Admin');
+ if(method==='DELETE'&&path.length===3){
+  if(!safeId(path[2]))fail(400,'Invalid role assignment ID');
+  const id=path[2],note=cleanNote(body?.reason??'Revoked by Super Admin');
   const row=(await client.query('SELECT * FROM crm_v3_user_role_assignments WHERE id=$1 FOR UPDATE',[id])).rows[0];
   if(!row||row.revoked_at)fail(404,'Active role assignment not found');
   await client.query('UPDATE crm_v3_user_role_assignments SET revoked_at=now(),revoked_by=$2 WHERE id=$1',[id,user.id]);
