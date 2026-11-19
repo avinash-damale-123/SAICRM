@@ -64,7 +64,7 @@ try{
  assert.ok(requests.some(r=>r.path==='crm-v3/targets'&&r.method==='POST'&&r.body.businessLineId===lineId));
  await page.locator('[data-nav="v3dashboard"]').click();
  await page.getByRole('heading',{name:'Sales Dashboard'}).waitFor();
- await page.getByText('Targets',{exact:false}).first().waitFor();
+ await page.locator('.crm-v3-metric').filter({hasText:'Target Lists'}).waitFor();
  await page.locator('[data-nav="v3campaigns"]').click();
  await page.getByRole('heading',{name:/Campaigns/}).waitFor();
  await page.getByText('Outbound email sends are disabled',{exact:false}).waitFor();
