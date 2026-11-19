@@ -68,6 +68,7 @@ CREATE TABLE IF NOT EXISTS crm_v3_leads (
  lead_source text NOT NULL DEFAULT '' CHECK(length(lead_source)<=150),
  close_reason text NOT NULL DEFAULT '' CHECK(length(close_reason)<=1000),
  commercial_won_at timestamptz,
+ commercial_win_evidence text NOT NULL DEFAULT '' CHECK(length(commercial_win_evidence)<=3000),
  owner_id uuid NOT NULL REFERENCES users(id),
  assigned_user_id uuid REFERENCES users(id),
  created_by uuid NOT NULL REFERENCES users(id),
@@ -77,7 +78,8 @@ CREATE TABLE IF NOT EXISTS crm_v3_leads (
  version int NOT NULL DEFAULT 1 CHECK(version>0),
  archived_at timestamptz,
  FOREIGN KEY(branch_id,business_line_id) REFERENCES branch_masters(id,business_line_id),
- CHECK(stage<>'Commercially Won' OR commercial_won_at IS NOT NULL)
+ CHECK(stage<>'Commercially Won' OR commercial_won_at IS NOT NULL),
+ CHECK(stage<>'Commercially Won' OR length(btrim(commercial_win_evidence))>=10)
 );
 CREATE INDEX IF NOT EXISTS crm_v3_leads_scope_v17 ON crm_v3_leads(business_line_id,branch_id,stage,updated_at DESC);
 
