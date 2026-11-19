@@ -86,6 +86,19 @@ try {
  assert.equal(figures.metrics.targets.total,1);
  assert.equal(figures.metrics.leads.total,1);
  assert.equal(figures.metrics.accounts.total,1);
+ // Explicit branch-scoped Finance access must not reveal other branches.
+ const secondBranch=randomUUID();
+ await client.query("INSERT INTO branch_masters(id,business_line_id,region_id,country_id,code,name,city,time_zone,owner_id,created_by,updated_by) VALUES($1,$2,$3,$4,'V3-BRANCH-2','CRM v3 Other Branch','Second City','UTC',$5,$5,$5)",[secondBranch,bl,region,country,userId]);
+ const otherTarget=(await run(['targets'],'POST',{name:'Other branch corporate',segment:'Corporate',businessLineId:bl,branchId:secondBranch})).record;
+ const otherLead=(await run(['targets',otherTarget.id,'qualify'],'POST',{version:otherTarget.version,qualificationEvidence:'Second-branch customer requested a negotiated quotation'})).record;
+ const otherWon=await run(['leads',otherLead.id],'PUT',{version:otherLead.version,stage:'Commercially Won',commercialWinEvidence:'Independent commercial contract signed for second branch'});
+ assert.ok(otherWon.crf);
+ assert.equal((await run(['crfs'],'GET',{},reviewer)).total,1,'Finance role cannot count another branch CRF');
+ await assert.rejects(()=>run(['crfs',otherWon.crf.id],'GET',{},reviewer),/outside your permitted scope/i);
+ await assert.rejects(()=>run(['targets'],'GET',{},reviewer),/Role Matrix/i);
+ const revoked=await run(['access',assignment.assignmentId],'DELETE',{reason:'End of Finance QA authorization'},sales);
+ assert.match(revoked.message,/revoked/i);
+ await assert.rejects(()=>run(['crfs'],'GET',{},reviewer),/Role Matrix/i);
  await client.query('SAVEPOINT no_change');
  await assert.rejects(()=>client.query("DELETE FROM crm_v3_events WHERE entity_kind='Account'"),/append-only/i);
  await client.query('ROLLBACK TO SAVEPOINT no_change');
