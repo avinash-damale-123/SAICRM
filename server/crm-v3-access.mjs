@@ -35,6 +35,7 @@ export async function accessFor(client,user,kind,action='View'){
  // Finance approval always requires an explicit active Finance departmental role,
  // including for Super Admin; administrative access cannot silently grant Approve.
  const isAdmin=canAccessCore(user);
+ if(kind==='globalclients'&&!isAdmin)return {all:false,branch:[],mine:[],has:false,finance:false};
  if(action!=='Approve'&&isAdmin)return {all:true,branch:[],mine:[],has:true,finance:false};
  if(!(await resourceEligible(client,user,resource)))return {all:false,branch:[],mine:[],has:false,finance:false};
  const list=await assignmentsFor(client,user);const branch=new Set(),mine=new Set();
