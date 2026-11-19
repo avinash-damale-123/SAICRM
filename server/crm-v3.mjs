@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto';
-import {requireCoreAccess,segment,cleanText,qualificationEvidence,validTargetStage,validLeadStage,validActivityKind,validActivityLink,canSubmitCrf,canDecideFinance,validateFinanceDecision,restrictCrfProfile} from './crm-v3-policy.mjs';
+import {requireCoreAccess,segment,cleanText,qualificationEvidence,commercialWinEvidence,validateLeadStageTransition,validTargetStage,validLeadStage,validActivityKind,validActivityLink,canSubmitCrf,canDecideFinance,validateFinanceDecision,restrictCrfProfile} from './crm-v3-policy.mjs';
 
 const fail=(status,message)=>{throw Object.assign(new Error(message),{status});};
 const uuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
@@ -149,18 +149,19 @@ async function updateTarget(client,user,id,body){
  return{record:r.rows[0]};
 }
 async function updateLead(client,user,id,body){
- only(body,['version','stage','potentialUsd','closeReason']);
+ only(body,['version','stage','potentialUsd','closeReason','commercialWinEvidence']);
  const current=await record(client,tables.leads,id,true);versionOf(body.version);
  if(body.version!==current.version)fail(409,'Record changed; refresh before saving');
  if(current.archived_at)fail(409,'Archived Leads cannot be edited');
  const stage=body.stage!==undefined?validLeadStage(body.stage):current.stage;
  const reason=body.closeReason!==undefined?txt(body.closeReason,'Close Reason',1000):current.close_reason;
- if(stage==='Closed & Dead'&&!reason)fail(400,'Close & Dead requires a reason');
- if(current.commercial_won_at&&stage!=='Commercially Won'&&stage!=='Closed & Dead')fail(409,'A commercially won Lead cannot return to prospecting without a separate reviewed reversal');
+ validateLeadStageTransition(current.stage,stage,{winEvidence:body.commercialWinEvidence,closeReason:reason});
+ const evidence=stage==='Commercially Won'&&stage!==current.stage?commercialWinEvidence(body.commercialWinEvidence):current.commercial_win_evidence;
+ if(body.commercialWinEvidence!==undefined&&stage!=='Commercially Won')fail(400,'Commercial win evidence applies only when marking Commercially Won');
  const won=stage==='Commercially Won'?(current.commercial_won_at||new Date()):current.commercial_won_at;
- const r=await client.query('UPDATE crm_v3_leads SET stage=$2,annual_potential_usd=$3,close_reason=$4,commercial_won_at=$5,updated_by=$6,updated_at=now(),version=version+1 WHERE id=$1 RETURNING *',
-  [id,stage,body.potentialUsd!==undefined?moneyOf(body.potentialUsd):current.annual_potential_usd,reason,won,user.id]);
- await event(client,user,'Lead',id,stage===current.stage?'Updated':'Stage changed',{from:current.stage,to:stage,commercialWonAt:won,previousVersion:current.version},reason);
+ const r=await client.query('UPDATE crm_v3_leads SET stage=$2,annual_potential_usd=$3,close_reason=$4,commercial_won_at=$5,updated_by=$6,updated_at=now(),version=version+1,commercial_win_evidence=$7 WHERE id=$1 RETURNING *',
+  [id,stage,body.potentialUsd!==undefined?moneyOf(body.potentialUsd):current.annual_potential_usd,reason,won,user.id,evidence]);
+ await event(client,user,'Lead',id,stage===current.stage?'Updated':'Stage changed',{from:current.stage,to:stage,commercialWonAt:won,winEvidenceRecorded:stage==='Commercially Won',previousVersion:current.version},reason);
  let crf=null;
  if(stage==='Commercially Won'){
   const created=await client.query('INSERT INTO crm_v3_crfs(id,lead_id,created_by,updated_by) VALUES($1,$2,$3,$3) ON CONFLICT(lead_id) DO NOTHING RETURNING *',[randomUUID(),id,user.id]);
