@@ -61,13 +61,17 @@ test('activities have exactly one primary linked business record',()=>{
  denied(()=>validActivityLink({}),400);
  denied(()=>validActivityLink({targetId:'a',accountId:'b'}),400);
 });
-test('email sending is disabled until approved, mailbox connected and recipient eligible',()=>{
- const campaign={status:'Active',approved_at:new Date()};
- const recipient={status:'Active',verification:'Verified'};
- const step={kind:'Email'};
- assert.equal(permitSequenceExecution({campaign,recipient,step,mailboxConnected:true,centralApproved:true}),true);
- denied(()=>permitSequenceExecution({campaign,recipient,step,mailboxConnected:false,centralApproved:true}),409);
- denied(()=>permitSequenceExecution({campaign,recipient,step,mailboxConnected:true,centralApproved:false}),409);
- denied(()=>permitSequenceExecution({campaign,recipient:{...recipient,verification:'Unverified'},step,mailboxConnected:true,centralApproved:true}),409);
- denied(()=>permitSequenceExecution({campaign,recipient,step,mailboxConnected:true,suppressed:true,centralApproved:true}),409);
+test('outreach authorization is fail-closed for verified contacts, permissions, opt-out and duplicate sends',()=>{
+ const allowed={campaign:{status:'Active',approved_at:new Date()},recipient:{status:'Active',verification:'Verified'},
+ step:{kind:'Email'},mailboxConnected:true,centralApproved:true,suppressed:false,
+ consentVerified:true,purposeEligible:true,senderAuthorized:true,sendWindowOpen:true,alreadyExecuted:false};
+ assert.equal(permitSequenceExecution(allowed),true);
+ for(const [key,value] of [['mailboxConnected',false],['centralApproved',false],['suppressed',true],
+ ['consentVerified',false],['purposeEligible',false],['senderAuthorized',false],
+ ['sendWindowOpen',false],['alreadyExecuted',true]]){
+  denied(()=>permitSequenceExecution({...allowed,[key]:value}),409);
+ }
+ denied(()=>permitSequenceExecution({...allowed,recipient:{...allowed.recipient,verification:'Unverified'}}),409);
+ denied(()=>permitSequenceExecution({...allowed,recipient:{...allowed.recipient,verification:undefined}}),409);
+ denied(()=>permitSequenceExecution({campaign:allowed.campaign,recipient:allowed.recipient,step:allowed.step}),409);
 });
