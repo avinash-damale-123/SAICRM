@@ -62,10 +62,19 @@ export function validActivityLink(input){
  if(!input||typeof input!=='object'||['targetId','leadId','accountId'].filter(k=>input[k]!==undefined&&input[k]!==null&&input[k]!=='').length!==1)fail(400,'Link the activity to exactly one Target, Lead, or Account');
  return true;
 }
-export function permitSequenceExecution({campaign,recipient,step,mailboxConnected=false,suppressed=false,centralApproved=false}){
+export function permitSequenceExecution({
+ campaign,recipient,step,mailboxConnected=false,suppressed=true,
+ centralApproved=false,consentVerified=false,purposeEligible=false,
+ senderAuthorized=false,sendWindowOpen=false,alreadyExecuted=true
+}={}){
  if(campaign?.status!=='Active'||!campaign?.approved_at||!centralApproved)fail(409,'Campaign is not centrally approved and Active');
- if(!mailboxConnected)fail(409,'Sender mailbox is not connected');
- if(!recipient||!['Active','Pending'].includes(recipient.status)||recipient.verification==='Unverified'||suppressed)fail(409,'Recipient is unverified, suppressed or ineligible');
+ if(!mailboxConnected||!senderAuthorized)fail(409,'A connected and authorized sending mailbox is required');
+ if(!recipient||!['Active','Pending'].includes(recipient.status)||!['Validated','Verified'].includes(recipient.verification))
+  fail(409,'Recipient must be validated or verified and active');
+ if(suppressed||!consentVerified||!purposeEligible)fail(409,'Recipient is suppressed or not approved for this purpose and channel');
+ if(!sendWindowOpen)fail(409,'Outside permitted send window');
+ if(alreadyExecuted)fail(409,'Sequence step has already been attempted or sent; reconcile before retry');
  if(!step||!['Email','Call','Task'].includes(step.kind))fail(409,'Sequence step is not valid');
+ // Real email delivery is deliberately absent from this pilot.
  return true;
 }
