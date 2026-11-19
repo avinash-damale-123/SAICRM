@@ -32,7 +32,23 @@ const operational=[
 ].map(([key,name,slug])=>({key,name,type:'MODULE',section:'Core Modules',category:'General',route:'#'+slug,description:'',
  systemLocked:false,essential:false,common:false,admin:true,manager:!['EMPLOYEES','BRANCHES_LEGACY'].includes(key),
  standard:!['EMPLOYEES','BRANCHES_LEGACY'].includes(key)}));
-export const registeredModuleResources=Object.freeze([...managed,...essentials,...pages,...operational].map(x=>Object.freeze(x)));
+// Corporate/Non-IATA resources are registered for module eligibility and Role Matrix
+// configuration. A configured role is NOT a user grant until effective assignment is
+// verified at the API boundary (CRM v3 remains Super Admin pilot-only meanwhile).
+const crmV3Resources=[
+ ['CRM_V3_TARGETS','Target Lists','v3targets'],
+ ['CRM_V3_LEADS','Qualified Leads','v3leads'],
+ ['CRM_V3_CRFS','CRF / Finance Approvals','v3crfs'],
+ ['CRM_V3_ACCOUNTS','Local Accounts','v3accounts'],
+ ['CRM_V3_CONTACTS','Shared Contacts','v3contacts'],
+ ['CRM_V3_ACTIVITIES','Activities & Tasks','v3activities'],
+ ['CRM_V3_CAMPAIGNS','Campaigns / Email Sequencing','v3campaigns'],
+ ['CRM_V3_DASHBOARD','Sales Dashboard','v3dashboard'],
+ ['CRM_V3_GLOBAL_CLIENTS','Global Clients','v3globalclients']
+].map(([key,name,slug])=>({key,name,type:'MODULE',section:'Operational CRM — Corporate / Non-IATA',
+ category:'Non-Retail CRM',route:'#'+slug,description:'Corporate and Non-IATA operations',
+ systemLocked:false,essential:false,common:false,admin:true,manager:true,standard:true}));
+export const registeredModuleResources=Object.freeze([...managed,...essentials,...pages,...operational,...crmV3Resources].map(x=>Object.freeze(x)));
 const registry=new Map(registeredModuleResources.map(x=>[x.key,x]));
 const apiMap=Object.freeze({'business-lines':'BUSINESS_LINES',countries:'COUNTRIES',regions:'REGIONS','branch-master':'BRANCH_MASTER',
  'department-master':'DEPARTMENT_MASTER','organizational-roles':'ORGANIZATIONAL_ROLE_MASTER',
@@ -44,7 +60,10 @@ export const pageResourceKeys=Object.freeze({businesslines:'BUSINESS_LINES',coun
  reportinghierarchy:'REPORTING_HIERARCHY_MASTER',leads:'LEADS',customers:'CUSTOMERS',contacts:'CONTACTS',opportunities:'OPPORTUNITIES',
  activities:'ACTIVITIES',quotes:'QUOTES',bookings:'BOOKINGS',employees:'EMPLOYEES',branches:'BRANCHES_LEGACY',
  audit:'AUDIT',modules:'MODULE_DIRECTORY',settings:'SETTINGS',modulemaster:'MODULE_MASTER',rolematrix:'ROLE_MATRIX',home:'HOME',
- profile:'PROFILE',overview:'OVERVIEW',mywork:'MY_WORK',analytics:'ANALYTICS',notifications:'NOTIFICATIONS'});
+ profile:'PROFILE',overview:'OVERVIEW',mywork:'MY_WORK',analytics:'ANALYTICS',notifications:'NOTIFICATIONS',
+ v3targets:'CRM_V3_TARGETS',v3leads:'CRM_V3_LEADS',v3crfs:'CRM_V3_CRFS',v3accounts:'CRM_V3_ACCOUNTS',
+ v3contacts:'CRM_V3_CONTACTS',v3activities:'CRM_V3_ACTIVITIES',v3campaigns:'CRM_V3_CAMPAIGNS',
+ v3dashboard:'CRM_V3_DASHBOARD',v3globalclients:'CRM_V3_GLOBAL_CLIENTS'});
 const fail=(code,message)=>{throw Object.assign(new Error(message),{status:code});};
 const isAdmin=u=>u?.system_role==='super_admin'&&u.email_verified===true&&u.status==='approved';
 const type=u=>u?.role==='admin'?'admin_allowed':u?.role==='manager'?'manager_allowed':'standard_allowed';
