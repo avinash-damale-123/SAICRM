@@ -55,7 +55,7 @@ jobs:
         run: node test/role-matrix-db-acceptance.mjs
       - name: CRM v3 Corporate / Non-IATA PostgreSQL end-to-end acceptance
         run: node test/crm-v3-db-acceptance.mjs
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install chromium
       - run: npm run test:browser
       - run: npm run test:business-browser
       - name: Real PostgreSQL authenticated browser acceptance
